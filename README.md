@@ -1,83 +1,174 @@
 <p align="center">
-  <img src="src/netseer/web/logo-192.png" alt="NetSeer logo" width="168" />
+  <img src="src/netseer/web/logo.svg" alt="NetSeer logo" width="128" />
 </p>
 
-# NetSeer
+<h1 align="center">NetSeer</h1>
 
-**Turn traffic into terrain.**
+<p align="center"><strong>Turn traffic into terrain.</strong></p>
 
-NetSeer turns Layer 2 / Layer 3 network surveys into an interactive map, then export **draw.io** and **Visio**.
+NetSeer turns packet captures and wireless surveys into an interactive network map. Drop in a Wireshark, tcpdump, Kismet, or airodump-ng capture and it lays out the devices, subnets, VLANs, access points, and services it finds, with the evidence behind each one. Then rename, annotate, rearrange, and export the result to **draw.io**, **Visio**, or a **PDF report**.
 
-This is a web preview (not a compiled binary). It runs on Debian-family Linux and ships with synthetic campus captures so you can try it without uploading files.
+Everything runs on your machine. NetSeer reads capture files you give it; it doesn't sniff live traffic, and it makes no network requests of its own.
+
+## Contents
+
+- [Get NetSeer](#get-netseer)
+- [What it reads](#what-it-reads)
+- [What you get](#what-you-get)
+- [Where your data lives](#where-your-data-lives)
+- [Command-line options](#command-line-options)
+- [Develop](#develop)
+- [Build the desktop apps](#build-the-desktop-apps)
+- [Update and uninstall](#update-and-uninstall)
+
+Guides: [How to use NetSeer](docs/netseer-how-to.md) (every screen and control) · [Install and use on Debian/Ubuntu](docs/netseer-install-and-use.md) (step-by-step).
+
+## Get NetSeer
+
+| You're on | Get | How it opens |
+| --- | --- | --- |
+| Windows 10 or 11 | `NetSeer-Setup-<version>.exe`, or the portable `.zip` | Its own window (Edge WebView2) |
+| Linux desktop | `NetSeer-<version>-x86_64.AppImage`, or the `.tar.gz` | Its own window (see below) |
+| Linux server, Kali, Raspberry Pi | Install from source with `uv` or `pipx` | A browser, locally or over SSH |
+| macOS | From source | A browser |
+
+Download the Windows and Linux builds from [Releases](https://github.com/ardyn-systems/NetSeer/releases).
+
+### Windows
+
+Run **NetSeer-Setup-&lt;version&gt;.exe**. It installs for your user only (no admin prompt), adds a Start menu shortcut, and shows up under **Settings → Apps** for uninstalling. Or unzip the **portable** build anywhere and run `NetSeer.exe`.
+
+NetSeer opens in its own window using Microsoft Edge WebView2, which comes with Windows 10 and 11. If WebView2 is missing, it opens in your default browser instead.
+
+Until the builds are code-signed ([how to set that up](packaging/windows/SIGNING.md)), Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info** → **Run anyway**.
+
+### Linux desktop (AppImage)
+
+```bash
+chmod +x NetSeer-*-x86_64.AppImage
+./NetSeer-*-x86_64.AppImage             # run it
+./NetSeer-*-x86_64.AppImage --install   # optional: add NetSeer to your app menu
+```
+
+NetSeer picks the best window it can find:
+
+1. An installed **Chrome, Chromium, Edge, Brave, or Vivaldi** in app mode: its own window with no browser toolbar, and its own profile so your maps stay put.
+2. Otherwise your **default browser**. Maps are then saved in that browser, and NetSeer quits by itself a couple of minutes after you close the tab.
+
+The AppImage is built on Ubuntu 22.04 and runs on that or newer (Debian 12, Fedora 36+, and similar). If you'd rather not use AppImages, the `.tar.gz` has the same program: unpack it and run `NetSeer/NetSeer`.
+
+### Linux server, Kali, or Raspberry Pi (from source)
+
+Python 3.12 or newer. With [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv tool install git+https://github.com/ardyn-systems/NetSeer.git
+netseer
+```
+
+Or with pipx: `pipx install git+https://github.com/ardyn-systems/NetSeer.git`.
+
+Then open <http://127.0.0.1:47331>. To use NetSeer on a remote sensor from your laptop, keep it bound to localhost and tunnel over SSH:
+
+```bash
+ssh -L 47331:127.0.0.1:47331 you@sensor   # then browse to http://127.0.0.1:47331 on your laptop
+```
+
+`netseer --host 0.0.0.0` exposes it to your LAN instead, but the API has no login and can write files into `Unwanted/`, so only do that on a network you trust.
 
 ## What it reads
 
-| Source | Extensions |
+| Source | Files |
 | --- | --- |
 | Wireshark / tshark | `.pcap`, `.pcapng` |
 | tcpdump | `.pcap` |
 | Kismet | `.pcap`, `.pcapng`, `.netxml`, `.csv` |
 | airodump-ng | `.csv`, `.cap` |
+| NetSeer | `Unwanted-*.json` dumps (reload devices you set aside) |
 
-## What the map shows
+Captures up to 50 MB each, and up to 80,000 packets per capture. Bundled campus samples let you try it without any files of your own.
 
-When the frames or survey rows include them:
+From the frames and survey rows, NetSeer extracts:
 
-- MAC and IP addresses
-- **OUI manufacturer** from the IEEE MA-L / MA-M / MA-S / CID registries (locally administered and unregistered prefixes are labeled as such)
-- VLANs, subnet membership, default gateway / DHCP options, OSPF
-- Wireless SSIDs, BSSID, channel, frequency, encryption, signal, GPS
-- **TCP/UDP ports and named services** on nodes and on client→server edges (HTTP, HTTPS/TLS, SSH, DNS, DHCP, NTP, SNMP, OSPF, and other well-known ports). Names also come from protocol metadata in the frames (DNS queries, HTTP `Host`, SSH ident, TLS handshake).
+- **Addresses:** MAC and IP addresses, with TX / RX / DA / RA roles from the frames (never guessed)
+- **Manufacturers:** from the bundled IEEE MA-L / MA-M / MA-S / CID registry; locally administered and unregistered prefixes are labeled as such
+- **Networks:** subnets, VLANs (802.1Q), default gateways and DHCP options, OSPF routers, STP bridges
+- **Wireless:** SSIDs, BSSIDs, channels, frequencies, security (WPA2/WPA3 Personal and Enterprise, OWE, WEP, open), signal range, GPS
+- **Services:** TCP/UDP listening ports and named services, also recognized from the traffic itself (DNS queries, HTTP `Host`, SSH banners, TLS handshakes)
+- **Device types:** router, server, access point, host, wireless client, inferred from that evidence
 
-Click a device to see everything NetSeer found in the **Details** panel: rename it, add notes, copy values, edit any field, or download it (PDF, CSV, XML, plain text). Subnets are drawn as boxes around their devices, access points sit with their clients, and you can drag things around. **Find a device** searches names, IPs, MACs, and SSIDs.
+## What you get
 
-Wired L2, L3, wireless, VLAN, and service edges can be toggled independently. Four themes: **Terrain** (default), **Midnight**, **Daylight**, and **Blueprint**.
+- **A map that lays itself out.** Subnets are boxes around their devices, access points sit with their clients, and the layout fits your window. Drag anything to rearrange; positions are saved. **Tidy layout** resets them.
+- **Details for every device.** Click one to see what NetSeer found, rename it, add a caption and notes, copy any value, or edit any field. Edits are marked and can be reset.
+- **Several maps at once.** Each capture becomes a map. Copy, cut, paste, and move devices between maps (an access point brings its clients), merge maps, and set devices aside in **Unwanted**. Undo goes back 30 steps.
+- **Find a device** by name, IP, MAC, SSID, or notes (press `/`).
+- **Layers** to show or hide wired, IP, service, wireless, VLAN, subnet, and bridge links.
+- **Exports:**
+  - **draw.io** and **Visio** (`.vsdx`, `.vdx`), laid out like the map on screen, with subnets as containers
+  - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it
+  - per-device **PDF, CSV, XML, or text**
+- **Four themes:** Terrain (default), Midnight, Daylight (good for printing), and Blueprint.
 
-## Exports (same attributes as the preview)
+See the [How to](docs/netseer-how-to.md) for every control and keyboard shortcut.
 
-- **draw.io** — `.drawio` mxfile XML, with subnets as containers
-- **Visio** — `.vsdx` (Open XML) and `.vdx` (Visio 2003 XML)
-- **Device details** — PDF, CSV, XML, and `.txt` from the Details panel
-- **Map report** — PDF with a summary, inventory, device details, and links; choose sections, device types, and fields in the **Report…** dialog
+## Where your data lives
 
-Diagrams use the layout you see on screen, including dragged positions. Node labels include identity plus listen ports/services. Edge labels include `service proto/port` (for example `http tcp/80`).
+NetSeer never changes your capture files. Maps, names, notes, and positions are saved in the window's (or browser's) storage for NetSeer's address, `http://127.0.0.1:47331`.
 
-A longer Debian/Ubuntu walkthrough (clone, install, update, uninstall) is in [docs/netseer-install-and-use.md](docs/netseer-install-and-use.md). A function-by-function How to is in [docs/netseer-how-to.md](docs/netseer-how-to.md).
+| What | Windows | Linux |
+| --- | --- | --- |
+| Saved maps (desktop app) | `%LOCALAPPDATA%\NetSeer\webview` | `~/.local/share/NetSeer/browser` (snap browsers: `~/snap/<browser>/common/NetSeer`) |
+| Log, for bug reports | `%LOCALAPPDATA%\NetSeer\netseer.log` | `~/.local/share/NetSeer/netseer.log` |
+| Unwanted dumps | `Documents\NetSeer\Unwanted` | `~/Documents/NetSeer/Unwanted` |
 
-## Clone
+Running from source and using your normal browser, maps live in that browser's site data for `127.0.0.1:47331`, and Unwanted dumps go to `Unwanted/` in the project (or `NETSEER_UNWANTED_DIR`).
 
-The repo is public. No GitHub login is required.
+## Command-line options
+
+**`netseer`** runs the server for use in a browser:
+
+| Option | Meaning |
+| --- | --- |
+| `--host HOST` | Address to listen on (default `127.0.0.1`, this machine only) |
+| `--port PORT` | Port (default `47331`) |
+
+**`NetSeer.exe`, the AppImage, or `netseer-desktop`** runs the desktop app:
+
+| Option | Meaning |
+| --- | --- |
+| `--browser` | Open in the default browser instead of a window |
+| `--port PORT` | Use a different port (saved maps are per port) |
+| `--install`, `--uninstall` | Linux: add or remove NetSeer in your app menu |
+| `--smoke-test` | Check the installation and exit (`0` means OK) |
+| `--debug` | Verbose logging |
+| `--version` | Print the version |
+
+`NETSEER_UNWANTED_DIR` sets where Unwanted dumps are written.
+
+## Develop
 
 ```bash
-sudo apt-get update
-sudo apt-get install -y git python3 python3-venv python3-pip curl
 git clone https://github.com/ardyn-systems/NetSeer.git
 cd NetSeer
+uv sync --group dev        # Python 3.12+
+uv run netseer             # http://127.0.0.1:47331
+uv run pytest
 ```
 
-## Run on Debian / Ubuntu
+Without uv: `python3 -m venv .venv && . .venv/bin/activate && pip install -e . pytest httpx`. For the desktop window from source, install the `desktop` extra (`pip install -e ".[desktop]"`, which needs WebKitGTK on Linux) and run `netseer-desktop`.
 
-```bash
-sudo apt-get update
-sudo apt-get install -y python3 python3-venv python3-pip
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e ".[dev]"
-python -m netseer.generate_samples   # recreates bundled survey files
-netseer --port 47331
-```
+| Path | What's there |
+| --- | --- |
+| `src/netseer/parsers/` | pcap/pcapng (scapy), Kismet, and airodump readers |
+| `src/netseer/graph.py` | Turns observations into devices, links, subnets, and VLANs |
+| `src/netseer/exporters/` | draw.io, Visio, PDF reports, device exports |
+| `src/netseer/web.py`, `web/` | The API and the browser app (no build step) |
+| `src/netseer/desktop.py` | The desktop launcher for Windows and Linux |
+| `src/netseer/data/` | Bundled samples and the IEEE OUI table |
+| `packaging/` | Logo sources, Windows installer, Linux AppImage |
 
-With [uv](https://docs.astral.sh/uv/):
-
-```bash
-uv sync --group dev
-uv run python -m netseer.generate_samples
-uv run netseer --port 47331
-```
-
-Open [http://127.0.0.1:47331](http://127.0.0.1:47331). The campus combined sample loads automatically. Map nodes show a short inferred type (Access point, Router, Server, …); rename them and add a caption or notes in the **Details** panel. **Open survey** (or drop files anywhere) to map your own captures, toggle link types under **Layers**, inspect TX/RX/DA/RA, then **Export**.
-
-The CLI and the Python package are both `netseer`. Bundled files live in `src/netseer/data/`. The OUI table is compiled from IEEE CSVs:
+Recreate the bundled samples with `uv run python -m netseer.generate_samples`. Rebuild the manufacturer table from the IEEE registries:
 
 ```bash
 curl -L -o /tmp/oui.csv https://standards-oui.ieee.org/oui/oui.csv
@@ -87,53 +178,46 @@ curl -L -o /tmp/cid.csv https://standards-oui.ieee.org/cid/cid.csv
 uv run python -m netseer.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /tmp/cid.csv
 ```
 
-## Windows app
+The logo lives in `packaging/brand/` as SVG. After editing it, regenerate every icon with `python packaging/brand/render.py` (needs `pymupdf` and `pillow`).
 
-Download from [Releases](https://github.com/ardyn-systems/NetSeer/releases):
+## Build the desktop apps
 
-- **NetSeer-Setup-&lt;version&gt;.exe** installs NetSeer for your user (no admin prompt), adds a Start menu shortcut, and registers an uninstaller under **Settings → Apps**.
-- **NetSeer-&lt;version&gt;-windows-x64-portable.zip** runs without installing: unzip anywhere and open `NetSeer.exe`.
+GitHub Actions builds both platforms. On every pull request it checks the build and uploads the files as workflow artifacts. Pushing a version tag also attaches them to a GitHub release:
 
-NetSeer opens in its own window using Microsoft Edge WebView2, which ships with Windows 10 and 11. If WebView2 is missing, it opens in your default browser instead. Everything stays on your PC: the server listens on `127.0.0.1` only.
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
 
-| What | Where |
-| --- | --- |
-| Saved maps and settings | `%LOCALAPPDATA%\NetSeer\webview` |
-| Log (for bug reports) | `%LOCALAPPDATA%\NetSeer\netseer.log` |
-| Unwanted dumps | `Documents\NetSeer\Unwanted` |
+Keep the tag in step with `version` in `pyproject.toml` and `__version__` in `src/netseer/__init__.py`.
 
-`NetSeer.exe --browser` opens in the browser on purpose, and `NetSeer.exe --smoke-test` checks the installation (exit code 0 means OK).
-
-### Build it yourself
-
-GitHub Actions builds both files on every `v*` tag (`.github/workflows/windows.yml`) and attaches them to the release. It code-signs them once the signing secrets are set up ([packaging/windows/SIGNING.md](packaging/windows/SIGNING.md)); until then Windows SmartScreen warns on first run (**More info** → **Run anyway**). Locally, on Windows with Python 3.12:
+**Windows**, with Python 3.12 ([`windows.yml`](.github/workflows/windows.yml)):
 
 ```powershell
 python -m pip install . "pywebview>=5.3" "pyinstaller>=6.10"
 pyinstaller packaging/windows/netseer.spec --noconfirm --clean
 dist\NetSeer\NetSeer.exe --smoke-test
-iscc /DAppVersion=0.1.0 packaging\windows\netseer.iss   # needs Inno Setup 6
+iscc /DAppVersion=0.1.0 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
 ```
 
-To run the desktop window from source instead: `pip install ".[desktop]"`, then `netseer-desktop`.
+Code signing switches on once the Azure Artifact Signing secrets exist; see [packaging/windows/SIGNING.md](packaging/windows/SIGNING.md).
 
-## Tests
+**Linux**, with Python 3.12 ([`linux.yml`](.github/workflows/linux.yml)):
 
 ```bash
-uv run pytest
+python -m pip install . "pyinstaller>=6.10"
+pyinstaller packaging/linux/netseer.spec --noconfirm --clean
+dist/NetSeer/NetSeer --smoke-test
+bash packaging/linux/build-appimage.sh 0.1.0   # AppImage and .tar.gz in dist/
 ```
 
-## Update
+## Update and uninstall
 
-```bash
-cd NetSeer
-git pull origin main
-uv sync --group dev          # or: pip install -e ".[dev]"
-uv run netseer --host 127.0.0.1 --port 47331
-```
+- **Windows:** run the newer `NetSeer-Setup` over the old one; it keeps your maps. Uninstall from **Settings → Apps**.
+- **AppImage:** replace the file (run `--install` again if you added it to the menu). To remove it, run `--uninstall`, then delete the file.
+- **From source:** `uv tool upgrade netseer` (or `git pull` in a clone, then `uv sync`). Remove with `uv tool uninstall netseer`.
 
-Stop the old process first (`Ctrl+C`). Hard-refresh the browser.
+Your saved maps stay in the folders listed under [Where your data lives](#where-your-data-lives) until you delete them.
 
-## Uninstall
+---
 
-Stop `netseer`, then delete the clone (`rm -rf /path/to/NetSeer`). That removes source and the virtualenv. Do not apt-remove `python3` / `git` unless you want them gone system-wide. Optional: clear this origin's site data in the browser to remove saved maps (IndexedDB `netseer`) and preferences (`netseer.*` in Local Storage).
+NetSeer bundles [Cytoscape.js](https://js.cytoscape.org/) (MIT license, see `src/netseer/web/vendor/cytoscape-LICENSE.txt`).

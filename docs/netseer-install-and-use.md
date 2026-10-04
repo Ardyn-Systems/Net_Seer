@@ -2,7 +2,9 @@
 
 **Turn traffic into terrain.**
 
-Walkthrough for cloning NetSeer from GitHub, installing it on Debian/Ubuntu, and using the browser map. One local Python web app; not a compiled binary yet.
+Walkthrough for cloning NetSeer from GitHub, installing it from source on Debian/Ubuntu, and using the browser map.
+
+**Just want the desktop app?** Download the AppImage from [Releases](https://github.com/ardyn-systems/NetSeer/releases), `chmod +x` it, and run it; see the [README](../README.md#linux-desktop-appimage). This guide is for running from source: servers, Kali, Raspberry Pi, or development.
 
 ## What it is
 
@@ -13,7 +15,7 @@ NetSeer is a **local** survey-to-map tool:
 - You drop Wireshark / tcpdump / Kismet / airodump-ng files; it draws L2/L3/RF as a map
 - Export the same picture to draw.io, Visio, and PDF/CSV/XML/text
 
-It is **not** an installer `.deb`, AppImage, or standalone binary. You run it from source on the machine that holds the captures (or copy captures in). The map UI loads Cytoscape from a CDN (`cdn.jsdelivr.net`), so the browser needs outbound HTTPS the first time you open the map.
+Here you run it from source on the machine that holds the captures (or copy captures in). Everything the UI needs is bundled, so it works offline.
 
 Bundled campus samples ship in `src/netseer/data/` so you can click around without uploading anything.
 
@@ -84,7 +86,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 python -c "import sys; assert sys.version_info >= (3, 12), sys.version"
 pip install -U pip
-pip install -e ".[dev]"
+pip install -e . pytest httpx
 python -m netseer.generate_samples
 ```
 
@@ -179,7 +181,7 @@ uv run netseer --host 127.0.0.1 --port 47331
 
 # venv
 source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -e . pytest httpx
 netseer --host 127.0.0.1 --port 47331
 ```
 
