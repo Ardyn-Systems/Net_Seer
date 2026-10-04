@@ -37,7 +37,7 @@ a = Analysis(
     hiddenimports=hiddenimports,
     # The AppImage opens an installed browser in app mode instead of bundling
     # WebKitGTK, whose helper processes expect fixed system paths.
-    excludes=["tkinter", "matplotlib", "IPython", "pytest", "scapy.contrib", "webview", "gi"],
+    excludes=["tkinter", "matplotlib", "IPython", "pytest", "webview", "gi"],
     noarchive=False,
 )
 pyz = PYZ(a.pure)

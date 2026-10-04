@@ -414,6 +414,17 @@ def install_desktop_entry(uninstall: bool = False) -> int:
 
 def smoke_test() -> int:
     """Start the server on a spare port and exercise the bundle: UI files, samples, parsers, exports."""
+    # A bundle missing modules makes scapy log "ERROR: Loading module ..." and carry on;
+    # count those so a half-packaged scapy fails the check instead of hiding in the log.
+    scapy_errors: list[str] = []
+
+    class _Collect(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            if record.levelno >= logging.ERROR:
+                scapy_errors.append(record.getMessage())
+
+    collector = _Collect()
+    logging.getLogger("scapy").addHandler(collector)
     port = free_ephemeral_port()
     server = ServerThread(port)
     server.start()
@@ -440,11 +451,13 @@ def smoke_test() -> int:
         checks.append(("visio", post("/api/export/vsdx", graph)[:2] == b"PK", ""))
         checks.append(("pdf report", post("/api/export/report.pdf", graph)[:4] == b"%PDF", ""))
         checks.append(("heartbeat", post("/api/heartbeat", {}) is not None, ""))
+        checks.append(("scapy layers", not scapy_errors, "; ".join(scapy_errors[:3])))
     except Exception as exc:  # report everything; this is a diagnostic
         log.exception("Smoke test failed")
         checks.append(("exception", False, repr(exc)))
     finally:
         server.stop()
+        logging.getLogger("scapy").removeHandler(collector)
     for name, ok, note in checks:
         line = f"{'PASS' if ok else 'FAIL'} {name} {note}".rstrip()
         log.info(line)
