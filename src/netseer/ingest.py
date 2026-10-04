@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from surveymap.detect import EmptySurveyError, UnsupportedSurveyError, sniff_format
-from surveymap.graph import GraphBuilder
-from surveymap.models import SurveyGraph
-from surveymap.parsers import parse_into
-from surveymap.serialize import graph_from_dict
+from netseer.detect import EmptySurveyError, UnsupportedSurveyError, sniff_format
+from netseer.graph import GraphBuilder
+from netseer.models import SurveyGraph
+from netseer.parsers import parse_into
+from netseer.serialize import graph_from_dict
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 

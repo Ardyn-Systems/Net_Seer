@@ -51,8 +51,8 @@ The repo is public. No GitHub login is required.
 ```bash
 sudo apt-get update
 sudo apt-get install -y git python3 python3-venv python3-pip curl
-git clone https://github.com/ardyn-systems/netseer.git
-cd netseer
+git clone https://github.com/ardyn-systems/NetSeer.git
+cd NetSeer
 ```
 
 ## Run on Debian / Ubuntu
@@ -63,7 +63,7 @@ sudo apt-get install -y python3 python3-venv python3-pip
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-python -m surveymap.generate_samples   # recreates bundled survey files
+python -m netseer.generate_samples   # recreates bundled survey files
 netseer --host 0.0.0.0 --port 47331
 ```
 
@@ -71,20 +71,20 @@ With [uv](https://docs.astral.sh/uv/):
 
 ```bash
 uv sync --group dev
-uv run python -m surveymap.generate_samples
+uv run python -m netseer.generate_samples
 uv run netseer --port 47331
 ```
 
 Open [http://127.0.0.1:47331](http://127.0.0.1:47331). The campus combined sample loads automatically. Map nodes show a short inferred type (Access point, Router, Server, …); rename them and add on-map extra or notes in the device window. **Show all** / **Show none** toggle every layer checkbox. Drop a capture to add it to **Load a survey** with Remove. Use the **Zoom** slider, inspect TX/RX/DA/RA, then export.
 
-The public CLI is `netseer`. The Python import path remains `surveymap`. Bundled files live in `src/surveymap/data/`. The OUI table is compiled from IEEE CSVs:
+The CLI and the Python package are both `netseer`. Bundled files live in `src/netseer/data/`. The OUI table is compiled from IEEE CSVs:
 
 ```bash
 curl -L -o /tmp/oui.csv https://standards-oui.ieee.org/oui/oui.csv
 curl -L -o /tmp/mam.csv https://standards-oui.ieee.org/oui28/mam.csv
 curl -L -o /tmp/oui36.csv https://standards-oui.ieee.org/oui36/oui36.csv
 curl -L -o /tmp/cid.csv https://standards-oui.ieee.org/cid/cid.csv
-uv run python -m surveymap.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /tmp/cid.csv
+uv run python -m netseer.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /tmp/cid.csv
 ```
 
 ## Tests
@@ -96,7 +96,7 @@ uv run pytest
 ## Update
 
 ```bash
-cd netseer
+cd NetSeer
 git pull origin main
 uv sync --group dev          # or: pip install -e ".[dev]"
 uv run netseer --host 127.0.0.1 --port 47331
@@ -106,4 +106,4 @@ Stop the old process first (`Ctrl+C`). Hard-refresh the browser.
 
 ## Uninstall
 
-Stop `netseer`, then delete the clone (`rm -rf /path/to/netseer`). That removes source and the virtualenv. Do not apt-remove `python3` / `git` unless you want them gone system-wide. Optional: clear this origin’s localStorage in the browser (`netseer.deviceMeta.v1`, `netseer.maps.v2`, `netseer.hiddenSamples`).
+Stop `netseer`, then delete the clone (`rm -rf /path/to/NetSeer`). That removes source and the virtualenv. Do not apt-remove `python3` / `git` unless you want them gone system-wide. Optional: clear this origin’s localStorage in the browser (`netseer.deviceMeta.v1`, `netseer.maps.v2`, `netseer.hiddenSamples`).

@@ -30,7 +30,7 @@ from scapy.layers.dot11 import (  # type: ignore[import-untyped]
 )
 from scapy.utils import PcapNgWriter, mac2str  # type: ignore[import-untyped]
 
-from surveymap.brand import USER_AGENT
+from netseer.brand import USER_AGENT
 
 DATA = Path(__file__).resolve().parent / "data"
 

@@ -4,9 +4,9 @@ import zipfile
 from io import BytesIO
 from xml.sax.saxutils import escape
 
-from surveymap.exporters.layout import layout_positions
-from surveymap.graph import device_map_label
-from surveymap.models import SurveyGraph
+from netseer.exporters.layout import layout_positions
+from netseer.graph import device_map_label
+from netseer.models import SurveyGraph
 
 
 def _shape_color(kind: str, medium: str) -> tuple[str, str]:

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from surveymap.graph import GraphBuilder
-from surveymap.parsers.airodump import parse_airodump_csv
-from surveymap.parsers.kismet import parse_kismet_csv, parse_kismet_netxml
-from surveymap.parsers.pcap import parse_pcap
+from netseer.graph import GraphBuilder
+from netseer.parsers.airodump import parse_airodump_csv
+from netseer.parsers.kismet import parse_kismet_csv, parse_kismet_netxml
+from netseer.parsers.pcap import parse_pcap
 
 
 def parse_into(builder: GraphBuilder, data: bytes, filename: str, kind: str) -> None:

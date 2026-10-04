@@ -3,7 +3,7 @@ from __future__ import annotations
 import math
 from collections import defaultdict
 
-from surveymap.models import SurveyGraph
+from netseer.models import SurveyGraph
 
 
 def layout_positions(graph: SurveyGraph, width: float = 1400, height: float = 900) -> dict[str, tuple[float, float]]:

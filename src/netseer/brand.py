@@ -1,4 +1,4 @@
-"""User-visible product identity. Import path remains `surveymap`."""
+"""User-visible product identity."""
 
 from __future__ import annotations
 
