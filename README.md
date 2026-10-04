@@ -87,6 +87,36 @@ curl -L -o /tmp/cid.csv https://standards-oui.ieee.org/cid/cid.csv
 uv run python -m netseer.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /tmp/cid.csv
 ```
 
+## Windows app
+
+Download from [Releases](https://github.com/ardyn-systems/NetSeer/releases):
+
+- **NetSeer-Setup-&lt;version&gt;.exe** installs NetSeer for your user (no admin prompt), adds a Start menu shortcut, and registers an uninstaller under **Settings → Apps**.
+- **NetSeer-&lt;version&gt;-windows-x64-portable.zip** runs without installing: unzip anywhere and open `NetSeer.exe`.
+
+NetSeer opens in its own window using Microsoft Edge WebView2, which ships with Windows 10 and 11. If WebView2 is missing, it opens in your default browser instead. Everything stays on your PC: the server listens on `127.0.0.1` only.
+
+| What | Where |
+| --- | --- |
+| Saved maps and settings | `%LOCALAPPDATA%\NetSeer\webview` |
+| Log (for bug reports) | `%LOCALAPPDATA%\NetSeer\netseer.log` |
+| Unwanted dumps | `Documents\NetSeer\Unwanted` |
+
+`NetSeer.exe --browser` opens in the browser on purpose, and `NetSeer.exe --smoke-test` checks the installation (exit code 0 means OK).
+
+### Build it yourself
+
+GitHub Actions builds both files on every `v*` tag (`.github/workflows/windows.yml`) and attaches them to the release. Locally, on Windows with Python 3.12:
+
+```powershell
+python -m pip install . "pywebview>=5.3" "pyinstaller>=6.10"
+pyinstaller packaging/windows/netseer.spec --noconfirm --clean
+dist\NetSeer\NetSeer.exe --smoke-test
+iscc /DAppVersion=0.1.0 packaging\windows\netseer.iss   # needs Inno Setup 6
+```
+
+To run the desktop window from source instead: `pip install ".[desktop]"`, then `netseer-desktop`.
+
 ## Tests
 
 ```bash
