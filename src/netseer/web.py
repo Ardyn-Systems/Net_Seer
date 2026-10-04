@@ -24,7 +24,7 @@ from netseer.exporters import (
     map_report_pdf,
     safe_filename,
 )
-from netseer.exporters.reports import device_properties
+from netseer.exporters.reports import ReportOptions, device_properties
 from netseer.ingest import MAX_UPLOAD_BYTES, ingest_files
 from netseer.samples import SAMPLES, files_for_sample
 from netseer.serialize import graph_from_dict
@@ -214,7 +214,8 @@ def export_device_api(fmt: str, body: dict):
 @app.post("/api/export/report.pdf")
 def export_report_pdf(body: dict):
     graph, title = _graph_from_body(body)
-    blob = map_report_pdf(graph, title=f"{title} report")
+    # Optional "report" object picks sections, device types, and field groups.
+    blob = map_report_pdf(graph, title=f"{title} report", options=ReportOptions.from_dict(body.get("report")))
     name = safe_filename(title, "-report.pdf")
     return Response(
         content=blob,

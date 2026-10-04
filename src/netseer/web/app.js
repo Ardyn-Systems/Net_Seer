@@ -2176,17 +2176,196 @@ async function download(res, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-async function exportKind(kind) {
+async function exportKind(kind, extra = {}) {
   if (!state.graph?.nodes?.length) return;
   const ext = { drawio: "drawio", vsdx: "vsdx", vdx: "vdx", "report.pdf": "pdf" }[kind];
   try {
-    const res = await fetch(`/api/export/${kind}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(graphWithUserFields()) });
+    const res = await fetch(`/api/export/${kind}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ...graphWithUserFields(), ...extra }),
+    });
     if (!res.ok) throw new Error((await parseResponse(res).catch((e) => e)).message || "Export failed");
     await download(res, `${safeFileStem(state.title)}${kind === "report.pdf" ? "-report" : ""}.${ext}`);
     toast(`Exported ${state.title}.`, { timeout: 2000 });
   } catch (err) {
     fail(err);
   }
+}
+
+/* ---------- Report options ---------- */
+
+const REPORT_PREFS_KEY = "netseer.report.v1";
+const REPORT_SECTIONS = ["summary", "inventory", "devices", "links"];
+const REPORT_FIELDS = ["identity", "radio", "services", "routing", "connections", "notes", "other"];
+const REPORT_CATEGORIES = [
+  ["router", "Routers and gateways"],
+  ["server", "Servers"],
+  ["ap", "Access points"],
+  ["host", "Hosts"],
+  ["wireless", "Wireless clients"],
+  ["network", "Subnets and VLANs"],
+];
+const REPORT_PRESETS = {
+  overview: { sections: ["summary", "inventory"], field_groups: REPORT_FIELDS.slice(0, 6), include_empty: false },
+  standard: { sections: REPORT_SECTIONS, field_groups: REPORT_FIELDS.slice(0, 6), include_empty: false },
+  everything: { sections: REPORT_SECTIONS, field_groups: REPORT_FIELDS, include_empty: true },
+};
+const LINES_PER_PAGE = 50;
+
+// Same buckets the server uses (reports.device_category).
+function reportCategory(raw) {
+  const role = nodeRole(overlayNode(raw));
+  if (role === "gateway") return "router";
+  if (role === "subnet" || role === "vlan") return "network";
+  return role;
+}
+
+function reportForm() {
+  return el("report-form");
+}
+
+function readReportForm() {
+  const form = reportForm();
+  const checked = (name) => [...form.querySelectorAll(`input[name="${name}"]:checked`)].map((i) => i.value);
+  const opts = {
+    sections: checked("section"),
+    categories: checked("category"),
+    field_groups: checked("field"),
+    include_empty: form.querySelector('input[name="include_empty"]').checked,
+  };
+  if (form.querySelector('input[name="scope"]:checked')?.value === "selected") opts.node_ids = [...state.selection];
+  if (form.querySelector('input[name="match_layers"]').checked) opts.link_kinds = LAYERS.map((l) => l.kind).filter((k) => state.filters[k] !== false);
+  return opts;
+}
+
+function writeReportForm(opts) {
+  const form = reportForm();
+  const set = (name, values) => form.querySelectorAll(`input[name="${name}"]`).forEach((i) => (i.checked = values.includes(i.value)));
+  if (opts.sections) set("section", opts.sections);
+  if (opts.field_groups) set("field", opts.field_groups);
+  if (opts.categories) set("category", opts.categories);
+  if (typeof opts.include_empty === "boolean") form.querySelector('input[name="include_empty"]').checked = opts.include_empty;
+  if (typeof opts.match_layers === "boolean") form.querySelector('input[name="match_layers"]').checked = opts.match_layers;
+}
+
+function reportScope(opts) {
+  const wanted = opts.node_ids ? new Set(opts.node_ids) : null;
+  const nodes = (state.graph?.nodes || []).filter((n) => opts.categories.includes(reportCategory(n)) && (!wanted || wanted.has(n.id)));
+  const ids = new Set(nodes.map((n) => n.id));
+  const kinds = opts.link_kinds ? new Set(opts.link_kinds) : null;
+  const links = (state.graph?.links || []).filter((l) => (ids.has(l.source) || ids.has(l.target)) && (!kinds || kinds.has(l.kind)));
+  return { nodes, links };
+}
+
+// Rough page count so people can see a big report coming before they make it.
+function estimateReportPages(opts, nodes, links) {
+  let pages = 0;
+  let front = 0;
+  if (opts.sections.includes("summary")) front += 24;
+  if (opts.sections.includes("inventory")) front += 4 + nodes.length * 1.5;
+  if (front) pages += Math.ceil(front / LINES_PER_PAGE);
+  if (opts.sections.includes("devices") && opts.field_groups.length) {
+    const peers = new Map();
+    for (const l of links) {
+      for (const [a, b] of [[l.source, l.target], [l.target, l.source]]) {
+        if (!peers.has(a)) peers.set(a, new Set());
+        peers.get(a).add(b);
+      }
+    }
+    const count = (n, keys) => keys.filter((k) => (Array.isArray(n[k]) ? n[k].length : n[k] != null && n[k] !== "")).length;
+    let lines = 0;
+    for (const raw of nodes) {
+      const n = overlayNode(raw);
+      const full = opts.include_empty;
+      const g = {
+        identity: full ? 13 : count(n, ["caption", "ips", "macs", "mac_tx", "mac_rx", "mac_da", "mac_ra", "vendor", "vlans", "roles", "id"]),
+        radio: full ? 6 : count(n, ["ssids", "channels", "frequencies_mhz", "encryption", "signal_dbm", "gps"]),
+        services: full ? 2 : count(n, ["services", "ports"]),
+        routing: Object.keys(n.routing || {}).length,
+        connections: peers.get(n.id)?.size || 0,
+        notes: full || n.notes ? 1 : 0,
+        other: Object.keys(n.extra || {}).length * 1.6,
+      };
+      lines += 3;
+      for (const key of opts.field_groups) if (g[key]) lines += g[key] + 1;
+    }
+    // Device blocks are kept whole, which leaves gaps at page ends.
+    pages += Math.ceil((lines * 1.25) / LINES_PER_PAGE);
+  }
+  if (opts.sections.includes("links") && links.length) pages += Math.ceil((4 + links.length * 1.2) / LINES_PER_PAGE);
+  return Math.max(1, pages);
+}
+
+function syncReportDialog() {
+  const form = reportForm();
+  const opts = readReportForm();
+  const { nodes, links } = reportScope(opts);
+  el("report-fields-set").disabled = !opts.sections.includes("devices");
+  const devices = nodes.filter((n) => reportCategory(n) !== "network").length;
+  el("report-estimate").textContent = `About ${plural(estimateReportPages(opts, nodes, links), "page")} · ${plural(devices, "device")} · ${plural(links.length, "link")}`;
+  let problem = "";
+  if (!opts.sections.length) problem = "Choose at least one section.";
+  else if (!nodes.length) problem = "No devices match. Pick at least one device type, or select devices on the map.";
+  else if (opts.sections.length === 1 && opts.sections[0] === "devices" && !opts.field_groups.length) problem = "Choose at least one kind of detail.";
+  el("report-error").textContent = problem;
+  el("report-error").classList.toggle("hidden", !problem);
+  el("report-create").disabled = Boolean(problem);
+  for (const [name, preset] of Object.entries(REPORT_PRESETS)) {
+    const same = (a, b) => a.length === b.length && a.every((v) => b.includes(v));
+    const match = same(opts.sections, preset.sections) && same(opts.field_groups, preset.field_groups) && opts.include_empty === preset.include_empty;
+    form.querySelector(`[data-preset="${name}"]`).setAttribute("aria-pressed", String(match));
+  }
+}
+
+function openReportDialog() {
+  if (!state.graph?.nodes?.length) return;
+  const counts = {};
+  for (const n of state.graph.nodes) counts[reportCategory(n)] = (counts[reportCategory(n)] || 0) + 1;
+  el("report-categories").innerHTML = REPORT_CATEGORIES.map(
+    ([key, label]) =>
+      `<label><input type="checkbox" name="category" value="${key}" ${counts[key] ? "checked" : "disabled"} /><span>${escapeHtml(label)} <span class="count">${counts[key] || 0}</span></span></label>`
+  ).join("");
+  const selected = state.selection.length;
+  const devices = state.graph.nodes.filter((n) => reportCategory(n) !== "network").length;
+  el("scope-all-label").textContent = `All devices (${devices})`;
+  el("scope-selected-label").textContent = selected ? `Selected devices (${selected})` : "Selected devices (none selected)";
+  const selectedRadio = reportForm().querySelector('input[name="scope"][value="selected"]');
+  selectedRadio.disabled = !selected;
+  reportForm().querySelector(`input[name="scope"][value="${selected > 1 ? "selected" : "all"}"]`).checked = true;
+
+  const saved = readLocal(REPORT_PREFS_KEY, null);
+  writeReportForm({ ...REPORT_PRESETS.standard, match_layers: false, ...(isPlainObject(saved) ? saved : {}) });
+  if (isPlainObject(saved) && Array.isArray(saved.categories)) {
+    // Keep remembered type choices, but never re-check a type this map doesn't have.
+    reportForm().querySelectorAll('input[name="category"]').forEach((i) => (i.checked = !i.disabled && saved.categories.includes(i.value)));
+    if (!reportForm().querySelector('input[name="category"]:checked')) reportForm().querySelectorAll('input[name="category"]:not(:disabled)').forEach((i) => (i.checked = true));
+  }
+  syncReportDialog();
+  el("report-dialog").showModal();
+}
+
+function bindReportDialog() {
+  const form = reportForm();
+  form.addEventListener("change", syncReportDialog);
+  form.querySelectorAll("[data-preset]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      writeReportForm(REPORT_PRESETS[btn.dataset.preset]);
+      syncReportDialog();
+    })
+  );
+  el("report-cancel").addEventListener("click", () => el("report-dialog").close());
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    syncReportDialog();
+    if (el("report-create").disabled) return;
+    const opts = readReportForm();
+    const { node_ids, link_kinds, ...remember } = opts;
+    writeLocal(REPORT_PREFS_KEY, { ...remember, match_layers: Boolean(link_kinds) });
+    el("report-dialog").close();
+    toast("Creating your report…", { timeout: 2500 });
+    exportKind("report.pdf", { report: opts });
+  });
 }
 
 function inspectedNode() {
@@ -2396,7 +2575,7 @@ function bindUi() {
       { label: "Visio drawing", hint: ".vsdx", onSelect: () => exportKind("vsdx") },
       { label: "Visio XML", hint: ".vdx", onSelect: () => exportKind("vdx") },
       "sep",
-      { label: "Full report", hint: "PDF", onSelect: () => exportKind("report.pdf") },
+      { label: "Report…", hint: "PDF", onSelect: openReportDialog },
     ])
   );
   el("btn-theme").addEventListener("click", (e) => openThemeMenu(e.currentTarget));
@@ -2482,7 +2661,7 @@ function bindUi() {
       closeNarrowPanels();
       return;
     }
-    if (isTypingTarget(e.target) || el("dialog").open || el("help-dialog").open) return;
+    if (isTypingTarget(e.target) || document.querySelector("dialog[open]")) return;
     const cmd = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     if (cmd && key === "c") {
@@ -2521,6 +2700,7 @@ function bindUi() {
 async function init() {
   mapResize.observe(el("map"));
   bindUi();
+  bindReportDialog();
   loadPrefs();
   renderLayerList();
   syncZoomUi();

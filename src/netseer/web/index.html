@@ -14,7 +14,7 @@
     <link rel="icon" href="/static/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui1" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui2" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -217,6 +217,66 @@
       </form>
     </dialog>
 
+    <dialog id="report-dialog" class="dialog report-dialog" aria-labelledby="report-title">
+      <form method="dialog" id="report-form">
+        <h2 id="report-title">Create a PDF report</h2>
+        <p class="hint">Choose what goes in. Smaller reports are faster to make and easier to read.</p>
+        <div class="presets" role="group" aria-label="Presets">
+          <button type="button" class="chip-btn" data-preset="overview">Overview<small>Summary and inventory</small></button>
+          <button type="button" class="chip-btn" data-preset="standard">Standard<small>Plus device details and links</small></button>
+          <button type="button" class="chip-btn" data-preset="everything">Everything<small>Every field, even empty ones</small></button>
+        </div>
+
+        <fieldset>
+          <legend>Sections</legend>
+          <div class="check-grid">
+            <label><input type="checkbox" name="section" value="summary" /> Summary<small>Counts and device types</small></label>
+            <label><input type="checkbox" name="section" value="inventory" /> Device inventory<small>One row per device</small></label>
+            <label><input type="checkbox" name="section" value="devices" /> Device details<small>A block per device</small></label>
+            <label><input type="checkbox" name="section" value="links" /> Links table<small>Every connection</small></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Devices</legend>
+          <div class="radio-row">
+            <label><input type="radio" name="scope" value="all" checked /> <span id="scope-all-label">All devices</span></label>
+            <label><input type="radio" name="scope" value="selected" /> <span id="scope-selected-label">Selected devices</span></label>
+          </div>
+          <div class="check-grid" id="report-categories"></div>
+        </fieldset>
+
+        <fieldset id="report-fields-set">
+          <legend>Details for each device</legend>
+          <div class="check-grid">
+            <label><input type="checkbox" name="field" value="identity" /> Identity<small>Addresses, maker, VLANs</small></label>
+            <label><input type="checkbox" name="field" value="radio" /> Radio<small>SSID, channel, signal, GPS</small></label>
+            <label><input type="checkbox" name="field" value="services" /> Services and ports</label>
+            <label><input type="checkbox" name="field" value="routing" /> Routing<small>OSPF, gateway, DHCP</small></label>
+            <label><input type="checkbox" name="field" value="connections" /> Connections<small>Who it talks to</small></label>
+            <label><input type="checkbox" name="field" value="notes" /> Your notes</label>
+            <label><input type="checkbox" name="field" value="other" /> Other extracted data<small>Raw parser extras; long</small></label>
+            <label><input type="checkbox" name="include_empty" /> Show empty fields<small>Lists every field, even with no value</small></label>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Links</legend>
+          <label class="switch-row"><span>Match the map's Layers<small>Only include link types that are switched on in Layers</small></span>
+            <input type="checkbox" role="switch" name="match_layers" /></label>
+        </fieldset>
+
+        <p id="report-error" class="field-error hidden"></p>
+        <div class="report-footer">
+          <span id="report-estimate" class="hint"></span>
+          <span class="row-actions end">
+            <button type="button" class="btn ghost" id="report-cancel">Cancel</button>
+            <button type="submit" class="btn primary" id="report-create">Create PDF</button>
+          </span>
+        </div>
+      </form>
+    </dialog>
+
     <dialog id="help-dialog" class="dialog">
       <form method="dialog">
         <h2>Keyboard shortcuts</h2>
@@ -236,6 +296,6 @@
       </form>
     </dialog>
 
-    <script src="/static/app.js?v=ui1"></script>
+    <script src="/static/app.js?v=ui2"></script>
   </body>
 </html>

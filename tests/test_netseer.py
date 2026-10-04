@@ -603,3 +603,80 @@ def test_version_matches_pyproject():
 
     pyproject = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
     assert pyproject["project"]["version"] == __version__
+
+
+def _pdf_pages(blob: bytes) -> int:
+    import re
+
+    return len(re.findall(rb"/Type /Page[^s]", blob))
+
+
+def test_report_headers_use_white_text():
+    from reportlab.lib import colors
+
+    from netseer.exporters.reports import _styles
+
+    # Table header cells are Paragraphs; TableStyle TEXTCOLOR doesn't reach them.
+    assert _styles()["th"].textColor == colors.white
+
+
+def test_report_options_parse_leniently():
+    from netseer.exporters.reports import DEFAULT_FIELD_GROUPS, REPORT_SECTIONS, ReportOptions
+
+    assert ReportOptions.from_dict(None).sections == REPORT_SECTIONS
+    opts = ReportOptions.from_dict(
+        {"sections": ["links", "bogus", "summary"], "categories": ["server"], "field_groups": "nope", "node_ids": ["a"], "include_empty": 1}
+    )
+    assert opts.sections == ("summary", "links")  # canonical order, unknowns dropped
+    assert opts.categories == ("server",)
+    assert opts.field_groups == DEFAULT_FIELD_GROUPS
+    assert opts.node_ids == ("a",) and opts.include_empty is True
+
+
+def test_report_options_shape_the_pdf():
+    from netseer.exporters.reports import ReportOptions, device_category, report_scope
+
+    if not (DATA_DIR / "office-lan.pcap").exists():
+        write_all(DATA_DIR)
+    graph = ingest_files(files_for_sample("campus-all"))
+    full = map_report_pdf(graph, title="Full")
+    overview = map_report_pdf(graph, title="Overview", options=ReportOptions.from_dict({"sections": ["summary", "inventory"]}))
+    assert _pdf_pages(overview) < _pdf_pages(full)
+    servers = ReportOptions.from_dict({"categories": ["server"], "sections": ["devices"]})
+    nodes, links = report_scope(graph, servers)
+    assert nodes and all(device_category(n) == "server" for n in nodes)
+    assert all(l.source in {n.id for n in nodes} or l.target in {n.id for n in nodes} for l in links)
+    one = graph.nodes[0].id
+    nodes, _ = report_scope(graph, ReportOptions.from_dict({"node_ids": [one]}))
+    assert [n.id for n in nodes] == [one]
+    empty = map_report_pdf(graph, title="Empty", options=ReportOptions.from_dict({"categories": []}))
+    assert empty.startswith(b"%PDF")
+
+
+def test_report_api_accepts_options():
+    from fastapi.testclient import TestClient
+
+    from netseer.web import app
+
+    graph = ingest_files(files_for_sample("office-lan")).to_dict()
+    client = TestClient(app)
+    small = client.post("/api/export/report.pdf", json={**graph, "report": {"sections": ["summary"]}})
+    big = client.post("/api/export/report.pdf", json=graph)
+    assert small.status_code == big.status_code == 200
+    assert _pdf_pages(small.content) < _pdf_pages(big.content)
+
+
+def test_wired_hosts_behind_an_access_point_stay_wired():
+    from scapy.layers.dot11 import Dot11
+    from scapy.layers.inet import IP, TCP
+    from scapy.layers.l2 import LLC, SNAP
+
+    from netseer.graph import GraphBuilder
+    from netseer.parsers.pcap import _handle_packet
+
+    ap, sta, server = "00:11:22:33:44:55", "00:aa:bb:cc:dd:ee", "00:25:90:20:00:50"
+    builder = GraphBuilder()
+    frame = Dot11(type=2, FCfield=0x1, addr1=ap, addr2=sta, addr3=server) / LLC() / SNAP() / IP(src="10.0.0.5", dst="10.0.0.80") / TCP(sport=50000, dport=80)
+    _handle_packet(builder, frame)
+    assert builder.devices[f"mac:{sta}"]["medium"] == "wireless"
+    assert builder.devices[f"mac:{server}"]["medium"] == "wired"

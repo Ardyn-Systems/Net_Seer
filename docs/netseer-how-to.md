@@ -171,11 +171,23 @@ Bridges appear only with evidence: a device on more than one VLAN (or two same-v
 | draw.io diagram | `<map name>.drawio` |
 | Visio drawing | `<map name>.vsdx` |
 | Visio XML | `<map name>.vdx` |
-| Full report | `<map name>-report.pdf` (every device and link) |
+| Report… | `<map name>-report.pdf`, with the options below |
 
 Diagram exports use **the positions you see on screen**, including your dragged positions, and draw **subnet boxes as containers** (in draw.io, moving the box moves its devices). Names, captions, notes, and field edits are included.
 
 Per-device files (PDF, CSV, XML, text) come from **Export** in the details panel.
+
+### PDF report options
+
+**Report…** opens a dialog so the PDF only holds what you need. The footer shows roughly how many pages it will be before you create it.
+
+- **Presets:** **Overview** (summary and inventory, usually a page or two), **Standard** (adds device details and the links table), **Everything** (every field, including empty ones and raw parser extras).
+- **Sections:** Summary (device, link, subnet, VLAN, and service counts, plus parser warnings), Device inventory (one row per device), Device details (a block per device), Links table.
+- **Devices:** all devices, or only the ones selected on the map. Tick or untick device types (routers, servers, access points, hosts, wireless clients, subnets and VLANs).
+- **Details for each device:** Identity, Radio, Services and ports, Routing, Connections (one line per neighbour), Your notes, and Other extracted data. Empty fields are left out unless you turn on **Show empty fields**.
+- **Match the map's Layers:** only include link types that are switched on in **Layers**.
+
+NetSeer remembers your choices for next time (the selection itself isn't remembered).
 
 ---
 
