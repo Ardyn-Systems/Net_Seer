@@ -10,3 +10,7 @@ build/
 agent-tools/
 Unwanted/*.json
 !Unwanted/README.md
+
+# Windows build output
+/build/
+/dist/

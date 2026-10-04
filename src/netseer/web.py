@@ -10,6 +10,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from netseer import __version__
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError
 from netseer.exporters import (
@@ -48,7 +49,7 @@ MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
 MAX_UNWANTED_GROUPS = 200
 MAX_UNWANTED_FILES = 1000
 
-app = FastAPI(title=PRODUCT_NAME, version="0.1.0", description=MOTTO)
+app = FastAPI(title=PRODUCT_NAME, version=__version__, description=MOTTO)
 
 
 @app.middleware("http")
@@ -70,7 +71,7 @@ def _http_error(exc: Exception, status: int = 400) -> HTTPException:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "name": PRODUCT_NAME, "motto": MOTTO}
+    return {"ok": True, "name": PRODUCT_NAME, "motto": MOTTO, "version": __version__}
 
 
 @app.get("/api/samples")

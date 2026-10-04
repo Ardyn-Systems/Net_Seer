@@ -574,3 +574,32 @@ def test_export_api_accepts_layout_hints():
         assert client.post(f"/api/export/{kind}", json=body).status_code == 200
     body["positions"] = ["not", "a", "dict"]
     assert client.post("/api/export/drawio", json=body).status_code == 200
+
+
+def test_desktop_smoke_test_runs_in_process(tmp_path, monkeypatch):
+    import netseer.desktop as desktop
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.setenv("NETSEER_UNWANTED_DIR", str(tmp_path / "Unwanted"))
+    assert desktop.smoke_test() == 0
+
+
+def test_desktop_port_choice_reuses_netseer_and_skips_strangers(monkeypatch):
+    import netseer.desktop as desktop
+
+    states = {47331: "busy", 47332: "netseer"}
+    monkeypatch.setattr(desktop, "port_state", lambda port: states.get(port, "free"))
+    assert desktop.choose_port() == (47332, True)
+    states[47332] = "busy"
+    assert desktop.choose_port() == (47333, False)
+    assert desktop.choose_port(5000) == (5000, False)
+
+
+def test_version_matches_pyproject():
+    import tomllib
+    from pathlib import Path
+
+    from netseer import __version__
+
+    pyproject = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pyproject["project"]["version"] == __version__
