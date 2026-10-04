@@ -106,6 +106,16 @@ async def parse_upload(file: UploadFile = File(...)):
     return graph.to_dict()
 
 
+def _layout_hints(body: dict) -> dict:
+    """On-screen positions and subnet containers from the map, so exports match what you see."""
+    positions = body.get("positions")
+    parents = body.get("parents")
+    return {
+        "positions": positions if isinstance(positions, dict) else None,
+        "parents": parents if isinstance(parents, dict) else None,
+    }
+
+
 def _graph_from_body(body: dict):
     if "nodes" not in body:
         raise HTTPException(status_code=400, detail="Export body must include a graph with nodes and links.")
@@ -119,7 +129,7 @@ def _graph_from_body(body: dict):
 @app.post("/api/export/drawio")
 def export_drawio_api(body: dict):
     graph, title = _graph_from_body(body)
-    xml = export_drawio(graph, title=title)
+    xml = export_drawio(graph, title=title, **_layout_hints(body))
     return Response(
         content=xml,
         media_type="application/xml",
@@ -130,7 +140,7 @@ def export_drawio_api(body: dict):
 @app.post("/api/export/vdx")
 def export_vdx_api(body: dict):
     graph, title = _graph_from_body(body)
-    xml = export_vdx(graph, title=title)
+    xml = export_vdx(graph, title=title, **_layout_hints(body))
     return Response(
         content=xml,
         media_type="application/xml",
@@ -141,7 +151,7 @@ def export_vdx_api(body: dict):
 @app.post("/api/export/vsdx")
 def export_vsdx_api(body: dict):
     graph, title = _graph_from_body(body)
-    blob = export_vsdx(graph, title=title)
+    blob = export_vsdx(graph, title=title, **_layout_hints(body))
     return Response(
         content=blob,
         media_type="application/vnd.visio",

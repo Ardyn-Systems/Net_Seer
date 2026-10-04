@@ -1,180 +1,241 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="terrain">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NetSeer — Turn traffic into terrain.</title>
+    <script>
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem("netseer.theme") || "terrain";
+      } catch {
+        document.documentElement.dataset.theme = "terrain";
+      }
+    </script>
     <link rel="icon" href="/static/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui1" />
     <script src="https://cdn.jsdelivr.net/npm/cytoscape@3.30.4/dist/cytoscape.min.js"></script>
   </head>
   <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5" /><path d="M15.5 15.5 20 20" /></symbol>
+        <symbol id="i-chevron" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></symbol>
+        <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 20h16" /></symbol>
+        <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4 20h16" /></symbol>
+        <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.3-1.1-1.6-1.1-2.7 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-3.9-4-7-9-7Z" /><circle cx="7.5" cy="11" r="1" /><circle cx="10.5" cy="7" r="1" /><circle cx="15" cy="7.5" r="1" /></symbol>
+        <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8v.4" /><path d="M12 17h.01" /></symbol>
+        <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
+        <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
+        <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></symbol>
+        <symbol id="i-layout" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></symbol>
+        <symbol id="i-dots" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3" /></symbol>
+        <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
+        <symbol id="i-paste" viewBox="0 0 24 24"><rect x="6" y="5" width="12" height="16" rx="2" /><path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" /></symbol>
+      </defs>
+    </svg>
+
     <header class="topbar">
+      <button id="btn-sidebar" class="icon-btn only-narrow" type="button" aria-label="Show sidebar">
+        <svg class="icon"><use href="#i-menu" /></svg>
+      </button>
       <div class="brand">
-        <img class="logo" src="/static/logo-192.png" width="40" height="40" alt="NetSeer" />
-        <div>
-          <h1>NetSeer</h1>
-          <p class="tag">Turn traffic into terrain.</p>
+        <img class="logo" src="/static/logo-192.png" width="32" height="32" alt="" />
+        <div class="brand-text">
+          <span class="brand-name">NetSeer</span>
+          <span class="brand-tag">Turn traffic into terrain.</span>
         </div>
       </div>
-      <div class="top-actions">
-        <button id="btn-drawio" class="btn" type="button" disabled>Export draw.io</button>
-        <button id="btn-vsdx" class="btn" type="button" disabled>Export Visio .vsdx</button>
-        <button id="btn-vdx" class="btn ghost" type="button" disabled>Export Visio XML</button>
-        <button id="btn-report" class="btn" type="button" disabled>Report PDF</button>
-        <button id="btn-new-map" class="btn ghost" type="button">New blank map</button>
-        <button id="btn-menu" class="btn ghost menu-toggle" type="button" aria-label="Toggle samples">Samples</button>
+      <div class="map-title">
+        <button id="map-title" class="map-title-btn" type="button" title="Rename map">
+          <span id="map-title-name">Loading…</span>
+          <span id="map-title-kind" class="map-title-kind"></span>
+        </button>
       </div>
+      <div class="top-actions">
+        <button id="btn-open" class="btn primary" type="button">
+          <svg class="icon"><use href="#i-upload" /></svg><span>Open survey</span>
+        </button>
+        <div class="menu-wrap">
+          <button id="btn-export" class="btn" type="button" aria-haspopup="menu" aria-expanded="false">
+            <svg class="icon"><use href="#i-download" /></svg><span>Export</span><svg class="icon chev"><use href="#i-chevron" /></svg>
+          </button>
+        </div>
+        <div class="menu-wrap">
+          <button id="btn-theme" class="icon-btn" type="button" aria-label="Theme" aria-haspopup="menu" aria-expanded="false" title="Theme">
+            <svg class="icon"><use href="#i-palette" /></svg>
+          </button>
+        </div>
+        <button id="btn-help" class="icon-btn" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
+          <svg class="icon"><use href="#i-help" /></svg>
+        </button>
+      </div>
+      <input id="file" type="file" accept=".pcap,.pcapng,.cap,.netxml,.csv,.json" multiple hidden />
     </header>
 
     <div class="shell">
-      <aside id="sidebar" class="sidebar">
-        <section>
-          <h2>Maps</h2>
-          <p class="hint">Several maps in this session. Cut or copy devices, switch maps, then paste. Rename or delete maps you added. Unwanted is the holding map — empty it to write files under Unwanted/.</p>
-          <ul id="map-list" class="map-list"></ul>
-          <div class="map-actions">
-            <button id="btn-blank-map" class="btn ghost" type="button">New blank map</button>
-            <label class="field-label merge-label">Merge this map into
-              <select id="merge-into" aria-label="Merge into another map"></select>
-            </label>
-            <button id="btn-merge" class="btn ghost" type="button" disabled>Merge</button>
-          </div>
+      <aside id="sidebar" class="sidebar" aria-label="Maps, surveys, and layers">
+        <nav class="tabs" role="tablist">
+          <button class="tab active" type="button" role="tab" data-tab="maps" aria-selected="true">Maps</button>
+          <button class="tab" type="button" role="tab" data-tab="surveys" aria-selected="false">Surveys</button>
+          <button class="tab" type="button" role="tab" data-tab="layers" aria-selected="false">Layers</button>
+        </nav>
+
+        <section class="tab-panel" data-panel="maps" role="tabpanel">
+          <ul id="map-list" class="list"></ul>
+          <button id="btn-new-map" class="btn ghost full" type="button">
+            <svg class="icon"><use href="#i-plus" /></svg><span>New blank map</span>
+          </button>
+          <p class="hint">Unwanted holds devices you set aside. Empty it to save them as JSON in <code>Unwanted/</code>.</p>
         </section>
-        <section>
-          <h2>Load a survey</h2>
-          <p class="hint">Drop a capture to add it to this list, or pick a bundled campus sample. Remove anything you no longer want.</p>
+
+        <section class="tab-panel hidden" data-panel="surveys" role="tabpanel">
           <label class="drop" id="dropzone">
-            <input id="file" type="file" accept=".pcap,.pcapng,.cap,.netxml,.csv,.json" multiple />
-            <span>Drop .pcap / .pcapng / .netxml / .csv / Unwanted JSON</span>
+            <svg class="icon"><use href="#i-upload" /></svg>
+            <span><strong>Drop captures here</strong> or click to browse</span>
+            <small>pcap, pcapng, Kismet netxml/csv, airodump csv, Unwanted JSON</small>
           </label>
-          <ul id="sample-list" class="sample-list"></ul>
-          <p id="survey-empty" class="hint hidden">No surveys in the list. Drop a capture, or restore the bundled campus samples.</p>
-          <button id="btn-restore-samples" class="btn ghost restore-samples hidden" type="button">Restore bundled samples</button>
+          <ul id="survey-list" class="list"></ul>
+          <p id="survey-empty" class="hint hidden">No surveys yet. Drop a capture above.</p>
+          <button id="btn-restore-samples" class="btn ghost full hidden" type="button">Restore bundled samples</button>
         </section>
-        <section>
-          <h2>Show</h2>
-          <div class="show-actions">
-            <button id="btn-show-all" class="btn ghost" type="button">Show all</button>
-            <button id="btn-show-none" class="btn ghost" type="button">Show none</button>
+
+        <section class="tab-panel hidden" data-panel="layers" role="tabpanel">
+          <label class="switch-row">
+            <span>Group by subnet<small>Draw subnets as boxes around their devices</small></span>
+            <input id="group-toggle" type="checkbox" role="switch" checked />
+          </label>
+          <h3 class="section-title">Links</h3>
+          <div id="layer-list" class="layer-list"></div>
+          <div class="row-actions">
+            <button id="btn-show-all" class="btn ghost small" type="button">Show all</button>
+            <button id="btn-show-none" class="btn ghost small" type="button">Hide all</button>
           </div>
-          <label class="check"><input type="checkbox" data-filter="l2" checked /> Wired L2</label>
-          <label class="check"><input type="checkbox" data-filter="l3" checked /> L3 / IP</label>
-          <label class="check"><input type="checkbox" data-filter="client-server" checked /> Ports &amp; services</label>
-          <label class="check"><input type="checkbox" data-filter="wireless" checked /> Wireless</label>
-          <label class="check"><input type="checkbox" data-filter="vlan" checked /> VLANs</label>
-          <label class="check"><input type="checkbox" data-filter="subnet" checked /> Subnets</label>
-          <label class="check"><input type="checkbox" data-filter="bridge" checked /> Bridge / attachment</label>
-        </section>
-        <section class="legend">
-          <h2>Legend</h2>
-          <ul>
-            <li><i class="swatch ap"></i> Access point</li>
-            <li><i class="swatch host"></i> Host / station</li>
-            <li><i class="swatch server"></i> Server</li>
-            <li><i class="swatch gateway"></i> Gateway</li>
-            <li><i class="swatch service"></i> Service / port edge</li>
-            <li><i class="swatch bridge"></i> Bridge / attachment</li>
+          <h3 class="section-title">Devices</h3>
+          <ul class="legend">
+            <li><i class="swatch shape-hex" style="--c: var(--node-ap)"></i>Access point</li>
+            <li><i class="swatch" style="--c: var(--node-gateway)"></i>Router or gateway</li>
+            <li><i class="swatch" style="--c: var(--node-server)"></i>Server</li>
+            <li><i class="swatch" style="--c: var(--node-host)"></i>Host</li>
+            <li><i class="swatch" style="--c: var(--node-wireless)"></i>Wireless client</li>
+            <li><i class="swatch dashed" style="--c: var(--node-vlan)"></i>VLAN</li>
+            <li><i class="swatch dashed" style="--c: var(--node-subnet)"></i>Subnet</li>
           </ul>
         </section>
       </aside>
 
-      <main class="stage">
+      <main class="stage" id="stage">
         <div id="map" class="map" role="application" aria-label="Network map"></div>
-        <div id="empty" class="overlay">
-          <h2>This map is empty</h2>
-          <p>Paste devices here, load a survey on the left, or keep this blank map for a sketch. Unwanted holds devices you moved off other maps.</p>
+
+        <div class="canvas-top">
+          <div class="search">
+            <svg class="icon"><use href="#i-search" /></svg>
+            <input id="search" type="search" placeholder="Find a device by name, IP, MAC, or SSID" autocomplete="off" aria-label="Find a device" />
+            <kbd>/</kbd>
+            <ul id="search-results" class="menu search-results hidden" role="listbox"></ul>
+          </div>
+          <button id="btn-undo" class="icon-btn floating" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>
+            <svg class="icon"><use href="#i-undo" /></svg>
+          </button>
+          <button id="btn-paste" class="btn floating hidden" type="button" title="Paste (Ctrl+V)">
+            <svg class="icon"><use href="#i-paste" /></svg><span id="paste-label">Paste</span>
+          </button>
+        </div>
+
+        <div id="selection-bar" class="selection-bar hidden" role="toolbar" aria-label="Selection">
+          <span id="selection-count">1 selected</span>
+          <button type="button" class="btn ghost small" data-sel="copy" title="Ctrl+C">Copy</button>
+          <button type="button" class="btn ghost small" data-sel="cut" title="Ctrl+X">Cut</button>
+          <div class="menu-wrap">
+            <button type="button" class="btn ghost small" data-sel="move" aria-haspopup="menu">Move to<svg class="icon chev"><use href="#i-chevron" /></svg></button>
+          </div>
+          <button type="button" class="btn ghost small" data-sel="unwanted">Set aside</button>
+          <button type="button" class="btn ghost small danger" data-sel="delete" title="Delete">Delete</button>
+        </div>
+
+        <div class="zoom-bar" id="zoom-bar">
+          <button id="btn-relayout" class="icon-btn" type="button" aria-label="Tidy layout" title="Tidy layout (discards dragged positions)">
+            <svg class="icon"><use href="#i-layout" /></svg>
+          </button>
+          <span class="divider"></span>
+          <button id="zoom-out" class="icon-btn" type="button" aria-label="Zoom out"><svg class="icon"><use href="#i-minus" /></svg></button>
+          <span id="zoom-pct" class="zoom-pct">100%</span>
+          <button id="zoom-in" class="icon-btn" type="button" aria-label="Zoom in"><svg class="icon"><use href="#i-plus" /></svg></button>
+          <button id="zoom-fit" class="icon-btn" type="button" aria-label="Fit to screen" title="Fit to screen"><svg class="icon"><use href="#i-fit" /></svg></button>
+        </div>
+        <div class="status" id="status">Loading…</div>
+
+        <div id="empty" class="overlay hidden">
+          <div class="welcome">
+            <img src="/static/logo-192.png" width="56" height="56" alt="" />
+            <h2 id="empty-title">Map your network</h2>
+            <p id="empty-body">Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page, or explore the bundled campus survey.</p>
+            <div class="row-actions center">
+              <button id="empty-open" class="btn primary" type="button"><svg class="icon"><use href="#i-upload" /></svg><span>Open survey</span></button>
+              <button id="empty-sample" class="btn" type="button">Try the campus sample</button>
+            </div>
+          </div>
         </div>
         <div id="loading" class="overlay hidden">
-          <div class="spinner" aria-hidden="true"></div>
-          <p>Parsing frames…</p>
+          <div class="welcome">
+            <div class="spinner" aria-hidden="true"></div>
+            <p id="loading-msg">Reading frames…</p>
+          </div>
         </div>
-        <div id="error" class="overlay hidden">
-          <h2>Could not parse this file</h2>
-          <p id="error-msg"></p>
-          <button id="btn-dismiss" class="btn" type="button">Dismiss</button>
-        </div>
-        <div class="status" id="status">Ready</div>
-        <div class="edit-bar" id="edit-bar">
-          <button id="btn-cut" class="btn ghost" type="button" title="Ctrl+X — an access point takes its clients">Cut</button>
-          <button id="btn-copy-sel" class="btn ghost" type="button" title="Ctrl+C — an access point takes its clients">Copy</button>
-          <button id="btn-paste" class="btn ghost" type="button" title="Ctrl+V">Paste</button>
-          <button id="btn-delete-sel" class="btn ghost" type="button" title="Delete">Delete</button>
-          <button id="btn-to-unwanted" class="btn ghost" type="button">Move to Unwanted</button>
-          <button id="btn-undo" class="btn ghost" type="button" disabled title="Ctrl+Z">Undo</button>
-        </div>
-        <div id="edit-toast" class="edit-toast hidden">
-          <span id="edit-toast-msg">Done</span>
-          <button id="edit-toast-undo" class="btn ghost" type="button">Undo</button>
-        </div>
-        <div class="zoom-bar" id="zoom-bar">
-          <span class="zoom-label">Zoom</span>
-          <input id="zoom-slider" type="range" min="20" max="400" step="1" value="100" disabled aria-label="Map zoom" />
-          <span id="zoom-pct" class="zoom-pct">100%</span>
-          <button id="zoom-fit" class="btn ghost" type="button" disabled>Fit</button>
+        <div id="drop-overlay" class="drop-overlay hidden">
+          <div><svg class="icon"><use href="#i-upload" /></svg><p>Drop to add these captures</p></div>
         </div>
       </main>
 
-      <aside class="inspector" id="inspector">
-        <h2>Details</h2>
-        <p id="inspector-empty" class="hint">Select a node or link. Clicking a device also opens its detail window.</p>
+      <aside class="inspector" id="inspector" aria-label="Details">
+        <div id="inspector-empty" class="inspector-empty">
+          <h2>Details</h2>
+          <p>Select a device or link to see what NetSeer found. Shift-click or drag a box to select several.</p>
+        </div>
         <div id="inspector-body" class="hidden"></div>
       </aside>
     </div>
 
-    <div id="device-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="device-title">
-      <div class="modal-card">
-        <header class="modal-head">
-          <div>
-            <p class="modal-kicker">Device details</p>
-            <h2 id="device-title">Device</h2>
-          </div>
-          <button id="device-close" class="btn ghost" type="button" aria-label="Close">Close</button>
-        </header>
-        <p id="copy-toast" class="toast hidden">Copied to clipboard</p>
-        <div class="map-label-edit">
-          <label class="field-label">Map name
-            <input id="device-name" type="text" autocomplete="off" />
-          </label>
-          <label class="field-label">On-map extra
-            <input id="device-extra" type="text" autocomplete="off" placeholder="Lobby AP, 2nd floor, site tag" />
-          </label>
-          <p class="hint map-name-hint">Auto name: <span id="device-inferred">Host</span>
-            <button id="device-reset-name" class="btn ghost" type="button">Use auto name</button>
-          </p>
-        </div>
-        <div class="modal-actions">
-          <button id="copy-all" class="btn" type="button">Copy all</button>
-          <button data-device-export="pdf" class="btn" type="button">PDF</button>
-          <button data-device-export="csv" class="btn" type="button">CSV</button>
-          <button data-device-export="xml" class="btn" type="button">XML</button>
-          <button data-device-export="txt" class="btn ghost" type="button">Plain text</button>
-        </div>
-        <div class="modal-actions map-edit-actions">
-          <button id="device-cut" class="btn ghost" type="button" title="An access point takes its clients">Cut</button>
-          <button id="device-copy" class="btn ghost" type="button" title="An access point takes its clients">Copy</button>
-          <button id="device-unwanted" class="btn ghost" type="button" title="An access point takes its clients">Move to Unwanted</button>
-          <button id="device-delete" class="btn ghost danger" type="button">Delete from map</button>
-          <label class="field-label move-to-label">Move to
-            <select id="device-move-to" aria-label="Move device to another map"></select>
-          </label>
-        </div>
-        <div id="device-fields" class="device-fields"></div>
-        <div class="device-notes">
-          <label class="field-label" for="device-notes">Your notes</label>
-          <textarea id="device-notes" rows="4" placeholder="Inventory tag, site notes, or anything else to save with this device."></textarea>
-        </div>
-      </div>
+    <div id="toast" class="toast hidden" role="status" aria-live="polite">
+      <span id="toast-msg"></span>
+      <button id="toast-undo" class="btn ghost small hidden" type="button">Undo</button>
     </div>
-    <div id="ctx-menu" class="ctx-menu hidden" role="menu">
-      <button type="button" data-ctx="cut">Cut</button>
-      <button type="button" data-ctx="copy">Copy</button>
-      <button type="button" data-ctx="paste">Paste</button>
-      <button type="button" data-ctx="unwanted">Move to Unwanted</button>
-      <button type="button" data-ctx="delete">Delete</button>
-    </div>
-    <script src="/static/app.js?v=maps8"></script>
+
+    <dialog id="dialog" class="dialog">
+      <form method="dialog" id="dialog-form">
+        <h2 id="dialog-title">Title</h2>
+        <p id="dialog-body" class="hint"></p>
+        <div id="dialog-field"></div>
+        <p id="dialog-error" class="field-error hidden"></p>
+        <div class="row-actions end">
+          <button value="cancel" class="btn ghost" type="button" id="dialog-cancel">Cancel</button>
+          <button value="ok" class="btn primary" type="submit" id="dialog-ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="help-dialog" class="dialog">
+      <form method="dialog">
+        <h2>Keyboard shortcuts</h2>
+        <dl class="shortcuts">
+          <dt><kbd>/</kbd></dt><dd>Find a device</dd>
+          <dt><kbd>Ctrl</kbd> <kbd>C</kbd></dt><dd>Copy selected devices (an access point brings its clients)</dd>
+          <dt><kbd>Ctrl</kbd> <kbd>X</kbd></dt><dd>Cut selected devices</dd>
+          <dt><kbd>Ctrl</kbd> <kbd>V</kbd></dt><dd>Paste onto the current map</dd>
+          <dt><kbd>Ctrl</kbd> <kbd>Z</kbd></dt><dd>Undo the last change</dd>
+          <dt><kbd>Del</kbd></dt><dd>Delete selected devices</dd>
+          <dt><kbd>Shift</kbd> click</dt><dd>Add to the selection</dd>
+          <dt><kbd>Shift</kbd> drag</dt><dd>Box-select devices</dd>
+          <dt><kbd>F</kbd></dt><dd>Fit the map to the screen</dd>
+          <dt><kbd>Esc</kbd></dt><dd>Clear selection and close menus</dd>
+        </dl>
+        <div class="row-actions end"><button class="btn primary" value="close">Done</button></div>
+      </form>
+    </dialog>
+
+    <script src="/static/app.js?v=ui1"></script>
   </body>
 </html>

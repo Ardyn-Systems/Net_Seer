@@ -491,3 +491,86 @@ def test_per_capture_packet_cap_and_small_parser_fixes(monkeypatch, tmp_path):
     assert "192.168.1.10" in rec["ips"]
     assert rec["signal_dbm"] is None
 
+
+
+def _containment_graph():
+    from netseer.serialize import graph_from_dict
+
+    return graph_from_dict(
+        {
+            "nodes": [
+                {"id": "subnet:10.0.0.0/24", "kind": "subnet", "label": "10.0.0.0/24"},
+                {"id": "ip:10.0.0.1", "kind": "gateway", "label": "Router"},
+                {"id": "ip:10.0.0.2", "kind": "host", "label": "Host"},
+                {"id": "vlan:10", "kind": "vlan", "label": "VLAN 10"},
+            ],
+            "links": [
+                {"id": "s1", "source": "ip:10.0.0.1", "target": "subnet:10.0.0.0/24", "kind": "subnet"},
+                {"id": "s2", "source": "ip:10.0.0.2", "target": "subnet:10.0.0.0/24", "kind": "subnet"},
+                {"id": "l1", "source": "ip:10.0.0.1", "target": "ip:10.0.0.2", "kind": "l3", "label": "ICMP"},
+                {"id": "v1", "source": "ip:10.0.0.1", "target": "vlan:10", "kind": "vlan"},
+            ],
+        }
+    )
+
+
+def test_exports_follow_map_positions_and_draw_subnet_containers():
+    import xml.dom.minidom as minidom
+    import zipfile
+    from io import BytesIO
+
+    graph = _containment_graph()
+    positions = {"ip:10.0.0.1": [-500, -200], "ip:10.0.0.2": [-300, -200], "vlan:10": [-400, 100], "subnet:10.0.0.0/24": [-400, -200]}
+    parents = {"ip:10.0.0.1": "subnet:10.0.0.0/24", "ip:10.0.0.2": "subnet:10.0.0.0/24", "bogus": "subnet:10.0.0.0/24"}
+
+    xml = export_drawio(graph, positions=positions, parents=parents)
+    doc = minidom.parseString(xml)
+    cells = {c.getAttribute("id"): c for c in doc.getElementsByTagName("mxCell")}
+    assert "container=1" in cells["subnet:10.0.0.0/24"].getAttribute("style")
+    assert cells["ip:10.0.0.1"].getAttribute("parent") == "subnet:10.0.0.0/24"
+    assert cells["vlan:10"].getAttribute("parent") == "1"
+    assert "s1" not in cells and "s2" not in cells  # membership is the box itself
+    assert "l1" in cells and "v1" in cells
+    # Children keep the map's relative spacing (200 px apart) inside the container.
+    g1 = cells["ip:10.0.0.1"].getElementsByTagName("mxGeometry")[0]
+    g2 = cells["ip:10.0.0.2"].getElementsByTagName("mxGeometry")[0]
+    assert float(g2.getAttribute("x")) - float(g1.getAttribute("x")) == 200
+    # Everything is shifted onto the page.
+    box = cells["subnet:10.0.0.0/24"].getElementsByTagName("mxGeometry")[0]
+    assert float(box.getAttribute("x")) >= 0 and float(box.getAttribute("y")) >= 0
+
+    vdx = export_vdx(graph, positions=positions, parents=parents)
+    minidom.parseString(vdx)
+    assert vdx.index("10.0.0.0/24") < vdx.index(">Router<")  # container drawn first, behind members
+    with zipfile.ZipFile(BytesIO(export_vsdx(graph, positions=positions, parents=parents))) as zf:
+        page = zf.read("visio/pages/page1.xml").decode()
+    minidom.parseString(page)
+    assert 'NameU="Container"' in page
+
+
+def test_fallback_layout_wraps_instead_of_one_long_row():
+    from netseer.exporters.layout import CELL_W, MARGIN, MAX_PER_ROW, layout_positions
+    from netseer.serialize import graph_from_dict
+
+    graph = graph_from_dict({"nodes": [{"id": f"ip:10.0.0.{i}", "kind": "host", "label": "Host"} for i in range(40)], "links": []})
+    placed = layout_positions(graph)
+    xs = [x for x, _ in placed.values()]
+    assert max(xs) <= MARGIN + CELL_W * MAX_PER_ROW
+    assert len({(round(x), round(y)) for x, y in placed.values()}) == 40  # no overlaps
+
+
+def test_export_api_accepts_layout_hints():
+    from fastapi.testclient import TestClient
+
+    from netseer.web import app
+
+    body = _containment_graph().to_dict()
+    body.update(
+        positions={"ip:10.0.0.1": [0, 0], "ip:10.0.0.2": [200, 0], "vlan:10": "nonsense"},
+        parents={"ip:10.0.0.1": "subnet:10.0.0.0/24", "ip:10.0.0.2": "subnet:10.0.0.0/24"},
+    )
+    client = TestClient(app)
+    for kind in ("drawio", "vdx", "vsdx"):
+        assert client.post(f"/api/export/{kind}", json=body).status_code == 200
+    body["positions"] = ["not", "a", "dict"]
+    assert client.post("/api/export/drawio", json=body).status_code == 200
