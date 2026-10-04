@@ -196,7 +196,7 @@ Keep the tag in step with `version` in `pyproject.toml` and `__version__` in `sr
 python -m pip install . "pywebview>=5.3" "pyinstaller>=6.10"
 pyinstaller packaging/windows/netseer.spec --noconfirm --clean
 dist\NetSeer\NetSeer.exe --smoke-test
-iscc /DAppVersion=0.1.0 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
+iscc /DAppVersion=0.2.0 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
 ```
 
 Code signing switches on once the Azure Artifact Signing secrets exist; see [packaging/windows/SIGNING.md](packaging/windows/SIGNING.md).
@@ -207,7 +207,7 @@ Code signing switches on once the Azure Artifact Signing secrets exist; see [pac
 python -m pip install . "pyinstaller>=6.10"
 pyinstaller packaging/linux/netseer.spec --noconfirm --clean
 dist/NetSeer/NetSeer --smoke-test
-bash packaging/linux/build-appimage.sh 0.1.0   # AppImage and .tar.gz in dist/
+bash packaging/linux/build-appimage.sh 0.2.0   # AppImage and .tar.gz in dist/
 ```
 
 ## Update and uninstall
