@@ -37,6 +37,33 @@ jobs:
           $p = Start-Process dist\NetSeer\NetSeer.exe -ArgumentList '--smoke-test' -Wait -PassThru
           Get-Content "$env:LOCALAPPDATA\NetSeer\netseer.log" -Tail 20
           if ($p.ExitCode -ne 0) { exit 1 }
+      # Code signing (Azure Artifact Signing). Skipped until the secrets in
+      # packaging/windows/SIGNING.md exist, so unsigned builds keep working.
+      - name: Check signing setup
+        id: signing
+        shell: pwsh
+        env:
+          ENDPOINT: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+        run: |
+          $on = [bool]$env:ENDPOINT
+          "enabled=$($on.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          if (-not $on) { "::notice title=Unsigned build::Signing secrets aren't set, so Windows SmartScreen will warn on first run. See packaging/windows/SIGNING.md." }
+      - name: Sign NetSeer.exe
+        if: steps.signing.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+          files: ${{ github.workspace }}\dist\NetSeer\NetSeer.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: NetSeer
+          description-url: https://github.com/ardyn-systems/NetSeer
       - name: Portable zip
         shell: pwsh
         run: Compress-Archive -Path dist\NetSeer -DestinationPath "dist\NetSeer-${{ steps.version.outputs.version }}-windows-x64-portable.zip"
@@ -47,6 +74,32 @@ jobs:
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
           & $iscc "/DAppVersion=${{ steps.version.outputs.version }}" packaging\windows\netseer.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Sign installer
+        if: steps.signing.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_CERT_PROFILE }}
+          files: ${{ github.workspace }}\dist\NetSeer-Setup-${{ steps.version.outputs.version }}.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: NetSeer setup
+          description-url: https://github.com/ardyn-systems/NetSeer
+      - name: Verify signatures
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $files = @("dist\NetSeer\NetSeer.exe", "dist\NetSeer-Setup-${{ steps.version.outputs.version }}.exe")
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f
+            "$f : $($sig.Status) ($($sig.SignerCertificate.Subject))"
+            if ($sig.Status -ne 'Valid') { exit 1 }
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: NetSeer-windows-${{ steps.version.outputs.version }}

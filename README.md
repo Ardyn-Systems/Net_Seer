@@ -106,7 +106,7 @@ NetSeer opens in its own window using Microsoft Edge WebView2, which ships with 
 
 ### Build it yourself
 
-GitHub Actions builds both files on every `v*` tag (`.github/workflows/windows.yml`) and attaches them to the release. Locally, on Windows with Python 3.12:
+GitHub Actions builds both files on every `v*` tag (`.github/workflows/windows.yml`) and attaches them to the release. It code-signs them once the signing secrets are set up ([packaging/windows/SIGNING.md](packaging/windows/SIGNING.md)); until then Windows SmartScreen warns on first run (**More info** → **Run anyway**). Locally, on Windows with Python 3.12:
 
 ```powershell
 python -m pip install . "pywebview>=5.3" "pyinstaller>=6.10"
