@@ -2724,7 +2724,19 @@ function bindUi() {
   });
 }
 
+// Lets the desktop app's browser fallback know a NetSeer tab is still open.
+function startHeartbeat() {
+  const beat = () => fetch("/api/heartbeat", { method: "POST", keepalive: true }).catch(() => {});
+  beat();
+  setInterval(beat, 20000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") beat();
+  });
+  window.addEventListener("pagehide", () => navigator.sendBeacon?.("/api/heartbeat?bye=true"));
+}
+
 async function init() {
+  startHeartbeat();
   mapResize.observe(el("map"));
   // Capture phase on the stage, so this runs before Cytoscape's listener on the map.
   el("stage").addEventListener("wheel", onMapWheel, { capture: true, passive: false });

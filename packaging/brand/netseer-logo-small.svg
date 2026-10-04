@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="32" height="32">
+  <title>NetSeer</title>
+  <!-- Simplified Profile for 16-32 px: fewer, bolder lines so it stays crisp. -->
+  <rect width="64" height="64" rx="14" fill="#15140f"/>
+  <!-- Contour stripes are pre-clipped to the terrain so every renderer (browsers, MuPDF, Inkscape) draws the same thing. -->
+  <g fill="none" stroke-width="3" stroke-linecap="butt">
+    <path d="M29.67 30 H56.88" stroke="#7fb6c9" stroke-opacity=".6"/>
+    <path d="M15.20 42 H60.00" stroke="#9cc27a" stroke-opacity=".55"/>
+    <path d="M4.00 54 H60.00" stroke="#7fb6c9" stroke-opacity=".45"/>
+  </g>
+  <path d="M4 50 L18 40 L32 28 L47 11 L60 36" fill="none" stroke="#e0a84a" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <circle cx="47" cy="11" r="6.5" fill="#e0a84a"/>
+</svg>
