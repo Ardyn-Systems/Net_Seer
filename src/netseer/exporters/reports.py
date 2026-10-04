@@ -8,6 +8,8 @@ from dataclasses import asdict, is_dataclass
 from typing import Any
 from xml.sax.saxutils import escape
 
+from netseer.exporters.xmlutil import clean, xml_attr, xml_text
+
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -95,7 +97,19 @@ def related_links(graph: SurveyGraph, node_id: str) -> list[Link]:
     return [link for link in graph.links if link.source == node_id or link.target == node_id]
 
 
-def device_properties(graph: SurveyGraph, node: Node) -> list[dict[str, str]]:
+def links_by_node(graph: SurveyGraph) -> dict[str, list[Link]]:
+    """Adjacency index so whole-map reports don't rescan every link per device."""
+    index: dict[str, list[Link]] = {}
+    for link in graph.links:
+        index.setdefault(link.source, []).append(link)
+        if link.target != link.source:
+            index.setdefault(link.target, []).append(link)
+    return index
+
+
+def device_properties(
+    graph: SurveyGraph, node: Node, links_index: dict[str, list[Link]] | None = None
+) -> list[dict[str, str]]:
     """Every extracted field for a device, including empty ones, plus related links."""
     if is_dataclass(node) and not isinstance(node, type):
         raw = asdict(node)
@@ -132,7 +146,8 @@ def device_properties(graph: SurveyGraph, node: Node) -> list[dict[str, str]]:
         if key in seen:
             continue
         rows.append({"name": key.replace("_", " ").title(), "key": key, "value": _stringify(value)})
-    for i, link in enumerate(related_links(graph, node.id), start=1):
+    links = links_index.get(node.id, []) if links_index is not None else related_links(graph, node.id)
+    for i, link in enumerate(links, start=1):
         bits = [
             link.kind,
             link.label,
@@ -169,13 +184,13 @@ def device_csv(graph: SurveyGraph, node: Node) -> str:
 
 def device_xml(graph: SurveyGraph, node: Node) -> str:
     props = "\n".join(
-        f'    <property key="{escape(row["key"])}" name="{escape(row["name"])}">'
-        f"{escape(row['value'])}</property>"
+        f'    <property key="{xml_attr(row["key"])}" name="{xml_attr(row["name"])}">'
+        f"{xml_text(row['value'])}</property>"
         for row in device_properties(graph, node)
     )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
-        f'<device id="{escape(node.id)}" label="{escape(node.label)}">\n'
+        f'<device id="{xml_attr(node.id)}" label="{xml_attr(node.label)}">\n'
         f"{props}\n"
         "</device>\n"
     )
@@ -225,8 +240,8 @@ def _property_table(rows: list[dict[str, str]], styles: dict) -> Table:
     for row in rows:
         data.append(
             [
-                Paragraph(escape(row["name"]), styles["cell"]),
-                Paragraph(escape(row["value"] or "—").replace("\n", "<br/>"), styles["cell"]),
+                Paragraph(escape(clean(row["name"])), styles["cell"]),
+                Paragraph(escape(clean(row["value"] or "—")).replace("\n", "<br/>"), styles["cell"]),
             ]
         )
     table = Table(data, colWidths=[1.7 * inch, 5.3 * inch])
@@ -363,9 +378,10 @@ def map_report_pdf(graph: SurveyGraph, title: str = DEFAULT_REPORT_TITLE) -> byt
     )
     story.append(inv)
     story.append(PageBreak())
+    index = links_by_node(graph)
     for i, node in enumerate(graph.nodes):
-        story.append(Paragraph(escape(node.label), styles["h2"]))
-        story.append(_property_table(device_properties(graph, node), styles))
+        story.append(Paragraph(escape(clean(node.label)), styles["h2"]))
+        story.append(_property_table(device_properties(graph, node, index), styles))
         if i != len(graph.nodes) - 1:
             story.append(Spacer(1, 10))
     if graph.links:

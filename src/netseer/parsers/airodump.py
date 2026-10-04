@@ -6,6 +6,15 @@ import io
 from netseer.graph import GraphBuilder
 
 
+def _power(text: str) -> float | None:
+    """airodump writes -1 when the driver reports no signal."""
+    try:
+        value = float(text) if text else None
+    except ValueError:
+        return None
+    return None if value == -1 else value
+
+
 def parse_airodump_csv(builder: GraphBuilder, data: bytes, filename: str) -> None:
     text = data.decode("utf-8", errors="replace").replace("\r\n", "\n")
     parts = text.split("\n\n")
@@ -35,16 +44,14 @@ def parse_airodump_csv(builder: GraphBuilder, data: bytes, filename: str) -> Non
         cipher = cell(row, "Cipher")
         auth = cell(row, "Authentication")
         power = cell(row, "Power")
-        lan_ip = cell(row, "LAN IP")
+        # airodump pads octets with spaces: "192.168.  1. 10".
+        lan_ip = cell(row, "LAN IP").replace(" ", "")
         enc_parts = [p for p in (privacy, cipher, auth) if p]
         try:
             ch = int(float(channel)) if channel else None
         except ValueError:
             ch = None
-        try:
-            sig = float(power) if power else None
-        except ValueError:
-            sig = None
+        sig = _power(power)
         node = builder.add_ap(
             bssid,
             ssid=ssid or None,
@@ -77,10 +84,7 @@ def parse_airodump_csv(builder: GraphBuilder, data: bytes, filename: str) -> Non
         bssid = scell(row, "BSSID")
         power = scell(row, "Power")
         probed = scell(row, "Probed ESSIDs")
-        try:
-            sig = float(power) if power else None
-        except ValueError:
-            sig = None
+        sig = _power(power)
         ssid = probed.split(",")[0].strip() if probed else None
         if bssid and bssid != "(not associated)":
             builder.add_wireless_link(sta, bssid, ssid=ssid, associated=True)

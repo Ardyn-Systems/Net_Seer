@@ -10,7 +10,7 @@ USER_AGENT = "NetSeer/0.1"
 DEFAULT_MAP_TITLE = "NetSeer map"
 DEFAULT_REPORT_TITLE = "NetSeer map report"
 
-WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+WEB_DIR = Path(__file__).resolve().parent / "web"
 LOGO_PNG = WEB_DIR / "logo.png"
 LOGO_MARK = WEB_DIR / "logo-192.png"
 FAVICON_ICO = WEB_DIR / "favicon.ico"

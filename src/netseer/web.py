@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
@@ -22,15 +24,44 @@ from netseer.exporters import (
     safe_filename,
 )
 from netseer.exporters.reports import device_properties
-from netseer.ingest import ingest_files
+from netseer.ingest import MAX_UPLOAD_BYTES, ingest_files
 from netseer.samples import SAMPLES, files_for_sample
 from netseer.serialize import graph_from_dict
 
-WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+WEB_DIR = Path(__file__).resolve().parent / "web"
 ROOT_DIR = Path(__file__).resolve().parents[2]
-UNWANTED_DIR = ROOT_DIR / "Unwanted"
+
+
+def _unwanted_dir() -> Path:
+    """NETSEER_UNWANTED_DIR, else Unwanted/ in a source checkout, else ./Unwanted."""
+    override = os.environ.get("NETSEER_UNWANTED_DIR")
+    if override:
+        return Path(override).expanduser()
+    if (ROOT_DIR / "pyproject.toml").is_file():
+        return ROOT_DIR / "Unwanted"
+    return Path.cwd() / "Unwanted"
+
+
+UNWANTED_DIR = _unwanted_dir()
+# Request bodies above this are refused before parsing (uploads are multipart overhead + 50 MB).
+MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
+MAX_UNWANTED_GROUPS = 200
+MAX_UNWANTED_FILES = 1000
 
 app = FastAPI(title=PRODUCT_NAME, version="0.1.0", description=MOTTO)
+
+
+@app.middleware("http")
+async def limit_body_size(request: Request, call_next):
+    length = request.headers.get("content-length")
+    if length is not None:
+        try:
+            too_big = int(length) > MAX_BODY_BYTES
+        except ValueError:
+            return JSONResponse({"detail": "Invalid Content-Length."}, status_code=400)
+        if too_big:
+            return JSONResponse({"detail": "Request is larger than the 50 MB preview limit."}, status_code=413)
+    return await call_next(request)
 
 
 def _http_error(exc: Exception, status: int = 400) -> HTTPException:
@@ -63,10 +94,11 @@ def sample_graph(sample_id: str):
 
 @app.post("/api/parse")
 async def parse_upload(file: UploadFile = File(...)):
-    data = await file.read()
+    data = await file.read(MAX_UPLOAD_BYTES + 1)
     name = file.filename or "upload"
     try:
-        graph = ingest_files([(name, data)])
+        # Parsing is CPU-bound; keep it off the event loop so other requests still answer.
+        graph = await run_in_threadpool(ingest_files, [(name, data)])
     except EmptySurveyError as exc:
         raise _http_error(exc, 422) from exc
     except (UnsupportedSurveyError, ValueError, OSError) as exc:
@@ -77,7 +109,11 @@ async def parse_upload(file: UploadFile = File(...)):
 def _graph_from_body(body: dict):
     if "nodes" not in body:
         raise HTTPException(status_code=400, detail="Export body must include a graph with nodes and links.")
-    return graph_from_dict(body), body.get("title") or DEFAULT_MAP_TITLE
+    try:
+        graph = graph_from_dict(body)
+    except UnsupportedSurveyError as exc:
+        raise _http_error(exc) from exc
+    return graph, str(body.get("title") or DEFAULT_MAP_TITLE)
 
 
 @app.post("/api/export/drawio")
@@ -198,13 +234,26 @@ def dump_unwanted(body: dict):
     groups = body.get("groups")
     if not isinstance(groups, list) or not groups:
         raise HTTPException(status_code=400, detail="Empty Unwanted dump needs at least one device group.")
+    if len(groups) > MAX_UNWANTED_GROUPS:
+        raise HTTPException(status_code=400, detail=f"At most {MAX_UNWANTED_GROUPS} capture groups per dump.")
+    if UNWANTED_DIR.is_dir() and sum(1 for _ in UNWANTED_DIR.glob("Unwanted-*.json")) >= MAX_UNWANTED_FILES:
+        raise HTTPException(
+            status_code=507,
+            detail=f"Unwanted/ already holds {MAX_UNWANTED_FILES} dumps. Move or delete some first.",
+        )
     written: list[str] = []
     for group in groups:
         if not isinstance(group, dict):
             continue
         nodes = group.get("nodes") or []
-        if not nodes:
+        links = group.get("links") or []
+        if not isinstance(nodes, list) or not isinstance(links, list) or not nodes:
             continue
+        try:
+            # Validate before writing so a dump always reloads.
+            graph_from_dict({"nodes": nodes, "links": links})
+        except UnsupportedSurveyError as exc:
+            raise _http_error(exc) from exc
         capture = group.get("capture") or "unknown"
         stem = _safe_unwanted_stem(capture)
         dest = _unique_unwanted_path(stem)
@@ -213,11 +262,11 @@ def dump_unwanted(body: dict):
             "original_capture": capture,
             "title": f"Unwanted {stem}",
             "nodes": nodes,
-            "links": group.get("links") or [],
+            "links": links,
             "meta": {
                 "sources": [capture] if capture else ["unknown"],
                 "node_count": len(nodes),
-                "link_count": len(group.get("links") or []),
+                "link_count": len(links),
             },
             "device_meta": group.get("device_meta") or {},
         }

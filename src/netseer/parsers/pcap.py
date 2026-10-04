@@ -76,13 +76,41 @@ def _channel_from_elements(elements: dict[int, list[bytes]], freq: float | None)
         return ds[0][0]
     if freq:
         f = int(freq)
-        if 2412 <= f <= 2484:
+        if f == 2484:
+            return 14
+        if 2412 <= f <= 2472:
             return (f - 2407) // 5
         if 5000 <= f <= 5900:
             return (f - 5000) // 5
         if 5955 <= f <= 7115:
             return (f - 5955) // 5 + 1
     return None
+
+
+RSN_OUI = b"\x00\x0f\xac"
+WPA_OUI = b"\x00\x50\xf2"
+# AKM suite types (IEEE 802.11-2020 table 9-151), grouped by how we label them.
+AKM_ENTERPRISE_192 = {11, 12, 13}
+AKM_ENTERPRISE = {1, 3, 5, 14, 15, 16, 17}
+AKM_SAE = {8, 9, 24, 25}
+AKM_OWE = {18}
+AKM_PSK = {2, 4, 6, 19, 20}
+
+
+def _akm_types(body: bytes, oui: bytes) -> set[int] | None:
+    """AKM suite types from an RSN/WPA body (after any vendor header), or None if truncated."""
+    try:
+        pos = 2 + 4  # version, group cipher
+        count = int.from_bytes(body[pos : pos + 2], "little")
+        pos += 2 + 4 * count  # pairwise ciphers
+        count = int.from_bytes(body[pos : pos + 2], "little")
+        pos += 2
+        suites = [body[pos + 4 * i : pos + 4 * i + 4] for i in range(count)]
+    except (IndexError, ValueError):
+        return None
+    if not suites or any(len(s) != 4 for s in suites):
+        return None
+    return {s[3] for s in suites if s[:3] == oui}
 
 
 def _encryption_from_elements(elements: dict[int, list[bytes]], cap) -> str | None:
@@ -93,19 +121,25 @@ def _encryption_from_elements(elements: dict[int, list[bytes]], cap) -> str | No
         privacy = "privacy" in str(cap).lower()
     rsn = elements.get(48)
     vendors = elements.get(221) or []
-    wpa = any(v.startswith(b"\x00\x50\xf2\x01") for v in vendors)
+    wpa_ie = next((v for v in vendors if v.startswith(WPA_OUI + b"\x01")), None)
+    wpa_akms = _akm_types(wpa_ie[4:], WPA_OUI) if wpa_ie is not None else None
     if rsn:
-        blob = rsn[0]
-        # AKM suite selector is typically after pairwise; SAE = 00-0f-ac:08
-        if b"\x00\x0f\xac\x08" in blob:
-            return "WPA3-SAE"
-        if b"\x00\x0f\xac\x01" in blob:
+        akms = _akm_types(rsn[0], RSN_OUI)
+        if akms is None:
+            return "WPA2"
+        if akms & AKM_ENTERPRISE_192:
+            return "WPA3-802.1X-192"
+        if akms & AKM_ENTERPRISE:
             return "WPA2-802.1X"
-        if wpa:
-            return "WPA/WPA2-PSK"
-        return "WPA2-PSK"
-    if wpa:
-        return "WPA-PSK"
+        if akms & AKM_SAE:
+            return "WPA3-SAE"
+        if akms & AKM_OWE:
+            return "OWE"
+        if akms & AKM_PSK:
+            return "WPA/WPA2-PSK" if wpa_ie is not None else "WPA2-PSK"
+        return "WPA2"
+    if wpa_ie is not None:
+        return "WPA-802.1X" if wpa_akms and 1 in wpa_akms else "WPA-PSK"
     if privacy:
         return "WEP"
     return "Open"
@@ -151,7 +185,10 @@ def _dot11_addrs(dot11: Any) -> tuple[str | None, str | None, str | None]:
     elif from_ds and not to_ds:
         bssid, sta = addr2, addr1
     else:
-        bssid, sta = addr3, addr2
+        # No-DS: management frames sent by the AP (addr2 == BSSID), such as probe
+        # and association responses, are addressed to the station in addr1.
+        bssid = addr3
+        sta = addr1 if addr2 and addr3 and str(addr2).lower() == str(addr3).lower() else addr2
     return bssid, sta, addr1
 
 
@@ -223,7 +260,6 @@ def ip_network_prefix(mask: str) -> int:
 def _try_ospf(builder: GraphBuilder, pkt: Any, src_id: str | None) -> None:
     if not src_id:
         return
-    raw_bytes = bytes(pkt) if hasattr(pkt, "__bytes__") else b""
     # OSPF is IP proto 89; hello type 1 starts after IP header
     if pkt.haslayer(IP) and pkt[IP].proto == 89:
         builder.add_role(src_id, "gateway")
@@ -279,21 +315,27 @@ def parse_pcap(builder: GraphBuilder, data: bytes, filename: str) -> None:
         reader = PcapReader(stream)
     except Exception as exc:
         raise ValueError(f"Could not open capture {filename}: {exc}") from exc
+    seen = 0
+    failed = 0
     try:
         for pkt in reader:
-            builder.packet_count += 1
-            if builder.packet_count > MAX_PACKETS:
-                builder.warnings.append(f"Stopped after {MAX_PACKETS} packets.")
+            # Cap per capture, not per builder, so combined surveys read every file.
+            if seen >= MAX_PACKETS:
+                builder.warnings.append(f"{filename}: stopped after {MAX_PACKETS} packets.")
                 break
+            seen += 1
+            builder.packet_count += 1
             try:
                 _handle_packet(builder, pkt)
             except Exception:
-                continue
+                failed += 1
     finally:
         try:
             reader.close()
         except Exception:
             pass
+    if failed:
+        builder.warnings.append(f"{filename}: skipped {failed} packets that could not be decoded.")
 
 
 def _handle_packet(builder: GraphBuilder, pkt: Any) -> None:
@@ -335,9 +377,14 @@ def _handle_packet(builder: GraphBuilder, pkt: Any) -> None:
     service, metadata = _infer_packet_service(pkt, sport, dport)
 
     if pkt.haslayer(Dot11) and src_ip:
-        _, sta, _ = _dot11_addrs(pkt[Dot11])
-        if sta:
-            builder.bind_ip_mac(src_ip, sta)
+        # Only the source address (SA) owns src_ip. SA is the station for
+        # station-to-AP (to-DS) and ad hoc frames; for from-DS frames it is the
+        # upstream router, so binding there would pin remote IPs to a client.
+        _, from_ds = _fc_bits(pkt[Dot11])
+        if not from_ds:
+            sa = getattr(pkt[Dot11], "addr2", None)
+            if sa:
+                builder.bind_ip_mac(src_ip, sa)
 
     if src_ip or dst_ip:
         builder.add_l3(
@@ -405,7 +452,8 @@ def _try_stp(builder: GraphBuilder, pkt: Any, src_mac: str | None) -> None:
     is_stp = pkt.haslayer(STP)
     if not is_stp and pkt.haslayer(LLC):
         is_stp = int(getattr(pkt[LLC], "dsap", 0) or 0) == 0x42
-    if not is_stp and dst in {"01:80:c2:00:00:00", "01:80:c2:00:00:00"}:
+    # IEEE 802.1D bridge group address and Cisco PVST+.
+    if not is_stp and dst in {"01:80:c2:00:00:00", "01:00:0c:cc:cc:cd"}:
         is_stp = True
     if not is_stp:
         return
@@ -461,8 +509,6 @@ def _handle_dot11(builder: GraphBuilder, pkt: Any) -> None:
             encryption=enc,
             signal_dbm=signal,
         )
-        if sta and sta != bssid:
-            builder.add_wireless_link(sta, bssid, ssid=ssid, associated=False)
     elif pkt.haslayer(Dot11ProbeReq):
         sta_id = builder.observe_mac(sta or getattr(dot11, "addr2", None), wireless=True)
         if sta_id:

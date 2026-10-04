@@ -283,3 +283,211 @@ def test_netseer_json_dump_reload_and_unwanted_filenames(tmp_path, monkeypatch):
     assert result["files"][0] == "Unwanted-office-lan.json"
     assert (tmp_path / "Unwanted-office-lan.json").is_file()
 
+
+def test_port_records_stay_bounded_and_ephemeral_ports_are_not_listeners():
+    from netseer.graph import GraphBuilder
+
+    builder = GraphBuilder()
+    for i in range(500):
+        builder.add_l3("10.0.0.1", "10.0.0.2", proto="tcp", sport=40000 + i, dport=443)
+    link = builder.links["l3:ip:10.0.0.1:ip:10.0.0.2"]
+    assert len(link["ports"]) == 1
+    assert link["ports"][0]["port"] == 443
+
+    p2p = GraphBuilder()
+    p2p.add_l3("10.0.0.5", "10.0.0.6", proto="udp", sport=40001, dport=40002)
+    assert p2p.devices["ip:10.0.0.6"]["ports"] == []
+    assert {n.inferred_type for n in p2p.finalize().nodes if n.kind != "subnet"} == {"Host"}
+
+
+def test_from_ds_frames_do_not_bind_remote_ips_to_the_station():
+    from scapy.layers.dot11 import Dot11
+    from scapy.layers.inet import IP, TCP
+    from scapy.layers.l2 import LLC, SNAP
+
+    from netseer.graph import GraphBuilder
+    from netseer.parsers.pcap import _handle_packet
+
+    ap, sta = "00:11:22:33:44:55", "00:aa:bb:cc:dd:ee"
+    builder = GraphBuilder()
+    down = Dot11(type=2, FCfield=0x2, addr1=sta, addr2=ap, addr3="00:99:99:99:99:99") / LLC() / SNAP() / IP(
+        src="93.184.216.34", dst="192.168.1.20"
+    ) / TCP(sport=443, dport=50000)
+    _handle_packet(builder, down)
+    assert "93.184.216.34" not in builder.devices[f"mac:{sta}"]["ips"]
+    up = Dot11(type=2, FCfield=0x1, addr1=ap, addr2=sta, addr3="00:99:99:99:99:99") / LLC() / SNAP() / IP(
+        src="192.168.1.20", dst="93.184.216.34"
+    ) / TCP(sport=50000, dport=443)
+    _handle_packet(builder, up)
+    assert builder.devices[f"mac:{sta}"]["ips"] == ["192.168.1.20"]
+
+
+def test_association_response_does_not_mark_ap_as_station():
+    from scapy.layers.dot11 import Dot11, Dot11AssoResp
+
+    from netseer.graph import GraphBuilder
+    from netseer.parsers.pcap import _handle_packet
+
+    ap, sta = "00:11:22:33:44:55", "00:aa:bb:cc:dd:ee"
+    builder = GraphBuilder()
+    _handle_packet(builder, Dot11(type=0, subtype=1, addr1=sta, addr2=ap, addr3=ap) / Dot11AssoResp())
+    assert "station" not in builder.devices[f"mac:{ap}"]["roles"]
+    assert "station" in builder.devices[f"mac:{sta}"]["roles"]
+    assert any(link["kind"] == "wireless" for link in builder.links.values())
+
+
+def test_ip_mac_merge_rekeys_links_and_members():
+    from netseer.graph import GraphBuilder
+
+    builder = GraphBuilder()
+    builder.add_l3("10.0.0.1", "10.0.0.2", proto="icmp")
+    builder.bind_ip_mac("10.0.0.1", "00:11:22:33:44:01")
+    builder.add_l3("10.0.0.1", "10.0.0.2", proto="icmp")
+    l3 = [link for link in builder.links.values() if link["kind"] == "l3"]
+    assert len(l3) == 1
+    assert l3[0]["extra"]["count"] == 2
+    assert "ip:10.0.0.1" not in {l3[0]["source"], l3[0]["target"]}
+    graph = builder.finalize()
+    node_ids = {n.id for n in graph.nodes}
+    subnet = next(n for n in graph.nodes if n.kind == "subnet")
+    assert set(subnet.extra["members"]) <= node_ids
+
+    # A second MAC claiming the IP is a different device, not a merge.
+    builder = GraphBuilder()
+    builder.bind_ip_mac("10.0.0.9", "00:11:22:33:44:01")
+    builder.bind_ip_mac("10.0.0.9", "00:11:22:33:44:02")
+    assert "mac:00:11:22:33:44:01" in builder.devices
+    assert "mac:00:11:22:33:44:02" in builder.devices
+
+
+def test_subnet_broadcast_is_not_a_host():
+    from netseer.graph import GraphBuilder
+
+    builder = GraphBuilder()
+    builder.add_l3("10.0.0.7", "10.0.0.255", proto="udp", sport=137, dport=137)
+    assert "ip:10.0.0.255" not in builder.devices
+    builder.netmasks["10.1.0.7"] = 16
+    assert builder.observe_ip("10.1.3.255") == "ip:10.1.3.255"
+    assert builder.observe_ip("10.1.255.255") is None
+
+
+def test_exports_escape_quotes_and_control_characters():
+    import xml.dom.minidom as minidom
+    import zipfile
+    from io import BytesIO
+
+    from netseer.serialize import graph_from_dict
+
+    graph = graph_from_dict(
+        {
+            "nodes": [
+                {"id": "mac:00:11:22:33:44:55", "kind": "ap", "label": 'Bob"s <AP>', "caption": 'x\x01"y"'},
+                {"id": "mac:00:11:22:33:44:66", "kind": "host", "label": "Host"},
+            ],
+            "links": [
+                {
+                    "id": "l:1",
+                    "source": "mac:00:11:22:33:44:55",
+                    "target": "mac:00:11:22:33:44:66",
+                    "kind": "l2",
+                    "label": 'a"b',
+                }
+            ],
+        }
+    )
+    minidom.parseString(export_drawio(graph, title='My "map"'))
+    vdx = export_vdx(graph, title='My "map"')
+    minidom.parseString(vdx)
+    assert "\\n" not in vdx
+    minidom.parseString(device_xml(graph, graph.nodes[0]))
+    with zipfile.ZipFile(BytesIO(export_vsdx(graph))) as zf:
+        minidom.parseString(zf.read("visio/pages/page1.xml"))
+        types = zf.read("[Content_Types].xml").decode()
+    assert "extended-properties+xml" in types
+
+
+def test_malformed_graphs_are_rejected_cleanly():
+    import pytest
+    from fastapi.testclient import TestClient
+
+    from netseer.detect import UnsupportedSurveyError
+    from netseer.serialize import graph_from_dict
+    from netseer.web import app
+
+    with pytest.raises(UnsupportedSurveyError):
+        graph_from_dict({"nodes": [{"id": "a"}], "links": []})
+    with pytest.raises(UnsupportedSurveyError):
+        graph_from_dict({"nodes": ["nope"], "links": []})
+    coerced = graph_from_dict(
+        {"nodes": [{"id": "a", "kind": "host", "label": "A", "signal_dbm": "<img src=x>", "ips": "1.2.3.4"}], "links": []}
+    )
+    assert coerced.nodes[0].signal_dbm is None
+    assert coerced.nodes[0].ips == []
+
+    client = TestClient(app)
+    res = client.post("/api/export/drawio", json={"nodes": [{"id": "a"}], "links": []})
+    assert res.status_code == 400
+    res = client.post("/api/parse", files={"file": ("bad.json", b'{"nodes":[{"id":"a"}],"links":[]}')})
+    assert res.status_code == 400
+    res = client.post(
+        "/api/parse",
+        content=b"x",
+        headers={"content-length": str(60 * 1024 * 1024), "content-type": "application/octet-stream"},
+    )
+    assert res.status_code == 413
+
+
+def test_rsn_akm_parsing_labels():
+    from netseer.parsers.pcap import _encryption_from_elements
+
+    def rsn(*akms: int) -> bytes:
+        body = b"\x01\x00" + b"\x00\x0f\xac\x04" + b"\x01\x00\x00\x0f\xac\x04"
+        body += len(akms).to_bytes(2, "little") + b"".join(b"\x00\x0f\xac" + bytes([a]) for a in akms)
+        return body + b"\x00\x00"
+
+    assert _encryption_from_elements({48: [rsn(2)]}, 0x11) == "WPA2-PSK"
+    assert _encryption_from_elements({48: [rsn(8)]}, 0x11) == "WPA3-SAE"
+    assert _encryption_from_elements({48: [rsn(2, 8)]}, 0x11) == "WPA3-SAE"
+    assert _encryption_from_elements({48: [rsn(1)]}, 0x11) == "WPA2-802.1X"
+    assert _encryption_from_elements({48: [rsn(5)]}, 0x11) == "WPA2-802.1X"
+    assert _encryption_from_elements({48: [rsn(12)]}, 0x11) == "WPA3-802.1X-192"
+    assert _encryption_from_elements({48: [rsn(18)]}, 0x11) == "OWE"
+    assert _encryption_from_elements({}, 0x11) == "WEP"
+    assert _encryption_from_elements({}, 0x01) == "Open"
+
+
+def test_per_capture_packet_cap_and_small_parser_fixes(monkeypatch, tmp_path):
+    from scapy.all import wrpcap
+    from scapy.layers.inet import IP, UDP
+    from scapy.layers.l2 import Ether
+
+    import netseer.parsers.pcap as pcapmod
+    from netseer.graph import GraphBuilder
+    from netseer.parsers.airodump import parse_airodump_csv
+
+    monkeypatch.setattr(pcapmod, "MAX_PACKETS", 3)
+    pkt = Ether(src="00:11:22:33:44:01", dst="00:11:22:33:44:02") / IP(src="10.0.0.1", dst="10.0.0.2") / UDP()
+    path = tmp_path / "a.pcap"
+    wrpcap(str(path), [pkt] * 5)
+    data = path.read_bytes()
+    builder = GraphBuilder()
+    pcapmod.parse_pcap(builder, data, "a.pcap")
+    pcapmod.parse_pcap(builder, data, "b.pcap")
+    assert builder.packet_count == 6
+    assert len(builder.warnings) == 2
+
+    assert pcapmod._channel_from_elements({}, 2484.0) == 14
+    assert pcapmod._channel_from_elements({}, 2437.0) == 6
+
+    csv_text = (
+        "\r\nBSSID, First time seen, Last time seen, channel, Speed, Privacy, Cipher, Authentication, "
+        "Power, # beacons, # IV, LAN IP, ID-length, ESSID, Key\r\n"
+        "00:15:6D:C0:00:09, 2026-09-20 16:02:11, 2026-09-20 16:18:02, 6, 54, WPA2, CCMP, PSK, "
+        "-1, 4, 0, 192.168.  1. 10, 3, lab, \r\n"
+    )
+    ap_builder = GraphBuilder()
+    parse_airodump_csv(ap_builder, csv_text.encode(), "dump.csv")
+    rec = ap_builder.devices["mac:00:15:6d:c0:00:09"]
+    assert "192.168.1.10" in rec["ips"]
+    assert rec["signal_dbm"] is None
+

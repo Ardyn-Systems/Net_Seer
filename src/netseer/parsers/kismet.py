@@ -35,6 +35,11 @@ def _int(el: ET.Element | None) -> int | None:
         return None
 
 
+def _first(*values: float | None) -> float | None:
+    """First value that is present; 0.0 (equator, prime meridian, sea level) counts."""
+    return next((v for v in values if v is not None), None)
+
+
 def _find(parent: ET.Element, name: str) -> ET.Element | None:
     direct = parent.find(name)
     if direct is not None:
@@ -66,9 +71,9 @@ def parse_kismet_netxml(builder: GraphBuilder, data: bytes, filename: str) -> No
         gps_el = _find(net, "gps-info")
         gps = None
         if gps_el is not None:
-            lat = _float(gps_el.find("avg-lat")) or _float(gps_el.find("peak-lat"))
-            lon = _float(gps_el.find("avg-lon")) or _float(gps_el.find("peak-lon"))
-            alt = _float(gps_el.find("avg-alt")) or _float(gps_el.find("peak-alt"))
+            lat = _first(_float(gps_el.find("avg-lat")), _float(gps_el.find("peak-lat")))
+            lon = _first(_float(gps_el.find("avg-lon")), _float(gps_el.find("peak-lon")))
+            alt = _first(_float(gps_el.find("avg-alt")), _float(gps_el.find("peak-alt")))
             if lat is not None and lon is not None:
                 gps = GpsFix(lat=lat, lon=lon, alt=alt)
         vendor = _text(_find(net, "manuf"))

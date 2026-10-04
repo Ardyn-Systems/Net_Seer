@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from xml.sax.saxutils import escape
-
 from netseer.exporters.layout import layout_positions
+from netseer.exporters.xmlutil import html_label, xml_attr
 from netseer.graph import device_map_label
 from netseer.models import SurveyGraph
 
@@ -27,7 +26,8 @@ EDGE_STYLE = {
 
 
 def _label(node) -> str:
-    return escape(device_map_label(node)).replace("\n", "&#xa;")
+    # Vertex styles use html=1, so the value is HTML inside an XML attribute.
+    return xml_attr(html_label(device_map_label(node)))
 
 
 def export_drawio(graph: SurveyGraph, title: str = "NetSeer map") -> str:
@@ -37,22 +37,21 @@ def export_drawio(graph: SurveyGraph, title: str = "NetSeer map") -> str:
         x, y = positions[node.id]
         style = KIND_STYLE.get(node.kind, KIND_STYLE["host"])
         if node.medium == "wireless" and node.kind == "host":
-            style = KIND_STYLE["ap"].replace("hexagon", "mxgraph.networks.computer")
             style = "rounded=1;whiteSpace=wrap;html=1;fillColor=#451A03;strokeColor=#FBBF24;fontColor=#FEF3C7;"
         w, h = (130, 48) if node.kind != "ap" else (140, 56)
         if getattr(node, "caption", ""):
             h += 14
         cells.append(
-            f'        <mxCell id="{escape(node.id)}" value="{_label(node)}" style="{style}" '
+            f'        <mxCell id="{xml_attr(node.id)}" value="{_label(node)}" style="{style}" '
             f'vertex="1" parent="1"><mxGeometry x="{x:.1f}" y="{y:.1f}" width="{w}" height="{h}" as="geometry"/>'
             f"</mxCell>"
         )
     for link in graph.links:
         style = EDGE_STYLE.get(link.kind, EDGE_STYLE["l2"])
         if link.kind == "bridge":
-            label = escape(link.label or "Attachment")
+            label = xml_attr(link.label or "Attachment")
         else:
-            label = escape(link.label or link.kind)
+            label = xml_attr(link.label or link.kind)
             if link.ports:
                 displays = []
                 for item in link.ports:
@@ -60,17 +59,17 @@ def export_drawio(graph: SurveyGraph, title: str = "NetSeer map") -> str:
                     if text and text not in displays:
                         displays.append(str(text))
                 if displays:
-                    label = escape(", ".join(displays[:4]))
+                    label = xml_attr(", ".join(displays[:4]))
         cells.append(
-            f'        <mxCell id="{escape(link.id)}" value="{label}" style="{style}" edge="1" parent="1" '
-            f'source="{escape(link.source)}" target="{escape(link.target)}">'
+            f'        <mxCell id="{xml_attr(link.id)}" value="{label}" style="{style}" edge="1" parent="1" '
+            f'source="{xml_attr(link.source)}" target="{xml_attr(link.target)}">'
             f'<mxGeometry relative="1" as="geometry"/></mxCell>'
         )
     body = "\n".join(cells)
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
         f'<mxfile host="NetSeer" modified="2026-09-20" agent="NetSeer" version="22.1.0">\n'
-        f'  <diagram id="netseer" name="{escape(title)}">\n'
+        f'  <diagram id="netseer" name="{xml_attr(title)}">\n'
         '    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" '
         'connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">\n'
         "      <root>\n"
