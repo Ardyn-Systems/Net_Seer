@@ -115,108 +115,18 @@ The CLI name is `netseer`. Leave the process running while you use the UI.
 
 ## How to use
 
-A function-by-function guide (maps, Unwanted dumps, AP copy, field Copy, exports) is [[netseer-how-to]] / [docs/netseer-how-to.md](netseer-how-to.md).
+The full guide, area by area, is [[netseer-how-to]] / [docs/netseer-how-to.md](netseer-how-to.md). The short version:
 
-Campus survey (combined) loads on first visit into its own **map**. Empty, loading, and parse-error overlays cover the other states. Maps, device edits, and the clipboard persist in this browser (`localStorage`).
+- The campus survey opens on first visit. **Open survey** (or drop files anywhere) to map your own captures; each becomes a map.
+- The left sidebar has **Maps** (switch, rename, merge, delete, and the **Unwanted** holding area), **Surveys** (captures you've opened plus the bundled samples), and **Layers** (link toggles, **Group by subnet**, and the legend).
+- Click a device to see everything NetSeer found in the **Details** panel: rename it, add a caption and notes, copy values, export it, or edit any extracted field.
+- Select devices to get **Copy**, **Cut**, **Move to**, **Set aside**, and **Delete**. Copying an access point brings its clients and bridged APs. Ctrl+Z undoes up to 30 steps.
+- **Find a device** (`/`) searches names, IPs, MACs, SSIDs, and notes.
+- Subnets are drawn as boxes; drag devices to rearrange and **Tidy layout** to reset.
+- **Export** gives draw.io, Visio (.vsdx / .vdx), and a full PDF report, laid out the way you see the map.
+- The **palette** button switches themes: **Terrain** (default), **Midnight**, **Daylight**, **Blueprint**.
 
-### Maps (blank, Unwanted, cut / copy / paste)
-
-Left **Maps** list holds every map in this session:
-
-- **Unwanted** — holding / quarantine map. It cannot be deleted. **Empty** writes devices to `Unwanted/` in the project (`Unwanted-office-lan.json`, …) then clears the map (set `NETSEER_UNWANTED_DIR` to write somewhere else; outside a source checkout it defaults to `./Unwanted`). Drop that JSON onto **Load a survey** to reload it.
-- Survey maps — created when you load a sample or upload. **Rename** / **Delete** on the row.
-- **New blank map** — empty canvas. Rename or delete it like any user map.
-
-**Merge this map into** combines the active map into another (nodes, edges, notes). Unwanted cannot be a merge source or target.
-
-Switch maps by clicking a row. Each map keeps its own devices when you switch.
-
-**Select** a device (click; Shift-click adds; Shift-drag boxes). Then:
-
-| Action | How |
-| --- | --- |
-| Cut | Cut button, right-click, device window, or Ctrl+X / Cmd+X |
-| Copy | Copy button, right-click, device window, or Ctrl+C / Cmd+C |
-| Paste | Switch to the destination map, then Paste or Ctrl+V / Cmd+V |
-| Move | Cut, switch maps, paste — or **Move to Unwanted** / **Move to** in the device window |
-| Delete | Delete / Backspace, Delete button, right-click, or **Delete from map** in the device window |
-| Undo | Undo or Ctrl+Z / Cmd+Z (last cut, paste, move, delete, merge, or empty) |
-
-Edges travel with a selection only when **both** endpoints are in that selection. Device details, edits, and notes stay with the device.
-
-Copying an **Access point** takes associated **wireless clients**, the wireless edges, and **other APs on WDS / STP / attachment (bridge) links** to that AP (and those APs’ clients). Copying a **Wireless client** copies only that station. Cut and **Move to Unwanted** / **Move to** do the same when the selection is an AP.
-
-### Load and remove surveys
-
-Left panel, **Load a survey**:
-
-1. Click a bundled sample, **or** drop / pick `.pcap`, `.pcapng`, `.cap`, `.netxml`, `.csv`.
-2. Uploads join the same list (tagged as uploaded captures).
-3. **Remove** hides a bundled sample or drops an upload from the list. It does not delete files on disk.
-4. **Restore bundled samples** comes back if you hid them all.
-
-On a narrow screen, **Samples** in the header opens the left panel.
-
-### Map labels
-
-Nodes show a **short type**, not a dump of MAC/IP/OUI:
-
-Access point, Wireless client, Router, Switch, Server, Gateway, Host. VLAN and subnet objects keep their network names (`VLAN 10`, `10.10.10.0/24`, …).
-
-Click a device → **Map name** and **On-map extra** (second line). **Use auto name** restores the inferred type. Edits stick in the browser (`localStorage`) for this origin.
-
-### Zoom
-
-Bottom-right **Zoom** slider (20–400%) stays in sync with wheel zoom. **Fit** frames the graph.
-
-### Show layers
-
-Left **Show** checkboxes:
-
-| Layer | What it toggles |
-| --- | --- |
-| Wired L2 | Ethernet adjacency |
-| L3 / IP | IP conversations |
-| Ports & services | Client → server edges (http, dns, ssh, …) |
-| Wireless | STA ↔ AP |
-| VLANs | VLAN membership |
-| Subnets | Subnet membership |
-| Bridge / attachment | STP / WDS / spanning-host links between **distinct** networks |
-
-**Show all** checks every box. **Show none** clears every box (nodes stay; those edges hide).
-
-Pink diamond-dashed **bridge / attachment** lines appear only when the capture has evidence: a device MAC on more than one VLAN (or two same-version subnets), an 802.1D STP BPDU, or 802.11 four-address WDS. NetSeer does not invent bridges.
-
-### Device window
-
-Click a node. The dialog lists extracted fields.
-
-- **Capture** vs **Edited** on each row. Type to override; **Reset** goes back to what the parser found.
-- Editable: type/kind/medium, TX / RX / DA / RA MACs, other MACs, IPs, VLANs, SSIDs, channel, frequency, encryption, OUI manufacturer, ports/services, GPS, routing, extra JSON, and the rest of the property list. `id` stays read-only.
-- **Your notes** at the bottom.
-- Per-row **Copy** copies **only the text-box value** (not the field name or Capture/Edited badge). **Copy all** is still a structured dump. Download **PDF / CSV / XML / Plain text**. Notes and edits go with those exports when present.
-- **Cut**, **Copy**, **Move to Unwanted**, **Delete from map**, and **Move to** another map sit under the export buttons.
-
-The right **Details** inspector shows the live overlay (including `User-edited: …`). Click a **bridge** edge to see kind `bridge`, mechanism (STP / WDS / attachment), and via device.
-
-**TX / RX / DA / RA** are only filled from frames. Wired: TX = Ethernet src, DA and RX = dst, RA omitted. 802.11 follows ToDS/FromDS. Missing roles say `not present` — they are not guessed.
-
-**OUI manufacturer** comes from the bundled IEEE MA-L / MA-M / MA-S / CID table.
-
-### Exports (toolbar)
-
-Need a map loaded (buttons disable on empty).
-
-| Button | File |
-| --- | --- |
-| Export draw.io | `netseer-map.drawio` |
-| Export Visio .vsdx | `netseer-map.vsdx` |
-| Export Visio XML | `netseer-map.vdx` |
-| Report PDF | whole-map PDF (devices + links) |
-
-Device-window downloads are per node. Map-name, extra, notes, and field edits are included in the graph posted to the server.
-
-Edits live in **this browser’s** `localStorage` (`netseer.deviceMeta.v1`, `netseer.hiddenSamples`). They are not written back into the pcap.
+Maps, edits, notes, and positions are saved in this browser (IndexedDB for this origin), not in the capture files.
 
 ## Optional: tests and OUI table
 
@@ -246,9 +156,9 @@ uv sync --group dev
 uv run netseer --host 127.0.0.1 --port 47331
 ```
 
-Open http://127.0.0.1:47331. Try **New blank map**, **Move to Unwanted**, Cut / Copy / Paste, then export draw.io.
+Open http://127.0.0.1:47331. Try **New blank map**, **Set aside**, Cut / Copy / Paste, then **Export** → draw.io diagram.
 
-Maps and field edits live in **this browser’s** `localStorage` (`netseer.deviceMeta.v1`, `netseer.maps.v2`, `netseer.hiddenSamples`). They are not written back into the pcap.
+Maps and field edits are saved in **this browser** (IndexedDB for this origin). They are not written back into the pcap.
 
 ## 4. Update on your Linux computer
 
@@ -273,7 +183,7 @@ pip install -e ".[dev]"
 netseer --host 127.0.0.1 --port 47331
 ```
 
-Hard-refresh the browser (Ctrl+Shift+R) so it does not keep an old `app.js`. Map edits in `localStorage` stay; they are not in git.
+Hard-refresh the browser (Ctrl+Shift+R) so it does not keep an old `app.js`. Saved maps stay in the browser; they are not in git. Maps from versions that used `localStorage` move over automatically on first load.
 
 If `git pull` reports local changes you do not care about: `git restore .` then `git pull origin main`. Do not `git restore` if you edited files you want to keep.
 
@@ -298,7 +208,7 @@ uv cache clean
 rm -rf ~/.local/bin/uv ~/.local/bin/uvx ~/.local/share/uv
 ```
 
-**Optional — browser leftovers:** in the browser that opened http://127.0.0.1:47331, clear site data for that origin, or DevTools → Application → Local Storage and remove `netseer.deviceMeta.v1`, `netseer.maps.v2`, and `netseer.hiddenSamples`.
+**Optional — browser leftovers:** in the browser that opened http://127.0.0.1:47331, clear site data for that origin (DevTools → Application → Storage → **Clear site data**). That removes the `netseer` IndexedDB database and the `netseer.*` preferences in Local Storage.
 
 **Do not** `apt remove python3 git curl` unless you want those tools gone from the whole machine. They are general Debian packages, not NetSeer-only.
 

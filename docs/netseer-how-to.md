@@ -2,174 +2,194 @@
 
 **Turn traffic into terrain.**
 
-What each control does, and how to use it. For clone, install, update, and uninstall on Debian/Ubuntu, see [[netseer-install-and-use]].
+What each part of the screen does, and how to use it. For clone, install, update, and uninstall on Debian/Ubuntu, see [[netseer-install-and-use]].
 
 NetSeer is a **local** browser preview (`http://127.0.0.1:47331` by default). It is not a compiled binary. Open it with `netseer`.
 
-Maps, field edits, notes, and the clipboard live in **this browser’s** `localStorage`. They are not written back into the original pcap.
+Maps, names, notes, field edits, dragged positions, and the clipboard are saved in **this browser** (IndexedDB for this origin). They are not written back into the original capture. Maps saved by older versions in `localStorage` move over automatically the first time you open the new version.
 
 ---
 
-## Load and remove surveys
+## The screen at a glance
 
-Left panel, **Load a survey**.
+| Area | What's there |
+| --- | --- |
+| Top bar | Logo, the **current map's name** (click to rename), **Open survey**, **Export**, the **theme** button, and **keyboard shortcuts** (`?`) |
+| Left sidebar | Three tabs: **Maps**, **Surveys**, **Layers** |
+| Map | The network drawing, with **Find a device** and **Undo** at the top, zoom controls at the bottom right, and a toolbar at the bottom whenever something is selected |
+| Right panel | **Details** for whatever you selected |
 
-1. Click a bundled campus sample, **or** drop / pick `.pcap`, `.pcapng`, `.cap`, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump.
-2. Uploads join the same list (tagged as uploaded captures).
-3. **Remove** hides a bundled sample or drops an upload from the list. It does not delete files on disk.
-4. **Restore bundled samples** appears if you hid them.
+Below about 1180 px wide the details panel slides in from the right when you select something (close it with **×** or Esc). Below about 760 px the sidebar hides behind the **menu** button.
 
-On a narrow screen, **Samples** in the header opens the left panel.
+---
 
-Empty, loading, and parse-error overlays cover the map when there is nothing to draw, a parse is in flight, or a file failed.
+## Themes
+
+Click the **palette** button in the top bar and pick one:
+
+| Theme | Feel |
+| --- | --- |
+| **Terrain** (default) | Warm, earthy, with faint contour lines behind the map |
+| **Midnight** | Low-glare navy with a dot grid |
+| **Daylight** | Light and crisp; best for screenshots, projectors, and printing |
+| **Blueprint** | Engineering drawing on a blue grid |
+
+Your choice is remembered in this browser. Themes change the app and the on-screen map only; draw.io, Visio, and PDF exports keep their own fixed colors.
+
+---
+
+## Open surveys
+
+- **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump.
+- Each capture becomes its own map and joins the **Surveys** tab.
+- **Surveys** tab: click a row to open it. The **×** on a row removes it from the list; its map stays under **Maps**. **Restore bundled samples** brings hidden samples back.
+- First visit: the bundled campus survey opens automatically. An empty map shows a welcome card with **Open survey** and **Try the campus sample**.
+- Problems (unsupported file, empty capture, decode warnings) show up as a message at the top of the window.
 
 ---
 
 ## Maps
 
-Left **Maps** list is every map in this session. Click a row to switch. The active map is what you edit and export. Switching does **not** empty a survey.
+The **Maps** tab lists every map. Click a row to switch. Each row's **⋯** menu has:
 
-| Kind | How it appears | Delete? | Rename? |
-| --- | --- | --- | --- |
-| Unwanted | Holding / quarantine map | No — use **Empty** | Yes |
-| Survey map | After you load a sample or upload | Yes | Yes |
-| Blank map | **New blank map** (header or Maps panel) | Yes | Yes |
+| Map | Menu |
+| --- | --- |
+| Survey and blank maps | **Rename…**, **Merge into…**, **Delete map…** |
+| Unwanted | **Rename…**, **Save to files and empty…** |
 
-**Rename** on a map row. **Delete** on survey and blank rows (confirm). Deleting a map does not write it to `Unwanted/`.
-
-**Merge this map into** (dropdown + **Merge**): copies the **active** map’s devices, edges, edits, and notes onto the destination. ID collisions get a suffix (`~2`). **Unwanted cannot be a merge source or a merge target.**
-
-**New blank map** starts empty. No campus sample required. Paste onto it, or leave it as a sketch.
+- **New blank map** asks for a name and starts an empty canvas.
+- **Merge into…** copies this map's devices, links, names, and notes into the map you pick. Clashing IDs get a suffix (`~2`). This map stays as it is.
+- **Delete map…** asks first, and you can undo it right after.
+- Unwanted always sits at the bottom of the list and can't be deleted or merged.
 
 ---
 
-## Unwanted holding map
+## Unwanted (holding area)
 
-Move devices you do not want on the working drawing here (**Move to Unwanted**, or cut/paste). Fields and notes go with them.
+Use **Set aside** (selection toolbar, details panel, or right-click) to move devices off a working map. Names, notes, and edits go with them.
 
-**Empty** (on the Unwanted row):
+**Save to files and empty…** on the Unwanted row:
 
-1. Confirms.
-2. Writes one readable JSON dump per original capture into the project folder **`Unwanted/`**.
-3. Names: `Unwanted-office-lan.json` from `office-lan.pcap`. No capture name → `Unwanted-unknown.json`. If the file already exists, NetSeer adds `-2`, `-3`, …
-4. Clears the Unwanted map.
+1. Asks first.
+2. Writes one readable JSON file per original capture into the project's **`Unwanted/`** folder (or `NETSEER_UNWANTED_DIR`), for example `Unwanted-office-lan.json` from `office-lan.pcap`. Existing names get `-2`, `-3`, …
+3. Clears the Unwanted map.
 
-These dumps are a **graph sidecar** (nodes, links, notes), not a reconstructed pcap. Drop the JSON onto **Load a survey** to reload it as a map.
+The files hold the graph (nodes, links, notes), not a rebuilt pcap. Drop one back onto NetSeer to reload it as a map.
 
 ---
 
-## Select, cut, copy, paste, move, delete
+## Select and edit
 
-**Select** a device: click. Shift-click adds. Shift-drag boxes.
+**Select:** click a device. Shift-click (or Ctrl/Cmd-click) adds to the selection. Shift-drag draws a selection box. Click empty space or press Esc to clear.
+
+When something is selected, a toolbar appears at the bottom of the map: **Copy**, **Cut**, **Move to**, **Set aside**, **Delete**. The same actions are on right-click and in the details panel.
 
 | Action | How |
 | --- | --- |
-| Cut | Cut button, right-click, device window, or Ctrl+X / Cmd+X |
-| Copy | Copy button, right-click, device window, or Ctrl+C / Cmd+C |
-| Paste | Switch to the destination map, then Paste or Ctrl+V / Cmd+V |
-| Move | Cut then paste, **Move to Unwanted**, or **Move to** another map in the device window |
-| Delete from the map | Delete / Backspace, Delete button, right-click, or **Delete from map** |
-| Undo | Undo or Ctrl+Z / Cmd+Z (last cut, paste, move, delete, merge, or empty) |
+| Copy | Toolbar, right-click, or Ctrl+C / Cmd+C |
+| Cut | Toolbar, right-click, or Ctrl+X / Cmd+X |
+| Paste | Open the destination map, then the **Paste** button at the top of the map, right-click on empty space, or Ctrl+V / Cmd+V |
+| Move | **Move to** → pick a map, or **New map…** to create one on the spot |
+| Delete | Toolbar, right-click, or Delete / Backspace |
+| Undo | The **undo** arrow at the top of the map, **Undo** in the message, or Ctrl+Z / Cmd+Z. Up to 30 steps: cut, paste, move, delete, merge, delete map, empty Unwanted, tidy layout |
 
-Edges travel with a selection only when **both** endpoints are in that selection.
+Links travel with a selection only when **both** ends are selected.
 
----
+### Access points bring their clients
 
-## Access point copy vs client copy
-
-**Access point** (copy, cut, Move to Unwanted, Move to another map):
-
-- The AP
-- Associated **wireless clients** and the wireless edges between them
-- **Other APs** on **bridge** links to that AP (WDS / STP / attachment) and those bridge edges
-- Those bridged APs’ associated clients as well
-
-**Wireless client:** copy/cut/move that station only. It does not pull the AP.
+Copying, cutting, moving, or setting aside an **access point** also takes its associated **wireless clients**, plus **other APs bridged to it** (WDS, STP, attachment) and their clients. A **wireless client** on its own moves alone.
 
 ---
 
-## Type labels, notes, and editable fields
+## Find a device
 
-Map nodes show a **short type**, not a dump of MAC/IP/OUI: Access point, Wireless client, Router, Switch, Server, Gateway, Host. VLAN and subnet objects keep their network names (`VLAN 10`, `10.10.10.0/24`, …).
-
-Click a device:
-
-- **Map name** and **On-map extra** (second line). **Use auto name** restores the inferred type.
-- Every extracted field is editable. **Capture** vs **Edited**. **Reset** on a row goes back to the parse.
-- **Your notes** at the bottom.
-- `id` stays read-only.
+Press `/` or click **Find a device**. Search by name, caption, type, IP, MAC, SSID, maker, or notes. Arrow keys move through results; Enter selects and centers the device.
 
 ---
 
-## Field Copy vs Copy all
+## Details panel
 
-In the device window, each row’s **Copy** copies **only the text-box value** — not the field name, not the Capture/Edited badge.
+Select one device to see:
 
-**Copy all** is still a structured dump of the device (same as the plain-text export).
+- **Name on map** and **Caption under the name** (shown as a second line on the map). **Use auto name** goes back to the inferred type.
+- **Identity**: IPs, MACs (TX / RX / DA / RA when the frames show them), maker (IEEE OUI), VLANs.
+- **Radio**: SSID, channel, frequency, signal range, security, GPS (when present).
+- **Services** and **Routing** (OSPF, default gateway, DHCP, DNS).
+- **Notes** for anything you want to keep.
+- Actions: **Copy details**, **Export** (PDF, CSV, XML, plain text), **Move to**, **Set aside**, **Delete**.
+- **All extracted fields** (collapsed): every parsed field, editable. Edited rows are marked; hover a row for **Copy** (just that value) and **Reset** (back to the capture). `id` stays read-only.
 
-Downloads: **PDF / CSV / XML / Plain text**. Notes and edits go with those files when present.
+Click any value in Identity, Radio, or Routing to copy it.
+
+Select a **link** to see its type, both ends, frame count, VLANs, ports and services, and for bridges the mechanism (STP / WDS / attachment) and the device it runs through. Select several devices to see a count by type and bulk actions.
+
+**TX / RX / DA / RA** come from frames only and are never guessed. Wired: TX = Ethernet source, DA and RX = destination, RA omitted. 802.11 follows ToDS/FromDS.
 
 ---
 
-## TX / RX / DA / RA and OUI
+## Layout
 
-**TX / RX / DA / RA** are filled from frames only. Missing roles say `not present` — they are not guessed.
+NetSeer lays the map out the same way every time:
 
-- Wired: TX = Ethernet src; DA and RX = dst; RA omitted.
-- 802.11 follows ToDS/FromDS.
+- **Subnets are boxes** around their devices (turn this off with **Group by subnet** in **Layers**).
+- **Access points** sit with their wireless clients: a row under the AP for a few clients, a ring for more, a grid for crowds.
+- Routers and gateways come first in each group, then servers, access points, hosts, and wireless clients.
+- Groups are packed to fit the shape of your window.
 
-**OUI manufacturer** comes from the bundled IEEE MA-L / MA-M / MA-S / CID table. Locally administered and unregistered prefixes are labeled as such.
+**Drag** any device (or a whole subnet box) to rearrange. Positions are saved per map. **Tidy layout** (grid button by the zoom controls, or right-click on empty space) discards dragged positions; you can undo it.
+
+Zoom with the wheel, the **−** / **+** buttons, or **Fit to screen** (`F`). Hovering a device fades everything that isn't connected to it.
 
 ---
 
-## Layers and zoom
+## Layers
 
-Left **Show** checkboxes:
+**Layers** tab:
 
-| Layer | What it toggles |
+| Layer | What it shows |
 | --- | --- |
-| Wired L2 | Ethernet adjacency |
-| L3 / IP | IP conversations |
-| Ports & services | Client → server edges (http, dns, ssh, …) |
-| Wireless | STA ↔ AP |
-| VLANs | VLAN membership |
-| Subnets | Subnet membership |
-| Bridge / attachment | STP / WDS / spanning-host links between **distinct** networks |
+| Wired (L2) | Ethernet adjacency |
+| IP traffic (L3) | IP conversations |
+| Ports and services | Client → server arrows (http, dns, ssh, …) |
+| Wireless | Station ↔ access point |
+| VLAN membership | Device ↔ VLAN |
+| Subnet membership | Device ↔ subnet (shown as boxes instead while grouping is on) |
+| Bridges and attachments | STP / WDS / spanning-host links between distinct networks |
 
-**Show all** checks every box. **Show none** clears every box (nodes stay; those edges hide).
+**Show all** and **Hide all** flip every link layer. Devices always stay visible. The **Devices** legend below explains the shapes and colors.
 
-Bottom-right **Zoom** slider (20–400%) stays in sync with wheel zoom. **Fit** frames the graph.
-
----
-
-## Bridges
-
-Pink diamond-dashed **bridge / attachment** lines appear only when the capture has evidence: a device MAC on more than one VLAN (or two same-version subnets), an 802.1D STP BPDU, or 802.11 four-address WDS. NetSeer does not invent bridges.
-
-Click a bridge edge in the inspector for kind `bridge`, mechanism (STP / WDS / attachment), and via device.
-
-Campus combined sample: two access points are joined by a **WDS** bridge. Copying one AP also takes the other AP (and their clients).
+Bridges appear only with evidence: a device on more than one VLAN (or two same-version subnets), an 802.1D STP BPDU, or 802.11 four-address WDS. NetSeer doesn't invent them.
 
 ---
 
 ## Exports
 
-Need a map with at least one device (toolbar buttons disable on empty).
+**Export** in the top bar (needs at least one device):
 
-| Button | File |
+| Item | File |
 | --- | --- |
-| Export draw.io | `netseer-map.drawio` |
-| Export Visio .vsdx | `netseer-map.vsdx` |
-| Export Visio XML | `netseer-map.vdx` |
-| Report PDF | whole-map PDF (devices + links) |
+| draw.io diagram | `<map name>.drawio` |
+| Visio drawing | `<map name>.vsdx` |
+| Visio XML | `<map name>.vdx` |
+| Full report | `<map name>-report.pdf` (every device and link) |
 
-Device-window downloads are per node. Map-name, extra, notes, and field edits are included in the graph posted to the server.
+Diagram exports use **the positions you see on screen**, including your dragged positions, and draw **subnet boxes as containers** (in draw.io, moving the box moves its devices). Names, captions, notes, and field edits are included.
+
+Per-device files (PDF, CSV, XML, text) come from **Export** in the details panel.
 
 ---
 
-## Branding
+## Keyboard shortcuts
 
-Header: NetSeer logo, **NetSeer**, motto **Turn traffic into terrain.** Report PDFs carry the same chrome.
+| Key | Action |
+| --- | --- |
+| `/` | Find a device |
+| Ctrl/Cmd + C, X, V | Copy, cut, paste |
+| Ctrl/Cmd + Z | Undo |
+| Delete / Backspace | Delete selected devices |
+| `F` | Fit to screen |
+| `?` | Show shortcuts |
+| Esc | Close menus, clear the selection |
 
 ---
 

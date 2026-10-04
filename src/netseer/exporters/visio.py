@@ -1,11 +1,23 @@
 from __future__ import annotations
 
 import zipfile
+from dataclasses import dataclass
 from io import BytesIO
-from netseer.exporters.layout import layout_positions
+from typing import Any
+
+from netseer.exporters.layout import (
+    clean_parents,
+    container_boxes,
+    covered_by_container,
+    layout_positions,
+    node_size,
+    page_extent,
+)
 from netseer.exporters.xmlutil import xml_text
 from netseer.graph import device_map_label
-from netseer.models import SurveyGraph
+from netseer.models import Link, Node, SurveyGraph
+
+DPI = 96.0
 
 
 def _shape_color(kind: str, medium: str) -> tuple[str, str]:
@@ -55,61 +67,118 @@ def _link_caption(link) -> str:
     return link.label or link.kind
 
 
-def export_vdx(graph: SurveyGraph, title: str = "NetSeer map") -> str:
+@dataclass
+class _Shape:
+    sid: int
+    node: Node
+    pin_x: float
+    pin_y: float
+    width: float
+    height: float
+    container: bool
+
+
+@dataclass
+class _Edge:
+    sid: int
+    link: Link
+    begin: tuple[float, float]
+    end: tuple[float, float]
+
+
+@dataclass
+class _Page:
+    width: float
+    height: float
+    shapes: list[_Shape]
+    edges: list[_Edge]
+
+
+def _page(graph: SurveyGraph, positions: dict[str, Any] | None, parents: dict[str, Any] | None) -> _Page:
+    """Geometry in inches with Visio's bottom-left origin; containers come first so they sit behind."""
+    placed = layout_positions(graph, positions)
+    containment = clean_parents(graph, parents)
+    boxes = container_boxes(graph, placed, containment)
+    page_w, page_h = page_extent(graph, placed, boxes)
+    ordered = [n for n in graph.nodes if n.id in boxes] + [n for n in graph.nodes if n.id not in boxes]
+    ids = {node.id: i + 1 for i, node in enumerate(ordered)}
+    centers: dict[str, tuple[float, float]] = {}
+    shapes: list[_Shape] = []
+    for node in ordered:
+        if node.id in boxes:
+            left, top, w, h = boxes[node.id]
+            cx, cy = left + w / 2, top + h / 2
+        else:
+            cx, cy = placed[node.id]
+            w, h = node_size(node)
+        centers[node.id] = (cx / DPI, (page_h - cy) / DPI)
+        shapes.append(_Shape(ids[node.id], node, *centers[node.id], w / DPI, h / DPI, node.id in boxes))
+    edges: list[_Edge] = []
+    next_id = len(ordered) + 1
+    for link in graph.links:
+        if link.source not in ids or link.target not in ids or covered_by_container(link, containment):
+            continue
+        edges.append(_Edge(next_id, link, centers[link.source], centers[link.target]))
+        next_id += 1
+    return _Page(page_w / DPI, page_h / DPI, shapes, edges)
+
+
+def _ids(page: _Page) -> dict[str, int]:
+    return {s.node.id: s.sid for s in page.shapes}
+
+
+def export_vdx(
+    graph: SurveyGraph,
+    title: str = "NetSeer map",
+    positions: dict[str, Any] | None = None,
+    parents: dict[str, Any] | None = None,
+) -> str:
     """Visio 2003 XML (.vdx), openable in Visio and many converters."""
-    positions = layout_positions(graph)
+    page = _page(graph, positions, parents)
+    ids = _ids(page)
     shapes: list[str] = []
     connects: list[str] = []
-    id_map = {node.id: i + 1 for i, node in enumerate(graph.nodes)}
-    for node in graph.nodes:
-        sid = id_map[node.id]
-        x, y = positions[node.id]
-        # Visio uses inches; map canvas pixels (~96 dpi)
-        pin_x = max(x, 40) / 96.0
-        pin_y = max(900 - y, 40) / 96.0
-        line, fill = _shape_color(node.kind, node.medium)
-        label = xml_text(device_map_label(node))
+    for s in page.shapes:
+        line, fill = _shape_color(s.node.kind, s.node.medium)
+        fill_xml = (
+            "<FillPattern>0</FillPattern>"
+            if s.container
+            else f"<FillForegnd>{fill}</FillForegnd>\n        <FillBkgnd>{fill}</FillBkgnd>\n        <FillPattern>1</FillPattern>"
+        )
         shapes.append(
-            f'''    <Shape ID="{sid}" Type="Shape" LineStyle="1" FillStyle="1" TextStyle="1">
+            f'''    <Shape ID="{s.sid}" Type="Shape" LineStyle="1" FillStyle="1" TextStyle="1">
       <XForm>
-        <PinX Unit="IN">{pin_x:.3f}</PinX>
-        <PinY Unit="IN">{pin_y:.3f}</PinY>
-        <Width Unit="IN">1.70</Width>
-        <Height Unit="IN">0.70</Height>
-        <LocPinX Unit="IN" F="Width*0.5">0.85</LocPinX>
-        <LocPinY Unit="IN" F="Height*0.5">0.35</LocPinY>
+        <PinX Unit="IN">{s.pin_x:.3f}</PinX>
+        <PinY Unit="IN">{s.pin_y:.3f}</PinY>
+        <Width Unit="IN">{s.width:.3f}</Width>
+        <Height Unit="IN">{s.height:.3f}</Height>
+        <LocPinX Unit="IN" F="Width*0.5">{s.width / 2:.3f}</LocPinX>
+        <LocPinY Unit="IN" F="Height*0.5">{s.height / 2:.3f}</LocPinY>
       </XForm>
       <Fill>
-        <FillForegnd>{fill}</FillForegnd>
-        <FillBkgnd>{fill}</FillBkgnd>
-        <FillPattern>1</FillPattern>
+        {fill_xml}
       </Fill>
       <Line>
         <LineWeight>0.01</LineWeight>
         <LineColor>{line}</LineColor>
-        <LinePattern>1</LinePattern>
+        <LinePattern>{2 if s.container else 1}</LinePattern>
       </Line>
-      <Text><cp IX="0"/>{label}</Text>
+      <TextBlock><VerticalAlign>{0 if s.container else 1}</VerticalAlign></TextBlock>
+      <Text><cp IX="0"/>{xml_text(device_map_label(s.node))}</Text>
     </Shape>'''
         )
-    next_id = len(graph.nodes) + 1
-    for link in graph.links:
-        if link.source not in id_map or link.target not in id_map:
-            continue
-        sid = next_id
-        next_id += 1
-        sx, sy = positions[link.source]
-        tx, ty = positions[link.target]
+    for e in page.edges:
+        link = e.link
         color = _link_color(link.kind, link.medium)
-        dashed = "2" if link.kind in {"wireless", "l3", "vlan", "bridge"} else "1"
+        dashed = "2" if link.kind in {"wireless", "l3", "vlan", "bridge", "subnet"} else "1"
         weight = "0.018" if link.kind == "bridge" else "0.012"
         shapes.append(
-            f'''    <Shape ID="{sid}" Type="Shape" LineStyle="1">
+            f'''    <Shape ID="{e.sid}" Type="Shape" LineStyle="1">
       <XForm1D>
-        <BeginX Unit="IN">{sx / 96.0:.3f}</BeginX>
-        <BeginY Unit="IN">{(900 - sy) / 96.0:.3f}</BeginY>
-        <EndX Unit="IN">{tx / 96.0:.3f}</EndX>
-        <EndY Unit="IN">{(900 - ty) / 96.0:.3f}</EndY>
+        <BeginX Unit="IN">{e.begin[0]:.3f}</BeginX>
+        <BeginY Unit="IN">{e.begin[1]:.3f}</BeginY>
+        <EndX Unit="IN">{e.end[0]:.3f}</EndX>
+        <EndY Unit="IN">{e.end[1]:.3f}</EndY>
       </XForm1D>
       <Line>
         <LineWeight>{weight}</LineWeight>
@@ -119,12 +188,8 @@ def export_vdx(graph: SurveyGraph, title: str = "NetSeer map") -> str:
       <Text>{xml_text(_link_caption(link))}</Text>
     </Shape>'''
         )
-        connects.append(
-            f'    <Connect FromSheet="{sid}" FromCell="BeginX" ToSheet="{id_map[link.source]}" ToCell="PinX"/>'
-        )
-        connects.append(
-            f'    <Connect FromSheet="{sid}" FromCell="EndX" ToSheet="{id_map[link.target]}" ToCell="PinX"/>'
-        )
+        connects.append(f'    <Connect FromSheet="{e.sid}" FromCell="BeginX" ToSheet="{ids[link.source]}" ToCell="PinX"/>')
+        connects.append(f'    <Connect FromSheet="{e.sid}" FromCell="EndX" ToSheet="{ids[link.target]}" ToCell="PinX"/>')
     return f'''<?xml version="1.0" encoding="UTF-8"?>
 <VisioDocument xmlns="urn:schemas-microsoft-com:office:visio" xmlns:v="urn:schemas-microsoft-com:vml">
   <DocumentProperties>
@@ -135,8 +200,8 @@ def export_vdx(graph: SurveyGraph, title: str = "NetSeer map") -> str:
     <Page ID="0" Name="NetSeer">
       <PageSheet>
         <PageProps>
-          <PageWidth Unit="IN">16.667</PageWidth>
-          <PageHeight Unit="IN">11.458</PageHeight>
+          <PageWidth Unit="IN">{page.width:.3f}</PageWidth>
+          <PageHeight Unit="IN">{page.height:.3f}</PageHeight>
         </PageProps>
       </PageSheet>
       <Shapes>
@@ -151,34 +216,35 @@ def export_vdx(graph: SurveyGraph, title: str = "NetSeer map") -> str:
 '''
 
 
-def export_vsdx(graph: SurveyGraph, title: str = "NetSeer map") -> bytes:
+def export_vsdx(
+    graph: SurveyGraph,
+    title: str = "NetSeer map",
+    positions: dict[str, Any] | None = None,
+    parents: dict[str, Any] | None = None,
+) -> bytes:
     """Office Open XML Visio drawing (.vsdx)."""
-    positions = layout_positions(graph)
+    page = _page(graph, positions, parents)
+    ids = _ids(page)
     shapes_xml: list[str] = []
     connects_xml: list[str] = []
-    id_map = {node.id: i + 1 for i, node in enumerate(graph.nodes)}
-    for node in graph.nodes:
-        sid = id_map[node.id]
-        x, y = positions[node.id]
-        pin_x = max(x, 40) / 96.0
-        pin_y = max(900 - y, 40) / 96.0
-        line, fill = _shape_color(node.kind, node.medium)
-        fill_hex = fill.lstrip("#")
-        line_hex = line.lstrip("#")
-        text = xml_text(device_map_label(node))
+    for s in page.shapes:
+        line, fill = _shape_color(s.node.kind, s.node.medium)
         shapes_xml.append(
-            f'''<Shape ID="{sid}" NameU="Box" Type="Shape" LineStyle="0" FillStyle="0" TextStyle="0">
-  <Cell N="PinX" V="{pin_x:.4f}"/>
-  <Cell N="PinY" V="{pin_y:.4f}"/>
-  <Cell N="Width" V="1.7"/>
-  <Cell N="Height" V="0.7"/>
-  <Cell N="LocPinX" V="0.85"/>
-  <Cell N="LocPinY" V="0.35"/>
-  <Cell N="FillForegnd" V="#{fill_hex}"/>
-  <Cell N="LineColor" V="#{line_hex}"/>
+            f'''<Shape ID="{s.sid}" NameU="{'Container' if s.container else 'Box'}" Type="Shape" LineStyle="0" FillStyle="0" TextStyle="0">
+  <Cell N="PinX" V="{s.pin_x:.4f}"/>
+  <Cell N="PinY" V="{s.pin_y:.4f}"/>
+  <Cell N="Width" V="{s.width:.4f}"/>
+  <Cell N="Height" V="{s.height:.4f}"/>
+  <Cell N="LocPinX" V="{s.width / 2:.4f}"/>
+  <Cell N="LocPinY" V="{s.height / 2:.4f}"/>
+  <Cell N="FillForegnd" V="{fill}"/>
+  <Cell N="FillPattern" V="{0 if s.container else 1}"/>
+  <Cell N="LineColor" V="{line}"/>
+  <Cell N="LinePattern" V="{2 if s.container else 1}"/>
   <Cell N="LineWeight" V="0.01"/>
+  <Cell N="VerticalAlign" V="{0 if s.container else 1}"/>
   <Section N="Geometry" IX="0">
-    <Cell N="NoFill" V="0"/>
+    <Cell N="NoFill" V="{1 if s.container else 0}"/>
     <Cell N="NoLine" V="0"/>
     <Row T="RelMoveTo" IX="1"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
     <Row T="RelLineTo" IX="2"><Cell N="X" V="1"/><Cell N="Y" V="0"/></Row>
@@ -186,36 +252,29 @@ def export_vsdx(graph: SurveyGraph, title: str = "NetSeer map") -> bytes:
     <Row T="RelLineTo" IX="4"><Cell N="X" V="0"/><Cell N="Y" V="1"/></Row>
     <Row T="RelLineTo" IX="5"><Cell N="X" V="0"/><Cell N="Y" V="0"/></Row>
   </Section>
-  <Text>{text}</Text>
+  <Text>{xml_text(device_map_label(s.node))}</Text>
 </Shape>'''
         )
-    next_id = len(graph.nodes) + 1
-    for link in graph.links:
-        if link.source not in id_map or link.target not in id_map:
-            continue
-        sid = next_id
-        next_id += 1
-        sx, sy = positions[link.source]
-        tx, ty = positions[link.target]
-        color = _link_color(link.kind, link.medium).lstrip("#")
+    for e in page.edges:
+        link = e.link
         weight = "0.018" if link.kind == "bridge" else "0.012"
         shapes_xml.append(
-            f'''<Shape ID="{sid}" NameU="Dynamic connector" Type="Shape" LineStyle="0" FillStyle="0">
-  <Cell N="BeginX" V="{sx / 96.0:.4f}"/>
-  <Cell N="BeginY" V="{(900 - sy) / 96.0:.4f}"/>
-  <Cell N="EndX" V="{tx / 96.0:.4f}"/>
-  <Cell N="EndY" V="{(900 - ty) / 96.0:.4f}"/>
-  <Cell N="LineColor" V="#{color}"/>
+            f'''<Shape ID="{e.sid}" NameU="Dynamic connector" Type="Shape" LineStyle="0" FillStyle="0">
+  <Cell N="BeginX" V="{e.begin[0]:.4f}"/>
+  <Cell N="BeginY" V="{e.begin[1]:.4f}"/>
+  <Cell N="EndX" V="{e.end[0]:.4f}"/>
+  <Cell N="EndY" V="{e.end[1]:.4f}"/>
+  <Cell N="LineColor" V="{_link_color(link.kind, link.medium)}"/>
   <Cell N="LineWeight" V="{weight}"/>
   <Cell N="EndArrow" V="0"/>
   <Text>{xml_text(_link_caption(link))}</Text>
 </Shape>'''
         )
         connects_xml.append(
-            f'<Connect FromSheet="{sid}" FromCell="BeginX" FromPart="9" ToSheet="{id_map[link.source]}" ToCell="PinX" ToPart="3"/>'
+            f'<Connect FromSheet="{e.sid}" FromCell="BeginX" FromPart="9" ToSheet="{ids[link.source]}" ToCell="PinX" ToPart="3"/>'
         )
         connects_xml.append(
-            f'<Connect FromSheet="{sid}" FromCell="EndX" FromPart="12" ToSheet="{id_map[link.target]}" ToCell="PinX" ToPart="3"/>'
+            f'<Connect FromSheet="{e.sid}" FromCell="EndX" FromPart="12" ToSheet="{ids[link.target]}" ToCell="PinX" ToPart="3"/>'
         )
 
     page1 = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -228,12 +287,12 @@ def export_vsdx(graph: SurveyGraph, title: str = "NetSeer map") -> bytes:
   </Connects>
 </PageContents>
 '''
-    pages = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    pages = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Pages xmlns="http://schemas.microsoft.com/office/visio/2012/main">
   <Page ID="0" Name="Survey" NameU="Survey">
     <PageSheet>
-      <Cell N="PageWidth" V="16.6667"/>
-      <Cell N="PageHeight" V="11.4583"/>
+      <Cell N="PageWidth" V="{page.width:.4f}"/>
+      <Cell N="PageHeight" V="{page.height:.4f}"/>
     </PageSheet>
     <Rel r:id="rId1" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>
   </Page>

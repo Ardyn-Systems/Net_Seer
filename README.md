@@ -29,18 +29,18 @@ When the frames or survey rows include them:
 - Wireless SSIDs, BSSID, channel, frequency, encryption, signal, GPS
 - **TCP/UDP ports and named services** on nodes and on client→server edges (HTTP, HTTPS/TLS, SSH, DNS, DHCP, NTP, SNMP, OSPF, and other well-known ports). Names also come from protocol metadata in the frames (DNS queries, HTTP `Host`, SSH ident, TLS handshake).
 
-Click a device to open a **detail window** with every extracted field, per-field copy, copy-all, and downloads (PDF, CSV, XML, plain text). **Report PDF** in the toolbar dumps the whole map, with NetSeer chrome on every page.
+Click a device to see everything NetSeer found in the **Details** panel: rename it, add notes, copy values, edit any field, or download it (PDF, CSV, XML, plain text). Subnets are drawn as boxes around their devices, access points sit with their clients, and you can drag things around. **Find a device** searches names, IPs, MACs, and SSIDs.
 
-Wired L2, L3, wireless, VLAN, and service edges can be toggled independently.
+Wired L2, L3, wireless, VLAN, and service edges can be toggled independently. Four themes: **Terrain** (default), **Midnight**, **Daylight**, and **Blueprint**.
 
 ## Exports (same attributes as the preview)
 
-- **draw.io** — `.drawio` mxfile XML (`netseer-map.drawio`)
+- **draw.io** — `.drawio` mxfile XML, with subnets as containers
 - **Visio** — `.vsdx` (Open XML) and `.vdx` (Visio 2003 XML)
-- **Device details** — PDF, CSV, XML, and `.txt` from the device window
+- **Device details** — PDF, CSV, XML, and `.txt` from the Details panel
 - **Map report** — PDF of every device and link
 
-Node labels include identity plus listen ports/services. Edge labels include `service proto/port` (for example `http tcp/80`).
+Diagrams use the layout you see on screen, including dragged positions. Node labels include identity plus listen ports/services. Edge labels include `service proto/port` (for example `http tcp/80`).
 
 A longer Debian/Ubuntu walkthrough (clone, install, update, uninstall) is in [docs/netseer-install-and-use.md](docs/netseer-install-and-use.md). A function-by-function How to is in [docs/netseer-how-to.md](docs/netseer-how-to.md).
 
@@ -75,7 +75,7 @@ uv run python -m netseer.generate_samples
 uv run netseer --port 47331
 ```
 
-Open [http://127.0.0.1:47331](http://127.0.0.1:47331). The campus combined sample loads automatically. Map nodes show a short inferred type (Access point, Router, Server, …); rename them and add on-map extra or notes in the device window. **Show all** / **Show none** toggle every layer checkbox. Drop a capture to add it to **Load a survey** with Remove. Use the **Zoom** slider, inspect TX/RX/DA/RA, then export.
+Open [http://127.0.0.1:47331](http://127.0.0.1:47331). The campus combined sample loads automatically. Map nodes show a short inferred type (Access point, Router, Server, …); rename them and add a caption or notes in the **Details** panel. **Open survey** (or drop files anywhere) to map your own captures, toggle link types under **Layers**, inspect TX/RX/DA/RA, then **Export**.
 
 The CLI and the Python package are both `netseer`. Bundled files live in `src/netseer/data/`. The OUI table is compiled from IEEE CSVs:
 
@@ -106,4 +106,4 @@ Stop the old process first (`Ctrl+C`). Hard-refresh the browser.
 
 ## Uninstall
 
-Stop `netseer`, then delete the clone (`rm -rf /path/to/NetSeer`). That removes source and the virtualenv. Do not apt-remove `python3` / `git` unless you want them gone system-wide. Optional: clear this origin’s localStorage in the browser (`netseer.deviceMeta.v1`, `netseer.maps.v2`, `netseer.hiddenSamples`).
+Stop `netseer`, then delete the clone (`rm -rf /path/to/NetSeer`). That removes source and the virtualenv. Do not apt-remove `python3` / `git` unless you want them gone system-wide. Optional: clear this origin's site data in the browser to remove saved maps (IndexedDB `netseer`) and preferences (`netseer.*` in Local Storage).
