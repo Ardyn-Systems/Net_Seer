@@ -70,7 +70,7 @@ def sample_path(filename: str) -> Path:
     if path.exists():
         return path
     try:
-        ref = resources.files("surveymap").joinpath("data", filename)
+        ref = resources.files("netseer").joinpath("data", filename)
         return Path(str(ref))
     except Exception as exc:
         raise FileNotFoundError(filename) from exc

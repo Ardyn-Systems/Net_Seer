@@ -4,7 +4,7 @@
 
 What each control does, and how to use it. For clone, install, update, and uninstall on Debian/Ubuntu, see [[netseer-install-and-use]].
 
-NetSeer is a **local** browser preview (`http://127.0.0.1:47331` by default). It is not a compiled binary. Open it with `netseer` (Python import path remains `surveymap`).
+NetSeer is a **local** browser preview (`http://127.0.0.1:47331` by default). It is not a compiled binary. Open it with `netseer`.
 
 Maps, field edits, notes, and the clipboard live in **this browser’s** `localStorage`. They are not written back into the original pcap.
 
@@ -180,5 +180,5 @@ Stay on [[netseer-install-and-use]]: `git pull origin main`, `uv sync --group de
 Public clone (no PAT):
 
 ```bash
-git clone https://github.com/ardyn-systems/netseer.git
+git clone https://github.com/ardyn-systems/NetSeer.git
 ```

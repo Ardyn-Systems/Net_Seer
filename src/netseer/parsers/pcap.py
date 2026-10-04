@@ -22,8 +22,8 @@ from scapy.all import (  # type: ignore[import-untyped]
 )
 from scapy.utils import PcapReader  # type: ignore[import-untyped]
 
-from surveymap.graph import GraphBuilder
-from surveymap.services import infer_service_from_payload, service_for_port
+from netseer.graph import GraphBuilder
+from netseer.services import infer_service_from_payload, service_for_port
 from scapy.layers.dot11 import (  # type: ignore[import-untyped]
     Dot11,
     Dot11AssoReq,

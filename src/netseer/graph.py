@@ -4,9 +4,9 @@ import ipaddress
 import re
 from typing import Any
 
-from surveymap.models import GpsFix, Link, Node, SurveyGraph
-from surveymap.oui import lookup_oui, manufacturers_for_macs
-from surveymap.services import CLIENT_SIDE_PORTS, WELL_KNOWN_SERVER_PORTS, format_port, service_for_port
+from netseer.models import GpsFix, Link, Node, SurveyGraph
+from netseer.oui import lookup_oui, manufacturers_for_macs
+from netseer.services import CLIENT_SIDE_PORTS, WELL_KNOWN_SERVER_PORTS, format_port, service_for_port
 
 
 def normalize_mac(mac: str | None) -> str | None:

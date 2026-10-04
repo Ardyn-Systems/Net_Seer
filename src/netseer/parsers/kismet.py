@@ -4,8 +4,8 @@ import csv
 import io
 import xml.etree.ElementTree as ET
 
-from surveymap.graph import GraphBuilder
-from surveymap.models import GpsFix
+from netseer.graph import GraphBuilder
+from netseer.models import GpsFix
 
 
 def _text(el: ET.Element | None) -> str | None:

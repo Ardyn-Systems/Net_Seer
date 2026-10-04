@@ -4,7 +4,7 @@ import argparse
 
 import uvicorn
 
-from surveymap.brand import MOTTO, PRODUCT_NAME
+from netseer.brand import MOTTO, PRODUCT_NAME
 
 
 DEFAULT_HOST = "0.0.0.0"
@@ -19,4 +19,4 @@ def main() -> None:
     parser.add_argument("--host", default=DEFAULT_HOST, help="Bind address (default 0.0.0.0)")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="Bind port (default 47331)")
     args = parser.parse_args()
-    uvicorn.run("surveymap.web:app", host=args.host, port=args.port, log_level="info")
+    uvicorn.run("netseer.web:app", host=args.host, port=args.port, log_level="info")

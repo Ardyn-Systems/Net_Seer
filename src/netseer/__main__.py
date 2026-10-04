@@ -1,4 +1,4 @@
-from surveymap.cli import main
+from netseer.cli import main
 
 if __name__ == "__main__":
     main()

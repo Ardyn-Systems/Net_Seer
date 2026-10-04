@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from xml.sax.saxutils import escape
 
-from surveymap.exporters.layout import layout_positions
-from surveymap.graph import device_map_label
-from surveymap.models import SurveyGraph
+from netseer.exporters.layout import layout_positions
+from netseer.graph import device_map_label
+from netseer.models import SurveyGraph
 
 KIND_STYLE = {
     "ap": "rounded=0;whiteSpace=wrap;html=1;shape=hexagon;fillColor=#422006;strokeColor=#FBBF24;fontColor=#FEF3C7;fontStyle=1;",

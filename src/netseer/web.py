@@ -8,9 +8,9 @@ from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from surveymap.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
-from surveymap.detect import EmptySurveyError, UnsupportedSurveyError
-from surveymap.exporters import (
+from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
+from netseer.detect import EmptySurveyError, UnsupportedSurveyError
+from netseer.exporters import (
     device_csv,
     device_pdf,
     device_plain_text,
@@ -21,10 +21,10 @@ from surveymap.exporters import (
     map_report_pdf,
     safe_filename,
 )
-from surveymap.exporters.reports import device_properties
-from surveymap.ingest import ingest_files
-from surveymap.samples import SAMPLES, files_for_sample
-from surveymap.serialize import graph_from_dict
+from netseer.exporters.reports import device_properties
+from netseer.ingest import ingest_files
+from netseer.samples import SAMPLES, files_for_sample
+from netseer.serialize import graph_from_dict
 
 WEB_DIR = Path(__file__).resolve().parents[2] / "web"
 ROOT_DIR = Path(__file__).resolve().parents[2]

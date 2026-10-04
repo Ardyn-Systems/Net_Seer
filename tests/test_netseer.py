@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from surveymap.detect import sniff_format
-from surveymap.exporters.drawio import export_drawio
-from surveymap.exporters.reports import (
+from netseer.detect import sniff_format
+from netseer.exporters.drawio import export_drawio
+from netseer.exporters.reports import (
     device_csv,
     device_pdf,
     device_plain_text,
@@ -10,10 +10,10 @@ from surveymap.exporters.reports import (
     device_xml,
     map_report_pdf,
 )
-from surveymap.exporters.visio import export_vdx, export_vsdx
-from surveymap.generate_samples import write_all
-from surveymap.ingest import ingest_files
-from surveymap.samples import DATA_DIR, files_for_sample
+from netseer.exporters.visio import export_vdx, export_vsdx
+from netseer.generate_samples import write_all
+from netseer.ingest import ingest_files
+from netseer.samples import DATA_DIR, files_for_sample
 
 
 def test_samples_exist_after_generate(tmp_path):
@@ -123,7 +123,7 @@ def test_mac_roles_from_wired_and_dot11():
 
 
 def test_inferred_names_and_export_notes():
-    from surveymap.graph import infer_display_name
+    from netseer.graph import infer_display_name
 
     assert infer_display_name({"kind": "ap", "roles": ["ap"]}) == "Access point"
     assert infer_display_name({"kind": "host", "roles": ["station"], "medium": "wireless"}) == "Wireless client"
@@ -149,7 +149,7 @@ def test_inferred_names_and_export_notes():
 
 
 def test_bridge_attachments_from_evidence_only():
-    from surveymap.graph import GraphBuilder
+    from netseer.graph import GraphBuilder
 
     lonely = GraphBuilder()
     host = lonely.observe_mac("00:11:22:33:44:55")
@@ -195,7 +195,7 @@ def test_bridge_attachments_from_evidence_only():
     assert any(link.label == "WDS" or (link.extra or {}).get("bridge_kind") == "wds" for link in wds)
     wifi_xml = export_drawio(wifi)
     assert "WDS" in wifi_xml
-    from surveymap.serialize import graph_from_dict
+    from netseer.serialize import graph_from_dict
 
     roundtrip = graph_from_dict(office.to_dict())
     assert any(link.kind == "bridge" for link in roundtrip.links)
@@ -216,7 +216,7 @@ def test_unsupported_and_empty(tmp_path):
 
 
 def test_ieee_oui_lookup_and_special_macs():
-    from surveymap.oui import (
+    from netseer.oui import (
         LOCALLY_ADMINISTERED,
         UNKNOWN,
         lookup_oui,
@@ -240,10 +240,10 @@ def test_ieee_oui_lookup_and_special_macs():
 def test_netseer_json_dump_reload_and_unwanted_filenames(tmp_path, monkeypatch):
     import json
 
-    from surveymap.detect import sniff_format
-    from surveymap.ingest import ingest_files
-    from surveymap.web import _safe_unwanted_stem, dump_unwanted
-    import surveymap.web as webmod
+    from netseer.detect import sniff_format
+    from netseer.ingest import ingest_files
+    from netseer.web import _safe_unwanted_stem, dump_unwanted
+    import netseer.web as webmod
 
     monkeypatch.setattr(webmod, "UNWANTED_DIR", tmp_path)
     payload = {

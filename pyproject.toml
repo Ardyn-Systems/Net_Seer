@@ -1,5 +1,5 @@
 [project]
-name = "surveymap"
+name = "netseer"
 version = "0.1.0"
 description = "NetSeer — turn traffic into terrain. Map Layer 2/3 surveys to interactive maps and draw.io / Visio exports."
 readme = "README.md"
@@ -16,8 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-netseer = "surveymap.cli:main"
-surveymap = "surveymap.cli:main"
+netseer = "netseer.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]

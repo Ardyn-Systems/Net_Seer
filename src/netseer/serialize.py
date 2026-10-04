@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import fields
 from typing import Any
 
-from surveymap.models import GpsFix, Link, Node, SurveyGraph
+from netseer.models import GpsFix, Link, Node, SurveyGraph
 
 
 def graph_from_dict(data: dict[str, Any]) -> SurveyGraph:

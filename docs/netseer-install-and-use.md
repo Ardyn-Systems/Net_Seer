@@ -8,16 +8,16 @@ Walkthrough for cloning NetSeer from GitHub, installing it on Debian/Ubuntu, and
 
 NetSeer is a **local** survey-to-map tool:
 
-- Python package (import path `surveymap`, public CLI `netseer`)
+- Python package `netseer` (CLI `netseer`)
 - FastAPI + uvicorn serves a small UI in your browser
 - You drop Wireshark / tcpdump / Kismet / airodump-ng files; it draws L2/L3/RF as a map
 - Export the same picture to draw.io, Visio, and PDF/CSV/XML/text
 
 It is **not** an installer `.deb`, AppImage, or standalone binary. You run it from source on the machine that holds the captures (or copy captures in). The map UI loads Cytoscape from a CDN (`cdn.jsdelivr.net`), so the browser needs outbound HTTPS the first time you open the map.
 
-Bundled campus samples ship in `src/surveymap/data/` so you can click around without uploading anything.
+Bundled campus samples ship in `src/netseer/data/` so you can click around without uploading anything.
 
-**Source:** [https://github.com/ardyn-systems/netseer](https://github.com/ardyn-systems/netseer) (public). Branch: `main`.
+**Source:** [https://github.com/ardyn-systems/NetSeer](https://github.com/ardyn-systems/NetSeer) (public). Branch: `main`.
 
 ## Requirements
 
@@ -39,20 +39,20 @@ The repo is **public**. No GitHub login, PAT, or `gh` is required to clone.
 On the Linux box that will run NetSeer:
 
 ```bash
-git clone https://github.com/ardyn-systems/netseer.git
-cd netseer
+git clone https://github.com/ardyn-systems/NetSeer.git
+cd NetSeer
 git checkout main
 git pull
 ```
 
 You should see `README.md`, `pyproject.toml`, `src/`, `web/`, and `docs/`. Stay on **`main`**.
 
-Optional: `gh repo clone ardyn-systems/netseer` if you already use GitHub CLI, or `git clone git@github.com:ardyn-systems/netseer.git` if this machine has an SSH key on GitHub.
+Optional: `gh repo clone ardyn-systems/NetSeer` if you already use GitHub CLI, or `git clone git@github.com:ardyn-systems/NetSeer.git` if this machine has an SSH key on GitHub.
 
 To refresh later:
 
 ```bash
-cd netseer
+cd NetSeer
 git pull origin main
 ```
 
@@ -68,10 +68,10 @@ Pick **uv** or **venv + pip**. Run these from the cloned `netseer` directory.
 curl -LsSf https://astral.sh/uv/install.sh | sh
 # open a new shell, or: source $HOME/.local/bin/env
 
-cd netseer
+cd NetSeer
 uv python install 3.12
 uv sync --group dev
-uv run python -m surveymap.generate_samples
+uv run python -m netseer.generate_samples
 ```
 
 `uv sync` creates `.venv` and installs the package (CLI `netseer`) plus pytest.
@@ -79,18 +79,18 @@ uv run python -m surveymap.generate_samples
 ### Path B — python3 venv and pip
 
 ```bash
-cd netseer
+cd NetSeer
 python3 -m venv .venv
 source .venv/bin/activate
 python -c "import sys; assert sys.version_info >= (3, 12), sys.version"
 pip install -U pip
 pip install -e ".[dev]"
-python -m surveymap.generate_samples
+python -m netseer.generate_samples
 ```
 
 If `python3` is 3.11, install 3.12 and call it explicitly (`python3.12 -m venv .venv`). Pip needs to fetch the `uv_build` build backend from PyPI (declared in `pyproject.toml`).
 
-`generate_samples` rewrites the bundled `.pcap` / `.pcapng` / Kismet / airodump files under `src/surveymap/data/`. Skip it if those files are already there.
+`generate_samples` rewrites the bundled `.pcap` / `.pcapng` / Kismet / airodump files under `src/netseer/data/`. Skip it if those files are already there.
 
 ## 3. Start the preview
 
@@ -111,7 +111,7 @@ Open [http://127.0.0.1:47331](http://127.0.0.1:47331).
 - `--host 0.0.0.0` if other machines on the LAN should hit it
 - Change `--port` if 47331 is taken
 
-The CLI name is `netseer`. `surveymap` is also registered as an alias. Leave the process running while you use the UI.
+The CLI name is `netseer`. Leave the process running while you use the UI.
 
 ## How to use
 
@@ -232,16 +232,16 @@ curl -L -o /tmp/oui.csv https://standards-oui.ieee.org/oui/oui.csv
 curl -L -o /tmp/mam.csv https://standards-oui.ieee.org/oui28/mam.csv
 curl -L -o /tmp/oui36.csv https://standards-oui.ieee.org/oui36/oui36.csv
 curl -L -o /tmp/cid.csv https://standards-oui.ieee.org/cid/cid.csv
-uv run python -m surveymap.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /tmp/cid.csv
+uv run python -m netseer.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /tmp/cid.csv
 ```
 
 ## Next steps on your own Linux computer
 
-The project is public: [https://github.com/ardyn-systems/netseer](https://github.com/ardyn-systems/netseer). No PAT required.
+The project is public: [https://github.com/ardyn-systems/NetSeer](https://github.com/ardyn-systems/NetSeer). No PAT required.
 
 ```bash
-git clone https://github.com/ardyn-systems/netseer.git
-cd netseer
+git clone https://github.com/ardyn-systems/NetSeer.git
+cd NetSeer
 uv sync --group dev
 uv run netseer --host 127.0.0.1 --port 47331
 ```
@@ -255,7 +255,7 @@ Maps and field edits live in **this browser’s** `localStorage` (`netseer.devic
 When we push changes to GitHub `main`, refresh the clone and reinstall deps, then restart the preview. **Stop** a running `netseer` first (`Ctrl+C` in that terminal).
 
 ```bash
-cd netseer
+cd NetSeer
 git checkout main
 git pull origin main
 ```
@@ -286,7 +286,7 @@ NetSeer is the clone directory plus a virtualenv. It does not install a systemd 
 3. Delete the project (venv, Python deps, samples, and source):
 
 ```bash
-rm -rf /path/to/netseer
+rm -rf /path/to/NetSeer
 ```
 
 That is a full uninstall of the app.
@@ -308,13 +308,13 @@ rm -rf ~/.local/bin/uv ~/.local/bin/uvx ~/.local/share/uv
 | --- | --- |
 | Product | NetSeer |
 | Motto | Turn traffic into terrain. |
-| Repo | https://github.com/ardyn-systems/netseer (public) |
+| Repo | https://github.com/ardyn-systems/NetSeer (public) |
 | Branch | `main` |
-| Clone | `git clone https://github.com/ardyn-systems/netseer.git` |
+| Clone | `git clone https://github.com/ardyn-systems/NetSeer.git` |
 | CLI | `netseer` |
-| Python import | `surveymap` |
+| Python import | `netseer` |
 | Default URL | http://127.0.0.1:47331 |
 | Default bind | `0.0.0.0:47331` |
-| Samples | `src/surveymap/data/` |
+| Samples | `src/netseer/data/` |
 | Update | `git pull origin main` then `uv sync --group dev` and restart `netseer` |
 | Uninstall | Stop `netseer`, then `rm -rf` the clone directory |

@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import io
 
-from surveymap.graph import GraphBuilder
+from netseer.graph import GraphBuilder
 
 
 def parse_airodump_csv(builder: GraphBuilder, data: bytes, filename: str) -> None:

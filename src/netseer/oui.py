@@ -19,7 +19,7 @@ def _table_path() -> Path:
     packaged = Path(__file__).resolve().parent / "data" / "ieee-oui.tsv.gz"
     if packaged.exists():
         return packaged
-    ref = resources.files("surveymap").joinpath("data", "ieee-oui.tsv.gz")
+    ref = resources.files("netseer").joinpath("data", "ieee-oui.tsv.gz")
     return Path(str(ref))
 
 

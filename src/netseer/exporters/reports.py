@@ -21,8 +21,8 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from surveymap.brand import DEFAULT_REPORT_TITLE, MOTTO, PRODUCT_NAME, pdf_logo_path
-from surveymap.models import Link, Node, SurveyGraph
+from netseer.brand import DEFAULT_REPORT_TITLE, MOTTO, PRODUCT_NAME, pdf_logo_path
+from netseer.models import Link, Node, SurveyGraph
 
 FIELD_ORDER = [
     ("id", "ID"),
