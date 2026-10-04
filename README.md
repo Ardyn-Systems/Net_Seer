@@ -38,7 +38,7 @@ Wired L2, L3, wireless, VLAN, and service edges can be toggled independently. Fo
 - **draw.io** — `.drawio` mxfile XML, with subnets as containers
 - **Visio** — `.vsdx` (Open XML) and `.vdx` (Visio 2003 XML)
 - **Device details** — PDF, CSV, XML, and `.txt` from the Details panel
-- **Map report** — PDF of every device and link
+- **Map report** — PDF with a summary, inventory, device details, and links; choose sections, device types, and fields in the **Report…** dialog
 
 Diagrams use the layout you see on screen, including dragged positions. Node labels include identity plus listen ports/services. Edge labels include `service proto/port` (for example `http tcp/80`).
 

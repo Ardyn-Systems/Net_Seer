@@ -478,9 +478,12 @@ def _try_stp(builder: GraphBuilder, pkt: Any, src_mac: str | None) -> None:
 def _handle_dot11(builder: GraphBuilder, pkt: Any) -> None:
     dot11 = pkt[Dot11]
     roles = _dot11_address_roles(dot11)
+    # Only the transmitter (addr2) and receiver (addr1) are radios. DA/SA in addr3 are
+    # hosts beyond the access point, often wired servers; don't mark them wireless.
+    radios = {str(m).lower() for m in (getattr(dot11, "addr1", None), getattr(dot11, "addr2", None)) if m}
     for role, mac in roles.items():
         if mac:
-            builder.observe_mac(mac, wireless=True, mac_roles=(role,))
+            builder.observe_mac(mac, wireless=str(mac).lower() in radios, mac_roles=(role,))
     to_ds, from_ds = _fc_bits(dot11)
     if to_ds and from_ds:
         ta = getattr(dot11, "addr2", None)
