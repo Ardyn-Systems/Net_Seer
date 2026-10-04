@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/logo-192.png" alt="NetSeer logo" width="168" />
+  <img src="src/netseer/web/logo-192.png" alt="NetSeer logo" width="168" />
 </p>
 
 # NetSeer
@@ -64,7 +64,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 python -m netseer.generate_samples   # recreates bundled survey files
-netseer --host 0.0.0.0 --port 47331
+netseer --port 47331
 ```
 
 With [uv](https://docs.astral.sh/uv/):

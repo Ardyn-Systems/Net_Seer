@@ -19,27 +19,32 @@ class EmptySurveyError(ValueError):
     """Raised when a file parses but contains no usable survey data."""
 
 
+def netseer_payload(data: bytes, filename: str = "") -> dict | None:
+    """Parsed NetSeer JSON dump, or None if `data` is not one."""
+    if data.lstrip()[:1] not in (b"{", b"[") and not filename.lower().endswith(".json"):
+        return None
+    try:
+        obj = json.loads(data.decode("utf-8-sig"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if isinstance(obj, dict) and (obj.get("netseer") or ("nodes" in obj and "links" in obj)):
+        return obj
+    return None
+
+
 def sniff_format(data: bytes, filename: str = "") -> str:
     name = filename.lower()
-    head = data[:512].lstrip(b"\xef\xbb\xbf")
     if not data:
         raise UnsupportedSurveyError("The file is empty.")
+    head = data[:512].removeprefix(b"\xef\xbb\xbf")
     if head[:4] in PCAP_MAGICS:
         return "pcap"
     if head[:4] == PCAPNG_MAGIC:
         return "pcapng"
     text_prefix = head[:400].decode("utf-8", errors="replace")
     lowered = text_prefix.lower()
-    stripped = data.lstrip()
-    if stripped[:1] in (b"{", b"[") or name.endswith(".json"):
-        try:
-            obj = json.loads(data.decode("utf-8"))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            obj = None
-        if isinstance(obj, dict) and (
-            obj.get("netseer") or ("nodes" in obj and "links" in obj)
-        ):
-            return "netseer-json"
+    if netseer_payload(data, filename) is not None:
+        return "netseer-json"
     if "<detection-run" in lowered or "<wireless-network" in lowered or "kismet-3." in lowered:
         return "kismet-netxml"
     if "bssid" in lowered and ("station mac" in lowered or "probed essids" in lowered or "# iv" in lowered):

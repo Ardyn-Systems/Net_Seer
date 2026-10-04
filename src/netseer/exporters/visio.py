@@ -2,9 +2,8 @@ from __future__ import annotations
 
 import zipfile
 from io import BytesIO
-from xml.sax.saxutils import escape
-
 from netseer.exporters.layout import layout_positions
+from netseer.exporters.xmlutil import xml_text
 from netseer.graph import device_map_label
 from netseer.models import SurveyGraph
 
@@ -69,7 +68,7 @@ def export_vdx(graph: SurveyGraph, title: str = "NetSeer map") -> str:
         pin_x = max(x, 40) / 96.0
         pin_y = max(900 - y, 40) / 96.0
         line, fill = _shape_color(node.kind, node.medium)
-        label = escape(device_map_label(node)).replace("\n", "\\n")
+        label = xml_text(device_map_label(node))
         shapes.append(
             f'''    <Shape ID="{sid}" Type="Shape" LineStyle="1" FillStyle="1" TextStyle="1">
       <XForm>
@@ -117,7 +116,7 @@ def export_vdx(graph: SurveyGraph, title: str = "NetSeer map") -> str:
         <LineColor>{color}</LineColor>
         <LinePattern>{dashed}</LinePattern>
       </Line>
-      <Text>{escape(_link_caption(link))}</Text>
+      <Text>{xml_text(_link_caption(link))}</Text>
     </Shape>'''
         )
         connects.append(
@@ -129,7 +128,7 @@ def export_vdx(graph: SurveyGraph, title: str = "NetSeer map") -> str:
     return f'''<?xml version="1.0" encoding="UTF-8"?>
 <VisioDocument xmlns="urn:schemas-microsoft-com:office:visio" xmlns:v="urn:schemas-microsoft-com:vml">
   <DocumentProperties>
-    <Title>{escape(title)}</Title>
+    <Title>{xml_text(title)}</Title>
     <Creator>NetSeer</Creator>
   </DocumentProperties>
   <Pages>
@@ -166,7 +165,7 @@ def export_vsdx(graph: SurveyGraph, title: str = "NetSeer map") -> bytes:
         line, fill = _shape_color(node.kind, node.medium)
         fill_hex = fill.lstrip("#")
         line_hex = line.lstrip("#")
-        text = escape(device_map_label(node))
+        text = xml_text(device_map_label(node))
         shapes_xml.append(
             f'''<Shape ID="{sid}" NameU="Box" Type="Shape" LineStyle="0" FillStyle="0" TextStyle="0">
   <Cell N="PinX" V="{pin_x:.4f}"/>
@@ -209,7 +208,7 @@ def export_vsdx(graph: SurveyGraph, title: str = "NetSeer map") -> bytes:
   <Cell N="LineColor" V="#{color}"/>
   <Cell N="LineWeight" V="{weight}"/>
   <Cell N="EndArrow" V="0"/>
-  <Text>{escape(_link_caption(link))}</Text>
+  <Text>{xml_text(_link_caption(link))}</Text>
 </Shape>'''
         )
         connects_xml.append(
@@ -255,7 +254,7 @@ def export_vsdx(graph: SurveyGraph, title: str = "NetSeer map") -> bytes:
   <Override PartName="/visio/pages/pages.xml" ContentType="application/vnd.ms-visio.pages+xml"/>
   <Override PartName="/visio/pages/page1.xml" ContentType="application/vnd.ms-visio.page+xml"/>
   <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
-  <Override PartName="/docProps/app.xml" ContentType="application/vnd.ms-visio.drawing.main+xml"/>
+  <Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>
 </Types>
 '''
     rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -277,7 +276,7 @@ def export_vsdx(graph: SurveyGraph, title: str = "NetSeer map") -> bytes:
 '''
     core = f'''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <dc:title>{escape(title)}</dc:title>
+  <dc:title>{xml_text(title)}</dc:title>
   <dc:creator>NetSeer</dc:creator>
 </cp:coreProperties>
 '''

@@ -37,6 +37,25 @@ function setStatus(text) {
   el("status").textContent = text;
 }
 
+let storageFull = false;
+
+// localStorage throws when full (large captures fill the ~5 MB quota fast).
+// Say so once instead of silently dropping edits that would vanish on reload.
+function saveLocal(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch {
+    if (!storageFull) {
+      storageFull = true;
+      const msg = "Browser storage is full, so map edits will not survive a reload. Delete or export maps to free space.";
+      setStatus(msg);
+      window.alert(msg);
+    }
+    return false;
+  }
+}
+
 function nodeCaption(node) {
   const listens = (node.ports || []).filter((p) => p.role === "listen" || p.role === "dest");
   const displays = [];
@@ -87,7 +106,7 @@ function setDeviceMeta(nodeId, patch) {
     next.fields = { ...prev.fields, ...patch.fields };
   }
   all[key] = next;
-  localStorage.setItem(META_KEY, JSON.stringify(all));
+  saveLocal(META_KEY, JSON.stringify(all));
 }
 
 function clearFieldOverride(nodeId, fieldKey) {
@@ -97,7 +116,7 @@ function clearFieldOverride(nodeId, fieldKey) {
   const fields = { ...(prev.fields || {}) };
   delete fields[fieldKey];
   all[key] = { ...prev, fields };
-  localStorage.setItem(META_KEY, JSON.stringify(all));
+  saveLocal(META_KEY, JSON.stringify(all));
 }
 
 const LIST_FIELDS = new Set([
@@ -416,7 +435,7 @@ function chips(values) {
 }
 
 function escapeHtml(s) {
-  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
 function inspect(kind, obj) {
@@ -453,7 +472,7 @@ function inspect(kind, obj) {
         <dt>SSID</dt><dd>${escapeHtml((obj.ssids || []).join(", ") || "—")}</dd>
         <dt>Channel</dt><dd>${escapeHtml((obj.channels || []).join(", ") || "—")}</dd>
         <dt>Freq</dt><dd>${escapeHtml((obj.frequencies_mhz || []).map((f) => f + " MHz").join(", ") || "—")}</dd>
-        <dt>Signal</dt><dd>${obj.signal_dbm == null ? "—" : obj.signal_dbm + " dBm"}</dd>
+        <dt>Signal</dt><dd>${obj.signal_dbm == null ? "—" : escapeHtml(obj.signal_dbm + " dBm")}</dd>
         <dt>Encrypt</dt><dd>${escapeHtml((obj.encryption || []).join(", ") || "—")}</dd>
         <dt>VLANs</dt><dd>${escapeHtml((obj.vlans || []).join(", ") || "—")}</dd>
         <dt>GPS</dt><dd>${escapeHtml(gps)}</dd>
@@ -550,14 +569,7 @@ function syncActiveMapGraph() {
 
 function persistMaps() {
   syncActiveMapGraph();
-  try {
-    localStorage.setItem(
-      MAPS_KEY,
-      JSON.stringify({ maps: state.maps, activeMapId: state.activeMapId, clipboard: state.clipboard })
-    );
-  } catch {
-    /* quota */
-  }
+  saveLocal(MAPS_KEY, JSON.stringify({ maps: state.maps, activeMapId: state.activeMapId, clipboard: state.clipboard }));
 }
 
 function restoreMaps() {
@@ -906,7 +918,7 @@ function undoLast() {
   const undoBtn = el("btn-undo");
   if (undoBtn) undoBtn.disabled = true;
   state.maps = u.maps;
-  localStorage.setItem(META_KEY, JSON.stringify(u.meta || {}));
+  saveLocal(META_KEY, JSON.stringify(u.meta || {}));
   state.activeMapId = u.activeMapId;
   closeDeviceDialog();
   paintGraph(u.graph, u.title, u.activeMapId);
@@ -933,13 +945,13 @@ function transferMeta(fromMap, toMap, fromId, toId) {
   const src = all[`${fromMap}::${fromId}`];
   if (!src) return;
   all[`${toMap}::${toId}`] = cloneData(src);
-  localStorage.setItem(META_KEY, JSON.stringify(all));
+  saveLocal(META_KEY, JSON.stringify(all));
 }
 
 function dropMeta(mapId, nodeId) {
   const all = allDeviceMeta();
   delete all[`${mapId}::${nodeId}`];
-  localStorage.setItem(META_KEY, JSON.stringify(all));
+  saveLocal(META_KEY, JSON.stringify(all));
 }
 
 function uniqueId(base, used) {
@@ -1129,7 +1141,7 @@ function pasteClipboard() {
     if (meta) {
       const all = allDeviceMeta();
       all[`${state.activeMapId}::${nextId}`] = cloneData(meta);
-      localStorage.setItem(META_KEY, JSON.stringify(all));
+      saveLocal(META_KEY, JSON.stringify(all));
     }
   }
   const usedLinks = new Set((state.graph.links || []).map((l) => l.id));
@@ -1203,7 +1215,7 @@ function moveSelectedTo(mapId) {
     if (meta) {
       const all = allDeviceMeta();
       all[`${dest.id}::${nextId}`] = cloneData(meta);
-      localStorage.setItem(META_KEY, JSON.stringify(all));
+      saveLocal(META_KEY, JSON.stringify(all));
     }
   }
   const usedLinks = new Set((dest.graph.links || []).map((l) => l.id));
@@ -1268,7 +1280,7 @@ function applyGraph(graph, title, surveyId) {
     for (const [nodeId, meta] of Object.entries(graph.device_meta)) {
       all[`${mapId}::${nodeId}`] = cloneData(meta);
     }
-    localStorage.setItem(META_KEY, JSON.stringify(all));
+    saveLocal(META_KEY, JSON.stringify(all));
   }
   const dumped = graph?.meta?.device_meta;
   if (dumped && typeof dumped === "object") {
@@ -1277,7 +1289,7 @@ function applyGraph(graph, title, surveyId) {
     for (const [nodeId, meta] of Object.entries(dumped)) {
       all[`${mapId}::${nodeId}`] = cloneData(meta);
     }
-    localStorage.setItem(META_KEY, JSON.stringify(all));
+    saveLocal(META_KEY, JSON.stringify(all));
   }
   showMap(id.startsWith("map:") || id === UNWANTED_ID ? id : `map:${id}`);
 }
@@ -1354,7 +1366,7 @@ function hiddenSampleIds() {
 }
 
 function saveHiddenSampleIds(ids) {
-  localStorage.setItem(HIDDEN_SAMPLES_KEY, JSON.stringify(ids));
+  saveLocal(HIDDEN_SAMPLES_KEY, JSON.stringify(ids));
 }
 
 function sampleToSurvey(sample) {

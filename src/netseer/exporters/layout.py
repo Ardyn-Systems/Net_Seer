@@ -35,16 +35,18 @@ def layout_positions(graph: SurveyGraph, width: float = 1400, height: float = 90
     place_row(vlans, 800, 80, width - 80)
 
     # Stations orbit their AP when a wireless link exists
-    ap_children: dict[str, list[str]] = defaultdict(list)
+    ap_set = set(aps)
+    ap_children: dict[str, dict[str, None]] = defaultdict(dict)
     for link in graph.links:
         if link.kind == "wireless":
-            ap = link.target if link.target in aps else link.source if link.source in aps else None
+            ap = link.target if link.target in ap_set else link.source if link.source in ap_set else None
             sta = link.source if link.source != ap else link.target
             if ap and sta:
-                ap_children[ap].append(sta)
+                ap_children[ap][sta] = None
     for ap, children in ap_children.items():
         ax, ay = positions.get(ap, (width / 2, 220))
-        for i, sta in enumerate(dict.fromkeys(children)):
+        # Spread over distinct stations; duplicates used to leave gaps in the ring.
+        for i, sta in enumerate(children):
             angle = (2 * math.pi * i / max(len(children), 1)) - math.pi / 2
             positions[sta] = (ax + 140 * math.cos(angle), ay + 110 * math.sin(angle) + 130)
 

@@ -65,6 +65,12 @@ def format_oui_prefix(hexed: str, length: int) -> str:
 
 def lookup_oui(mac: str | None) -> dict[str, str]:
     """Return manufacturer, OUI prefix, and assignment class for a MAC."""
+    return dict(_lookup_oui_cached(mac))
+
+
+@lru_cache(maxsize=8192)
+def _lookup_oui_cached(mac: str | None) -> dict[str, str]:
+    # Callers get a copy via lookup_oui, so the cached dict is never mutated.
     hexed = mac_hex(mac)
     if not hexed:
         return {
@@ -102,9 +108,8 @@ def lookup_oui(mac: str | None) -> dict[str, str]:
     }
 
 
-@lru_cache(maxsize=4096)
 def vendor_from_mac(mac: str | None) -> str:
-    return lookup_oui(mac)["manufacturer"]
+    return _lookup_oui_cached(mac)["manufacturer"]
 
 
 def manufacturers_for_macs(macs: list[str]) -> str:

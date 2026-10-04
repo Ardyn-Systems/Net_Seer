@@ -5,7 +5,7 @@ import re
 from typing import Any
 
 from netseer.models import GpsFix, Link, Node, SurveyGraph
-from netseer.oui import lookup_oui, manufacturers_for_macs
+from netseer.oui import lookup_oui, manufacturers_for_macs, vendor_from_mac
 from netseer.services import CLIENT_SIDE_PORTS, WELL_KNOWN_SERVER_PORTS, format_port, service_for_port
 
 
@@ -89,6 +89,26 @@ def _undirected_id(kind: str, a: str, b: str) -> str:
     return f"{kind}:{lo}:{hi}"
 
 
+def _merge_link_records(dst: dict[str, Any], src: dict[str, Any]) -> None:
+    """Fold a duplicate link (same id after a node merge) into `dst`."""
+    dst["extra"]["count"] = int(dst["extra"].get("count") or 0) + int(src["extra"].get("count") or 0)
+    dst["ports"] = _merge_port_records(dst.get("ports") or [], src.get("ports") or [])
+    dst["extra"]["ports"] = dst["ports"]
+    _merge_unique(dst["services"], src.get("services") or [])
+    dst["extra"]["services"] = dst["services"]
+    _merge_unique(dst["vlans"], src.get("vlans") or [])
+    if src["extra"].get("vias"):
+        dst["extra"].setdefault("vias", [])
+        _merge_unique(dst["extra"]["vias"], src["extra"]["vias"])
+    for key, value in src["extra"].items():
+        dst["extra"].setdefault(key, value)
+    dst["label"] = _link_service_label(dst, dst["label"] or src["label"] or dst["kind"])
+
+
+# Higher rank wins when two records for the same device are merged.
+KIND_RANK = {"host": 0, "client": 0, "server": 1, "gateway": 2, "switch": 2, "ap": 3}
+
+
 MAC_ROLE_FIELDS = (("mac_tx", "TX"), ("mac_rx", "RX"), ("mac_da", "DA"), ("mac_ra", "RA"))
 MAC_ROLE_KEYS = {"tx", "rx", "da", "ra"}
 
@@ -153,6 +173,7 @@ class GraphBuilder:
         self.subnets: dict[str, dict[str, Any]] = {}
         self.vlans: dict[int, dict[str, Any]] = {}
         self.netmasks: dict[str, int] = {}
+        self._known_nets: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
         self.sources: list[str] = []
         self.packet_count = 0
         self.warnings: list[str] = []
@@ -222,18 +243,20 @@ class GraphBuilder:
             return None
         node_id = mac_id(mac)
         rec = self._device(node_id)
-        _merge_unique(rec["macs"], [mac])
+        if mac not in rec["macs"]:
+            # OUI work only on first sight; this runs for every frame.
+            rec["macs"].append(mac)
+            info = lookup_oui(mac)
+            rec["vendor"] = manufacturers_for_macs(rec["macs"])
+            rec["extra"]["oui_prefix"] = info["oui_prefix"]
+            rec["extra"]["oui_assignment"] = info["oui_assignment"]
         for role in mac_roles or ():
             key = str(role).lower()
             if key in MAC_ROLE_KEYS:
                 _merge_unique(rec[f"mac_{key}"], [mac])
         if wireless:
             rec["medium"] = "wireless"
-        info = lookup_oui(mac)
-        rec["vendor"] = manufacturers_for_macs(rec["macs"])
-        rec["extra"]["oui_prefix"] = info["oui_prefix"]
-        rec["extra"]["oui_assignment"] = info["oui_assignment"]
-        if vendor and vendor not in {info["manufacturer"], ""}:
+        if vendor and vendor not in {vendor_from_mac(mac), ""}:
             rec["extra"]["survey_manufacturer"] = vendor
         if label and rec["label"] in {mac, node_id.split(":", 1)[-1]}:
             rec["label"] = label
@@ -248,6 +271,8 @@ class GraphBuilder:
             return None
         if parsed.is_unspecified or parsed.is_multicast or parsed.is_reserved:
             return None
+        if parsed.version == 4 and self._is_directed_broadcast(parsed):
+            return None
         ip_s = str(parsed)
         node_id = None
         if mac:
@@ -261,31 +286,93 @@ class GraphBuilder:
         self.ip_to_device[ip_s] = node_id
         return node_id
 
+    def _is_directed_broadcast(self, addr: ipaddress.IPv4Address) -> bool:
+        """Subnet broadcast (e.g. 10.0.0.255) is a destination, not a host."""
+        if len(self._known_nets) != len(self.netmasks):
+            self._known_nets = [
+                ipaddress.ip_network((ip, prefix), strict=False) for ip, prefix in self.netmasks.items()
+            ]
+        for net in self._known_nets:
+            if net.version == 4 and addr in net:
+                return net.prefixlen < 31 and addr == net.broadcast_address
+        # No DHCP mask covers it: match the /24 the subnet view assumes.
+        return addr.packed[-1] == 0xFF
+
+    def _merge_device(self, src_id: str, dst_id: str) -> None:
+        """Fold every observation of `src_id` into `dst_id` and repoint references."""
+        if src_id == dst_id:
+            return
+        src = self.devices.pop(src_id, None)
+        if src is None:
+            return
+        rec = self._device(dst_id)
+        for key in (
+            "ips", "macs", "mac_tx", "mac_rx", "mac_da", "mac_ra", "vlans",
+            "services", "ssids", "channels", "frequencies_mhz", "encryption",
+        ):
+            _merge_unique(rec[key], src.get(key) or [])
+        for role in src.get("roles") or []:
+            self.add_role(dst_id, role)
+        if KIND_RANK.get(src["kind"], 0) > KIND_RANK.get(rec["kind"], 0):
+            rec["kind"] = src["kind"]
+        if src.get("medium") == "wireless":
+            rec["medium"] = "wireless"
+        rec["ports"] = _merge_port_records(rec.get("ports") or [], src.get("ports") or [])
+        rec["routing"].update(src.get("routing") or {})
+        for key, value in (src.get("extra") or {}).items():
+            rec["extra"].setdefault(key, value)
+        if rec["gps"] is None:
+            rec["gps"] = src.get("gps")
+        if src.get("signal_dbm") is not None:
+            if rec["signal_dbm"] is None:
+                rec["signal_dbm"] = src["signal_dbm"]
+            lows = [v for v in (rec["signal_min_dbm"], src.get("signal_min_dbm")) if v is not None]
+            highs = [v for v in (rec["signal_max_dbm"], src.get("signal_max_dbm")) if v is not None]
+            rec["signal_min_dbm"] = min(lows) if lows else None
+            rec["signal_max_dbm"] = max(highs) if highs else None
+        if rec["macs"]:
+            rec["vendor"] = manufacturers_for_macs(rec["macs"])
+
+        for key, value in list(self.ip_to_device.items()):
+            if value == src_id:
+                self.ip_to_device[key] = dst_id
+        for group in (*self.subnets.values(), *self.vlans.values()):
+            if src_id in group["members"]:
+                group["members"] = list(dict.fromkeys(dst_id if m == src_id else m for m in group["members"]))
+        self._rekey_links(src_id, dst_id)
+
+    def _rekey_links(self, old: str, new: str) -> None:
+        """Repoint links from `old` to `new`, recomputing ids so later traffic dedupes."""
+        moved = [lid for lid, link in self.links.items() if old in (link["source"], link["target"])]
+        for lid in moved:
+            link = self.links.pop(lid)
+            source = new if link["source"] == old else link["source"]
+            target = new if link["target"] == old else link["target"]
+            if source == target:
+                continue
+            directed = bool(link.get("directed"))
+            if not directed:
+                source, target = sorted((source, target))
+            new_id = f"{link['kind']}:{source}:{target}" if directed else _undirected_id(link["kind"], source, target)
+            link.update(id=new_id, source=source, target=target)
+            vias = link["extra"].get("vias")
+            if vias:
+                link["extra"]["vias"] = list(dict.fromkeys(new if v == old else v for v in vias))
+            if link["extra"].get("via") == old:
+                link["extra"]["via"] = new
+            existing = self.links.get(new_id)
+            if existing is None:
+                self.links[new_id] = link
+            else:
+                _merge_link_records(existing, link)
+
     def bind_ip_mac(self, ip: str | None, mac: str | None) -> str | None:
         mac_node = self.observe_mac(mac)
         ip_node = self.observe_ip(ip)
-        if mac_node and ip_node and mac_node != ip_node:
-            # Merge IP-only node into MAC node.
-            src = self.devices.pop(ip_node, None)
-            rec = self._device(mac_node)
-            if src:
-                _merge_unique(rec["ips"], src["ips"])
-                _merge_unique(rec["macs"], src.get("macs") or [])
-                for role in MAC_ROLE_KEYS:
-                    _merge_unique(rec[f"mac_{role}"], src.get(f"mac_{role}") or [])
-                _merge_unique(rec["roles"], src["roles"])
-                _merge_unique(rec["vlans"], src["vlans"])
-                _merge_unique(rec["services"], src.get("services") or [])
-                rec["ports"] = _merge_port_records(rec.get("ports") or [], src.get("ports") or [])
-                rec["routing"].update(src.get("routing") or {})
-            for key, value in list(self.ip_to_device.items()):
-                if value == ip_node:
-                    self.ip_to_device[key] = mac_node
-            for link in self.links.values():
-                if link["source"] == ip_node:
-                    link["source"] = mac_node
-                if link["target"] == ip_node:
-                    link["target"] = mac_node
+        if mac_node and ip_node and mac_node != ip_node and ip_node.startswith("ip:"):
+            # The IP-only placeholder was this MAC all along. A different MAC node
+            # owning the IP is a separate device (e.g. DHCP reuse), so never merge those.
+            self._merge_device(ip_node, mac_node)
             node_id = mac_node
         else:
             node_id = mac_node or ip_node
@@ -460,10 +547,8 @@ class GraphBuilder:
                 "services": [],
                 "ports": [],
                 "extra": {"count": 0},
+                "directed": directed,
             }
-            if directed:
-                rec["source"] = source
-                rec["target"] = target
             self.links[link_id] = rec
         rec["extra"]["count"] = int(rec["extra"].get("count") or 0) + 1
         extra = dict(extra or {})
@@ -515,25 +600,38 @@ class GraphBuilder:
         named = service or service_for_port(dport, proto) or service_for_port(sport, proto)
         dst_known = dport is not None and dport in WELL_KNOWN_SERVER_PORTS and dport not in CLIENT_SIDE_PORTS
         src_known = sport is not None and sport in WELL_KNOWN_SERVER_PORTS and sport not in CLIENT_SIDE_PORTS
-        server, client = dst, src
         if (dport in CLIENT_SIDE_PORTS and src_known) or (src_known and not dst_known):
-            server, client = src, dst
-            listen_port, client_port = sport, dport
+            server, client, listen_port, client_port = src, dst, sport, dport
+        elif dst_known:
+            server, client, listen_port, client_port = dst, src, dport, sport
+        elif named and sport is not None and dport is not None:
+            # Service named from the payload on unregistered ports: the listener
+            # is almost always the lower port, the ephemeral side the higher one.
+            if sport < dport:
+                server, client, listen_port, client_port = src, dst, sport, dport
+            else:
+                server, client, listen_port, client_port = dst, src, dport, sport
+        elif named:
+            server, client, listen_port, client_port = dst, src, dport, sport
         else:
-            listen_port, client_port = dport, sport
+            # Two ephemeral ports: no evidence which side listens.
+            server = client = listen_port = client_port = None
 
+        # Key port records on the listening port only. Including the ephemeral
+        # client port made every connection a new record (unbounded growth).
         port_entry = None
-        if proto in {"tcp", "udp"} and (sport is not None or dport is not None):
+        if proto in {"tcp", "udp"} and listen_port is not None:
             port_entry = {
                 "proto": proto,
-                "sport": sport,
-                "dport": dport,
+                "port": listen_port,
                 "service": named,
-                "display": format_port(proto, listen_port or dport or sport, named),
+                "display": format_port(proto, listen_port, named),
             }
 
         if src and dst:
-            l3_label = named or (f"{proto}/{dport}" if proto and dport is not None else (proto or "IP").upper())
+            l3_label = named or (
+                f"{proto}/{listen_port}" if proto and listen_port is not None else (proto or "IP").upper()
+            )
             extra: dict[str, Any] = {"proto": proto}
             if port_entry:
                 extra["ports"] = [port_entry]
@@ -543,22 +641,16 @@ class GraphBuilder:
                 extra.update(metadata)
             self._link(src, dst, kind="l3", label=l3_label, medium="wired", extra=extra)
 
-        if src:
-            if src == server and listen_port is not None:
-                self.observe_port(src, proto=proto, port=listen_port, role="listen", service=named)
-            elif client_port is not None and (
-                client_port in WELL_KNOWN_SERVER_PORTS or client_port in CLIENT_SIDE_PORTS
-            ):
-                self.observe_port(src, proto=proto, port=client_port, role="client", service=named)
-        if dst:
-            if dst == server and listen_port is not None:
-                self.observe_port(dst, proto=proto, port=listen_port, role="listen", service=named)
-            elif dport is not None and dport in WELL_KNOWN_SERVER_PORTS:
-                self.observe_port(dst, proto=proto, port=dport, role="dest", service=named)
+        if server and listen_port is not None:
+            self.observe_port(server, proto=proto, port=listen_port, role="listen", service=named)
+        if client and client_port is not None and (
+            client_port in WELL_KNOWN_SERVER_PORTS or client_port in CLIENT_SIDE_PORTS
+        ):
+            self.observe_port(client, proto=proto, port=client_port, role="client", service=named)
         if named and server:
             self.observe_service(server, named)
 
-        if (named or dst_known or src_known) and src and dst:
+        if server and client:
             self.add_role(server, "server")
             self.add_role(client, "client")
             cs_extra: dict[str, Any] = {}
@@ -668,7 +760,11 @@ class GraphBuilder:
 
     def _infer_attachments(self) -> None:
         """Join distinct networks only when a device, STP, WDS, or bridge port spans them."""
-        for rec in self.devices.values():
+        nets_by_member: dict[str, list[str]] = {}
+        for net_s, srec in self.subnets.items():
+            for member in srec.get("members") or []:
+                nets_by_member.setdefault(member, []).append(net_s)
+        for rec in list(self.devices.values()):
             node_id = rec["id"]
             vlans = [int(v) for v in rec.get("vlans") or [] if v is not None]
             stp = bool(rec.get("extra", {}).get("stp") or rec.get("extra", {}).get("bridge_ports"))
@@ -687,11 +783,7 @@ class GraphBuilder:
                             vlans=[left, right],
                             extra={"networks": [f"VLAN {left}", f"VLAN {right}"]},
                         )
-            member_nets = [
-                net_s
-                for net_s, srec in self.subnets.items()
-                if node_id in (srec.get("members") or [])
-            ]
+            member_nets = nets_by_member.get(node_id, [])
             v4 = [n for n in member_nets if ":" not in n]
             v6 = [n for n in member_nets if ":" in n]
             for group in (v4, v6):

@@ -45,7 +45,7 @@ git checkout main
 git pull
 ```
 
-You should see `README.md`, `pyproject.toml`, `src/`, `web/`, and `docs/`. Stay on **`main`**.
+You should see `README.md`, `pyproject.toml`, `src/`, and `docs/`. Stay on **`main`**.
 
 Optional: `gh repo clone ardyn-systems/NetSeer` if you already use GitHub CLI, or `git clone git@github.com:ardyn-systems/NetSeer.git` if this machine has an SSH key on GitHub.
 
@@ -94,7 +94,7 @@ If `python3` is 3.11, install 3.12 and call it explicitly (`python3.12 -m venv .
 
 ## 3. Start the preview
 
-Default bind is **all interfaces**, port **47331**.
+Default bind is **127.0.0.1** (this machine only), port **47331**.
 
 ```bash
 # uv
@@ -107,8 +107,8 @@ netseer --host 127.0.0.1 --port 47331
 
 Open [http://127.0.0.1:47331](http://127.0.0.1:47331).
 
-- `--host 127.0.0.1` if you only want local loopback
-- `--host 0.0.0.0` if other machines on the LAN should hit it
+- `--host 127.0.0.1` (default) keeps it on this machine
+- `--host 0.0.0.0` if other machines on the LAN should hit it. The API has no login and can write to `Unwanted/`, so only do this on a network you trust
 - Change `--port` if 47331 is taken
 
 The CLI name is `netseer`. Leave the process running while you use the UI.
@@ -123,7 +123,7 @@ Campus survey (combined) loads on first visit into its own **map**. Empty, loadi
 
 Left **Maps** list holds every map in this session:
 
-- **Unwanted** — holding / quarantine map. It cannot be deleted. **Empty** writes devices to `Unwanted/` in the project (`Unwanted-office-lan.json`, …) then clears the map. Drop that JSON onto **Load a survey** to reload it.
+- **Unwanted** — holding / quarantine map. It cannot be deleted. **Empty** writes devices to `Unwanted/` in the project (`Unwanted-office-lan.json`, …) then clears the map (set `NETSEER_UNWANTED_DIR` to write somewhere else; outside a source checkout it defaults to `./Unwanted`). Drop that JSON onto **Load a survey** to reload it.
 - Survey maps — created when you load a sample or upload. **Rename** / **Delete** on the row.
 - **New blank map** — empty canvas. Rename or delete it like any user map.
 
@@ -314,7 +314,7 @@ rm -rf ~/.local/bin/uv ~/.local/bin/uvx ~/.local/share/uv
 | CLI | `netseer` |
 | Python import | `netseer` |
 | Default URL | http://127.0.0.1:47331 |
-| Default bind | `0.0.0.0:47331` |
+| Default bind | `127.0.0.1:47331` |
 | Samples | `src/netseer/data/` |
 | Update | `git pull origin main` then `uv sync --group dev` and restart `netseer` |
 | Uninstall | Stop `netseer`, then `rm -rf` the clone directory |
