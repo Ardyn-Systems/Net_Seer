@@ -1258,6 +1258,33 @@ function zoomBy(factor) {
   cy.animate({ zoom: { level, renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 } } }, { duration: 140 });
 }
 
+// Cytoscape's own wheel zoom jumps 25-40% per mouse notch. Handle the wheel here
+// instead: ~10% per notch, proportional for trackpads, centred on the cursor.
+const WHEEL_ZOOM_PER_PIXEL = 0.001; // 100 px (one notch) -> ~10%
+const PINCH_ZOOM_PER_PIXEL = 0.01; // trackpad pinch arrives as small ctrl+wheel deltas
+const WHEEL_STEP_LIMIT = 0.25;
+
+function wheelPixels(e) {
+  if (e.deltaMode === 1) return e.deltaY * 33; // lines
+  if (e.deltaMode === 2) return e.deltaY * 400; // pages
+  return e.deltaY;
+}
+
+function onMapWheel(e) {
+  const cy = state.cy;
+  // Leave scrollable overlays (search results, menus) alone.
+  if (!cy || !el("map").contains(e.target)) return;
+  // Stop the event before Cytoscape's own handler sees it.
+  e.preventDefault();
+  e.stopPropagation();
+  const rate = e.ctrlKey ? PINCH_ZOOM_PER_PIXEL : WHEEL_ZOOM_PER_PIXEL;
+  const step = Math.max(-WHEEL_STEP_LIMIT, Math.min(WHEEL_STEP_LIMIT, -wheelPixels(e) * rate));
+  const level = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, cy.zoom() * Math.exp(step)));
+  if (level === cy.zoom()) return;
+  const box = el("map").getBoundingClientRect();
+  cy.zoom({ level, renderedPosition: { x: e.clientX - box.left, y: e.clientY - box.top } });
+}
+
 function refreshNodeLabel(node) {
   const cyNode = state.cy?.getElementById(node.id);
   if (cyNode?.length) cyNode.data("label", nodeLabel(node));
@@ -2697,8 +2724,22 @@ function bindUi() {
   });
 }
 
+// Lets the desktop app's browser fallback know a NetSeer tab is still open.
+function startHeartbeat() {
+  const beat = () => fetch("/api/heartbeat", { method: "POST", keepalive: true }).catch(() => {});
+  beat();
+  setInterval(beat, 20000);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") beat();
+  });
+  window.addEventListener("pagehide", () => navigator.sendBeacon?.("/api/heartbeat?bye=true"));
+}
+
 async function init() {
+  startHeartbeat();
   mapResize.observe(el("map"));
+  // Capture phase on the stage, so this runs before Cytoscape's listener on the map.
+  el("stage").addEventListener("wheel", onMapWheel, { capture: true, passive: false });
   bindUi();
   bindReportDialog();
   loadPrefs();

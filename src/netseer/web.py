@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
@@ -67,6 +68,17 @@ async def limit_body_size(request: Request, call_next):
 
 def _http_error(exc: Exception, status: int = 400) -> HTTPException:
     return HTTPException(status_code=status, detail=str(exc))
+
+
+# Last time an open NetSeer page checked in (time.monotonic()), and when it said goodbye.
+# The desktop launcher's browser fallback uses this to quit once the tab is closed.
+PRESENCE: dict[str, float | None] = {"last": None, "bye": None}
+
+
+@app.post("/api/heartbeat", status_code=204)
+def heartbeat(bye: bool = False) -> Response:
+    PRESENCE["bye" if bye else "last"] = time.monotonic()
+    return Response(status_code=204)
 
 
 @app.get("/api/health")

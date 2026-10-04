@@ -680,3 +680,77 @@ def test_wired_hosts_behind_an_access_point_stay_wired():
     _handle_packet(builder, frame)
     assert builder.devices[f"mac:{sta}"]["medium"] == "wireless"
     assert builder.devices[f"mac:{server}"]["medium"] == "wired"
+
+
+def test_heartbeat_tracks_open_and_closed_pages():
+    from fastapi.testclient import TestClient
+
+    import netseer.web as webmod
+
+    webmod.PRESENCE.update(last=None, bye=None)
+    client = TestClient(webmod.app)
+    assert client.post("/api/heartbeat").status_code == 204
+    assert webmod.PRESENCE["last"] is not None and webmod.PRESENCE["bye"] is None
+    assert client.post("/api/heartbeat?bye=true").status_code == 204
+    assert webmod.PRESENCE["bye"] >= webmod.PRESENCE["last"]
+
+
+def test_browser_fallback_quits_after_the_page_goes_quiet(monkeypatch):
+    import netseer.desktop as desktop
+    import netseer.web as webmod
+
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(desktop.time, "sleep", lambda s: clock.__setitem__("t", clock["t"] + s))
+    monkeypatch.setattr(desktop.time, "monotonic", lambda: clock["t"])
+    # Page said goodbye and didn't come back: quit after the grace period.
+    webmod.PRESENCE.update(last=1000.0, bye=1001.0)
+    desktop.wait_for_page_close()
+    assert clock["t"] - 1001.0 > desktop.PAGE_BYE_GRACE_SECONDS
+    # Page just stopped checking in (browser crashed, laptop slept): quit after the idle window.
+    clock["t"] = 2000.0
+    webmod.PRESENCE.update(last=2000.0, bye=None)
+    desktop.wait_for_page_close()
+    assert clock["t"] - 2000.0 > desktop.PAGE_IDLE_SECONDS
+    # Nobody ever opened the page.
+    clock["t"] = 3000.0
+    webmod.PRESENCE.update(last=None, bye=None)
+    desktop.wait_for_page_close(first_visit=30)
+    assert 30 < clock["t"] - 3000.0 < 40
+
+
+def test_linux_launcher_helpers(monkeypatch, tmp_path):
+    import sys
+
+    import netseer.desktop as desktop
+
+    monkeypatch.setattr(desktop, "IS_LINUX", True)
+    monkeypatch.setattr(sys, "frozen", True, raising=False)
+    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEIxyz")
+    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/usr/local/lib")
+    assert desktop.child_env()["LD_LIBRARY_PATH"] == "/usr/local/lib"
+    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG")
+    assert "LD_LIBRARY_PATH" not in desktop.child_env()
+
+    monkeypatch.setattr(desktop.Path, "home", classmethod(lambda cls: tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "data"))
+    assert desktop.app_mode_profile("/snap/bin/chromium") == tmp_path / "snap" / "chromium" / "common" / "NetSeer"
+    assert desktop.app_mode_profile("/usr/bin/google-chrome") == tmp_path / "data" / "NetSeer" / "browser"
+
+    entry = desktop.desktop_entry("/home/me/Apps/NetSeer 0.1.0.AppImage", "netseer")
+    assert 'Exec="/home/me/Apps/NetSeer 0.1.0.AppImage"' in entry
+    assert "Icon=netseer" in entry and "Terminal=false" in entry
+
+
+def test_logo_assets_are_self_contained():
+    from pathlib import Path
+
+    web = Path(__file__).resolve().parents[1] / "src" / "netseer" / "web"
+    for name in ("logo.svg", "logo-small.svg"):
+        svg = (web / name).read_text(encoding="utf-8")
+        assert "<svg" in svg
+        # Some renderers (MuPDF, older librsvg) ignore clipPath; the art must not depend on it.
+        assert "clipPath" not in svg and "clip-path" not in svg
+    for name in ("logo.png", "logo-192.png", "favicon.png", "favicon.ico"):
+        assert (web / name).stat().st_size > 1000
+    html = (web / "index.html").read_text(encoding="utf-8")
+    assert "/static/logo.svg" in html
