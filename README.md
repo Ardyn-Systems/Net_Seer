@@ -21,7 +21,7 @@ Everything runs on your machine. NetSeer reads capture files you give it; it doe
 - [Build the desktop apps](#build-the-desktop-apps)
 - [Update and uninstall](#update-and-uninstall)
 
-Guides: [How to use NetSeer](docs/netseer-how-to.md) (every screen and control) · [Install and use on Debian/Ubuntu](docs/netseer-install-and-use.md) (step-by-step).
+Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) · [How to](docs/netseer-how-to.md) (every control, briefly) · [Install and use on Debian/Ubuntu](docs/netseer-install-and-use.md) (step-by-step).
 
 ## Get NetSeer
 
@@ -110,7 +110,7 @@ From the frames and survey rows, NetSeer extracts:
   - per-device **PDF, CSV, XML, or text**
 - **Four themes:** Terrain (default), Midnight, Daylight (good for printing), and Blueprint.
 
-See the [How to](docs/netseer-how-to.md) for every control and keyboard shortcut.
+The [user guide](docs/user-guide.md) walks through all of it with screenshots; the [How to](docs/netseer-how-to.md) lists every control and keyboard shortcut.
 
 ## Where your data lives
 
@@ -177,6 +177,8 @@ curl -L -o /tmp/oui36.csv https://standards-oui.ieee.org/oui36/oui36.csv
 curl -L -o /tmp/cid.csv https://standards-oui.ieee.org/cid/cid.csv
 uv run python -m netseer.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /tmp/cid.csv
 ```
+
+The user guide's screenshots come from `docs/screenshots.py`, which drives NetSeer with Playwright: `uv sync --group docs`, `uv run playwright install chromium`, then `uv run python docs/screenshots.py`.
 
 The logo lives in `packaging/brand/` as SVG. After editing it, regenerate every icon with `python packaging/brand/render.py` (needs `pymupdf` and `pillow`).
 

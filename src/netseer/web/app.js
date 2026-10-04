@@ -2672,6 +2672,9 @@ function bindUi() {
   });
   window.addEventListener("resize", () => closeMenu());
   el("map").addEventListener("contextmenu", (e) => e.preventDefault());
+  // Cytoscape misses "mouseout" when the pointer leaves the canvas quickly, which left
+  // the hover highlight stuck with everything else faded.
+  el("map").addEventListener("mouseleave", () => state.cy?.elements(".faded").removeClass("faded"));
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {

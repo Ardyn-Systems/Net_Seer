@@ -335,6 +335,8 @@ kbd {
 }
 .menu button:hover, .menu button:focus-visible, .menu li[role="option"]:hover, .menu li.active { background: var(--hover); outline: none; }
 .menu small { color: var(--muted); font-size: 12px; }
+.menu button:disabled { opacity: 0.4; cursor: not-allowed; }
+.menu button:disabled:hover { background: none; }
 .menu kbd { border: 0; padding: 0; min-width: 0; }
 .menu hr { border: 0; border-top: 1px solid var(--line); margin: 0.3rem 0.2rem; }
 .menu .menu-label { padding: 0.35rem 0.6rem 0.2rem; color: var(--muted); font-size: 11.5px; letter-spacing: 0.04em; text-transform: uppercase; }

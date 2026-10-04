@@ -2,7 +2,7 @@
 
 **Turn traffic into terrain.**
 
-What each part of the screen does, and how to use it. For clone, install, update, and uninstall on Debian/Ubuntu, see [[netseer-install-and-use]].
+What each part of the screen does, and how to use it. For a walkthrough with screenshots, see the [user guide](user-guide.md). For clone, install, update, and uninstall on Debian/Ubuntu, see [[netseer-install-and-use]].
 
 NetSeer is a **local** browser preview (`http://127.0.0.1:47331` by default). It is not a compiled binary. Open it with `netseer`.
 
