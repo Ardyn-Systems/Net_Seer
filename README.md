@@ -120,7 +120,7 @@ From the frames and survey rows, NetSeer extracts:
 
 ## What you get
 
-- **A map that lays itself out**, eight ways: **by subnet** (the default: subnets are boxes, access points sit with their clients), **by connection**, **by location** (survey GPS), **by channel**, **by network name** (SSID), **top-down hierarchy**, **by signal strength**, or **by maker**. Drag anything to rearrange; positions are saved for each arrangement. **Tidy layout** resets them.
+- **A map that lays itself out**, eight ways: **by network name** (the default: a box per SSID with its access points and their clients), **by subnet**, **by connection**, **by location** (survey GPS), **by channel**, **top-down hierarchy**, **by signal strength**, or **by maker**. Drag anything to rearrange; positions are saved for each arrangement. **Tidy layout** resets them.
 - **Details for every device.** Click one to see what NetSeer found, rename it, add a caption and notes, copy any value, or edit any field. Edits are marked and can be reset.
 - **Several maps at once.** Each capture becomes a map. Copy, cut, paste, and move devices between maps (an access point brings its clients), merge maps, and set devices aside in **Unwanted**. Undo and Redo go 30 steps either way, and only ever change your maps.
 - **An organized sidebar.** Drag maps and surveys to reorder them, or drop one onto a map to merge it. Right-click for rename, merge, remove, and delete. Drag the sidebar's edge to make it wider.
@@ -134,7 +134,7 @@ From the frames and survey rows, NetSeer extracts:
   - **draw.io** and **Visio** (`.vsdx`, `.vdx`), laid out like the map on screen, with subnets as containers
   - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it
   - per-device **PDF, CSV, XML, or text**
-- **Four themes:** Terrain (default), Midnight, Daylight (good for printing), and Blueprint.
+- **Four themes:** Terrain (the default, over a topographic map), Midnight, Daylight (good for printing), and Blueprint.
 - **Settings** (the cog): scroll-zoom speed, back up and restore all your maps, one-click updates (or roll back to an earlier release) in the desktop app, a one-minute guided tour, and an About page.
 
 The [user guide](docs/user-guide.md) walks through all of it with screenshots; the [How to](docs/netseer-how-to.md) lists every control and keyboard shortcut.

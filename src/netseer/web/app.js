@@ -51,7 +51,7 @@ const state = {
   suppressSelect: false,
   server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
-  prefs: { layout: "subnet", timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
+  prefs: { layout: "ssid", layoutPicked: false, timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
 };
 
 /* ---------- Small helpers ---------- */
@@ -1558,7 +1558,8 @@ function radialBlock(members, adj, byId, order) {
   return { key: root, items, w: maxX - minX + CELL_W, h: maxY - minY + CELL_H, size: members.length };
 }
 
-const layoutMode = () => (LAYOUTS[state.prefs.layout] ? state.prefs.layout : "subnet");
+const DEFAULT_LAYOUT = "ssid";
+const layoutMode = () => (LAYOUTS[state.prefs.layout] ? state.prefs.layout : DEFAULT_LAYOUT);
 
 // Each arrangement keeps its own dragged positions, so switching never scrambles either.
 function usePositionsFor(map, mode) {
@@ -1574,6 +1575,7 @@ function usePositionsFor(map, mode) {
 function setLayoutMode(mode) {
   if (layoutMode() === mode) return;
   state.prefs.layout = mode;
+  state.prefs.layoutPicked = true;
   savePrefs();
   syncLayoutUi();
   renderLayerList();
@@ -1583,7 +1585,7 @@ function setLayoutMode(mode) {
 function syncLayoutUi() {
   const mode = layoutMode();
   const select = el("layout-select");
-  if (!select.options.length) select.innerHTML = Object.entries(LAYOUTS).map(([k, l]) => `<option value="${k}">${escapeHtml(l.name)}${k === "subnet" ? " (default)" : ""}</option>`).join("");
+  if (!select.options.length) select.innerHTML = Object.entries(LAYOUTS).map(([k, l]) => `<option value="${k}">${escapeHtml(l.name)}${k === DEFAULT_LAYOUT ? " (default)" : ""}</option>`).join("");
   select.value = mode;
   el("layout-hint").textContent = LAYOUTS[mode].hint;
   const toggle = el("group-toggle");
@@ -1597,11 +1599,11 @@ function syncLayoutUi() {
 // labels placed on the map (ring names, a scale). Both are left out of exports and saving.
 
 const LAYOUTS = {
+  ssid: { name: "By network name", hint: "Access points grouped by the network (SSID) they broadcast, each with its clients." },
   subnet: { name: "By subnet", hint: "Devices sit in their subnet's box; access points with their clients." },
   connection: { name: "By connection", hint: "Linked devices sit together, busiest in the middle. Unconnected devices follow in a grid." },
   location: { name: "By location (GPS)", hint: "Devices placed where they were heard, from survey GPS. Ones without a location are grouped separately." },
   channel: { name: "By channel", hint: "A group per Wi-Fi channel, by band. Clients join their access point's channel; wired devices come last." },
-  ssid: { name: "By network name", hint: "Access points grouped by the network (SSID) they broadcast, each with its clients." },
   hierarchy: { name: "Top-down hierarchy", hint: "Gateways at the top, then what connects to them, level by level." },
   signal: { name: "By signal strength", hint: "Rings by how strongly each device was heard: strongest in the middle." },
   maker: { name: "By maker", hint: "A group per manufacturer, largest first." },
@@ -1668,6 +1670,13 @@ function packGroups(mode, groups, loose = []) {
     const id = `grp:${mode}:${g.key}`;
     out.groups.push({ id, label: g.label });
     g.ids.forEach((d) => out.parents.set(d, id));
+    // Leave room for the title above the box (20px bold, wrapped at 300px), so long ones don't collide.
+    const titleW = Math.min(300, Math.max(...String(g.label).split("\n").map((line) => line.length)) * 11.5);
+    if (titleW > block.w) {
+      const pad = (titleW - block.w) / 2;
+      block.items = block.items.map(([d, x, y]) => [d, x + pad, y]);
+      block.w = titleW;
+    }
     blocks.push({ ...block, key: g.key });
   }
   blocks.push(...loose.filter((b) => b && b.items.length));
@@ -1756,7 +1765,7 @@ function ssidLayout(graph) {
   const other = [...groups.values()].filter((g) => g.key.startsWith("~"));
   const count = (g) => {
     const aps = g.ids.filter((id) => ctx.isAp(ctx.byId.get(id))).length;
-    return `${g.label} · ${plural(aps, "access point")}${g.ids.length > aps ? `, ${plural(g.ids.length - aps, "client")}` : ""}`;
+    return `${g.label}\n${plural(aps, "access point")}${g.ids.length > aps ? `, ${plural(g.ids.length - aps, "client")}` : ""}`;
   };
   return packGroups("ssid", [
     ...[...named, ...other].map((g) => ({ ...g, label: count(g), ctx })),
@@ -2224,7 +2233,7 @@ function cyStyle(c) {
     { selector: "edge:selected", style: { width: 3, "line-color": c.select, "target-arrow-color": c.select, "source-arrow-color": c.select, opacity: 1 } },
     { selector: ".faded", style: { opacity: 0.16 } },
     { selector: ".time-out", style: { display: "none" } },
-    { selector: 'node[role = "group"]', style: { "font-size": 20, "text-margin-y": -10, color: c.nodeText } },
+    { selector: 'node[role = "group"]', style: { "font-size": 20, "text-margin-y": -10, "text-max-width": 300, color: c.nodeText } },
     {
       selector: 'node[role = "ring"]',
       style: {
@@ -4300,7 +4309,11 @@ function loadPrefs() {
   if (typeof prefs.groupBySubnet === "boolean") state.groupBySubnet = prefs.groupBySubnet;
   if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
-  if (LAYOUTS[prefs.layout]) state.prefs.layout = prefs.layout;
+  // Before 0.4.8 the layout was saved whether or not anyone chose it, so only a real choice sticks.
+  if (LAYOUTS[prefs.layout] && prefs.layoutPicked) {
+    state.prefs.layout = prefs.layout;
+    state.prefs.layoutPicked = true;
+  }
   if (typeof prefs.timeZone === "string") state.prefs.timeZone = prefs.timeZone;
   if (["auto", "12", "24"].includes(prefs.clock)) state.prefs.clock = prefs.clock;
   for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
@@ -5436,7 +5449,7 @@ const TOUR_STEPS = [
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
   { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map, and big ones (long wardrives) show their progress as they read." },
-  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and how devices are arranged: by subnet, connection, location, channel, network name, and more." },
+  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and how devices are arranged: by network name, subnet, connection, location, channel, and more." },
   {
     target: "#sidebar",
     title: "Organize the sidebar",
@@ -5836,7 +5849,7 @@ function runEggCommand(raw) {
   else if (name === "hacktheworld") hackTheWorld();
   else if (name === "unplug") unplug();
   else if (name === "help" || name === "get-help")
-    eggPrint("whoami         who made this\nhacktheworld   see the network for what it really is\nunplug         go back to the theme you had\nclear          clear the screen\nexit           close this window");
+    eggPrint("whoami         who made this\nhacktheworld   see the network for what it really is\nunplug         leave the Matrix and forget it was there\nclear          clear the screen\nexit           close this window");
   else if (name === "clear" || name === "cls") el("egg-out").textContent = "";
   else if (name === "exit") closeEggTerminal();
   else {
@@ -5855,7 +5868,7 @@ function hackTheWorld() {
     eggPrint("You're already in. Type 'unplug' to leave.");
     return;
   }
-  const lines = ["Bypassing the mainframe...", "Rerouting packets through the green rain...", "Access granted.", "Follow the falling code. Type 'unplug' to come back."];
+  const lines = ["Bypassing the mainframe...", "Rerouting packets through the green rain...", "Access granted.", "Follow the falling code. Type 'unplug' to leave."];
   egg.before = currentTheme();
   writeLocal(MATRIX_KEY, true);
   lines.forEach((text, i) =>
@@ -5867,13 +5880,22 @@ function hackTheWorld() {
 }
 
 function unplug() {
-  if (currentTheme() !== "matrix") {
+  const inMatrix = currentTheme() === "matrix";
+  if (!inMatrix && !matrixUnlocked()) {
     eggPrint("Nothing to unplug from.");
     return;
   }
-  const back = egg.before && egg.before !== "matrix" ? egg.before : "terrain";
-  applyTheme(back);
-  eggPrint(`Back to ${THEMES.find((t) => t.id === back).name}. The Matrix stays in Themes if you want it again.`);
+  // Leaving takes Matrix out of the theme options too; hacktheworld brings it back.
+  try {
+    localStorage.removeItem(MATRIX_KEY);
+  } catch {
+    /* Nothing stored, nothing to forget. */
+  }
+  if (inMatrix) {
+    const back = egg.before && egg.before !== "matrix" ? egg.before : "terrain";
+    applyTheme(back);
+    eggPrint(`Unplugged. Back to ${THEMES.find((t) => t.id === back).name}, and the Matrix is gone from Themes.`);
+  } else eggPrint("Unplugged. The Matrix is gone from Themes.");
 }
 
 function bindEggTerminal() {
