@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui15" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui16" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -112,10 +112,7 @@
 
         <section class="tab-panel hidden" data-panel="layers" role="tabpanel">
           <h3 class="section-title">Arrange devices</h3>
-          <div id="layout-choice" class="segmented" role="group" aria-label="Arrange devices">
-            <button type="button" data-layout="subnet" aria-pressed="true">By subnet</button>
-            <button type="button" data-layout="connection" aria-pressed="false">By connection</button>
-          </div>
+          <select id="layout-select" class="layout-select" aria-label="Arrange devices"></select>
           <p id="layout-hint" class="hint layout-hint"></p>
           <label class="switch-row" id="group-row">
             <span>Group by subnet<small>Draw subnets as boxes around their devices</small></span>
@@ -604,6 +601,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui27"></script>
+    <script src="/static/app.js?v=ui30"></script>
   </body>
 </html>

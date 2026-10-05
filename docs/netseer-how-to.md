@@ -198,12 +198,20 @@ On the map they keep their type's colour with a dash-dot line and a ✎ before t
 
 ## Layout
 
-NetSeer lays the map out the same way every time. **Layers** → **Arrange devices** picks one of two arrangements:
+NetSeer lays the map out the same way every time. **Layers** → **Arrange devices** picks one of eight arrangements:
 
 | Arrangement | What it does |
 | --- | --- |
 | **By subnet** (default) | Subnet boxes, access points with their clients, groups packed to fit the window (details below) |
 | **By connection** | Linked devices together: each connected group is a cluster, biggest first, with its busiest device in the middle and the rest in rings around it. Unconnected devices follow in a grid, then subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn (they're in Details) |
+| **By location (GPS)** | Devices at their GPS position from Kismet or wardrive surveys, snapped so none overlap, with a scale label. Devices without a location are boxed separately |
+| **By channel** | A box per Wi-Fi channel, by band. Clients join their access point's channel; wired devices last |
+| **By network name** | A box per SSID: its access points and their clients |
+| **Top-down hierarchy** | Gateways at the top, then each level of what connects to them below |
+| **By signal strength** | Dashed rings by signal (stronger than −50 dBm in the middle, out to weaker than −80 dBm); no reading boxed separately |
+| **By maker** | A box per manufacturer, largest first |
+
+Arrangements other than **By subnet** draw labelled boxes of their own. They can be dragged (their devices move with them) but not selected, and they're left out of exports. Subnet and VLAN membership lines are drawn only by subnet.
 
 Each arrangement keeps its own dragged positions.
 

@@ -551,7 +551,7 @@ function normalizeMap(m) {
     edited: Boolean(m.edited),
     graph: m.graph && Array.isArray(m.graph.nodes) ? m.graph : emptyGraph(m.name),
     positions: m.positions && typeof m.positions === "object" ? m.positions : {},
-    positionsMode: m.positionsMode === "connection" ? "connection" : "subnet",
+    positionsMode: typeof m.positionsMode === "string" ? m.positionsMode : "subnet",
     layoutPositions: isPlainObject(m.layoutPositions) ? m.layoutPositions : {},
   };
 }
@@ -1039,7 +1039,8 @@ function apBlock(apId, clients) {
     return { items, w, h: CELL_H * 2.1 };
   }
   if (k <= 12) {
-    const r = Math.max(110, (k * 118) / (2 * Math.PI));
+    // Room for each client along the ring, so neighbours clear each other at the sides too.
+    const r = Math.max(130, (k * 150) / (2 * Math.PI));
     const cx = r + CELL_W / 2;
     const cy = r + CELL_H / 2;
     const items = [[apId, cx, cy]];
@@ -1553,7 +1554,7 @@ function radialBlock(members, adj, byId, order) {
   return { key: root, items, w: maxX - minX + CELL_W, h: maxY - minY + CELL_H, size: members.length };
 }
 
-const layoutMode = () => (state.prefs.layout === "connection" ? "connection" : "subnet");
+const layoutMode = () => (LAYOUTS[state.prefs.layout] ? state.prefs.layout : "subnet");
 
 // Each arrangement keeps its own dragged positions, so switching never scrambles either.
 function usePositionsFor(map, mode) {
@@ -1577,12 +1578,433 @@ function setLayoutMode(mode) {
 
 function syncLayoutUi() {
   const mode = layoutMode();
-  document.querySelectorAll("#layout-choice [data-layout]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.layout === mode)));
-  el("layout-hint").textContent =
-    mode === "connection" ? "Linked devices sit together, busiest in the middle. Unconnected devices follow in a grid." : "Devices sit in their subnet's box; access points with their clients.";
+  const select = el("layout-select");
+  if (!select.options.length) select.innerHTML = Object.entries(LAYOUTS).map(([k, l]) => `<option value="${k}">${escapeHtml(l.name)}${k === "subnet" ? " (default)" : ""}</option>`).join("");
+  select.value = mode;
+  el("layout-hint").textContent = LAYOUTS[mode].hint;
   const toggle = el("group-toggle");
   toggle.disabled = mode !== "subnet";
   el("group-row").classList.toggle("is-disabled", mode !== "subnet");
+}
+
+/* ---------- More arrangements ---------- */
+// Each returns { positions, parents, groups, annotations }: groups are labelled boxes drawn
+// around their devices (made up for the view, not part of the map); annotations are
+// labels placed on the map (ring names, a scale). Both are left out of exports and saving.
+
+const LAYOUTS = {
+  subnet: { name: "By subnet", hint: "Devices sit in their subnet's box; access points with their clients." },
+  connection: { name: "By connection", hint: "Linked devices sit together, busiest in the middle. Unconnected devices follow in a grid." },
+  location: { name: "By location (GPS)", hint: "Devices placed where they were heard, from survey GPS. Ones without a location are grouped separately." },
+  channel: { name: "By channel", hint: "A group per Wi-Fi channel, by band. Clients join their access point's channel; wired devices come last." },
+  ssid: { name: "By network name", hint: "Access points grouped by the network (SSID) they broadcast, each with its clients." },
+  hierarchy: { name: "Top-down hierarchy", hint: "Gateways at the top, then what connects to them, level by level." },
+  signal: { name: "By signal strength", hint: "Rings by how strongly each device was heard: strongest in the middle." },
+  maker: { name: "By maker", hint: "A group per manufacturer, largest first." },
+};
+
+function layoutContext(graph) {
+  const nodes = graph.nodes || [];
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const isAp = (n) => n && nodeRole(overlayNode(n)) === "ap";
+  const label = (id) => String(byId.get(id)?.inferred_type || byId.get(id)?.label || id);
+  const order = (a, b) => typeRank(byId.get(a)) - typeRank(byId.get(b)) || label(a).localeCompare(label(b)) || a.localeCompare(b);
+  // Each wireless client's access point.
+  const apOf = new Map();
+  for (const l of graph.links || []) {
+    if (l.kind !== "wireless") continue;
+    const a = byId.get(l.source);
+    const b = byId.get(l.target);
+    if (!isDeviceNode(a) || !isDeviceNode(b)) continue;
+    if (isAp(a) && !isAp(b) && !apOf.has(b.id)) apOf.set(b.id, a.id);
+    else if (isAp(b) && !isAp(a) && !apOf.has(a.id)) apOf.set(a.id, b.id);
+  }
+  return { nodes, byId, isAp, order, apOf, devices: nodes.filter(isDeviceNode), networks: nodes.filter((n) => !isDeviceNode(n)) };
+}
+
+function gridBlock(ids, ctx, cols) {
+  const sorted = [...ids].sort(ctx.order);
+  const c = Math.max(1, cols || Math.ceil(Math.sqrt(sorted.length * 1.6)));
+  return {
+    items: sorted.map((id, i) => [id, (i % c) * CELL_W + CELL_W / 2, Math.floor(i / c) * CELL_H + CELL_H / 2]),
+    w: Math.min(c, Math.max(1, sorted.length)) * CELL_W,
+    h: Math.max(1, Math.ceil(sorted.length / c)) * CELL_H,
+  };
+}
+
+// Access points with their clients beside them (as in the subnet arrangement), the rest in a grid.
+function clusterBlock(ids, ctx) {
+  const inGroup = new Set(ids);
+  const used = new Set();
+  const blocks = [];
+  for (const id of [...ids].sort(ctx.order)) {
+    if (used.has(id)) continue;
+    used.add(id);
+    const kids = ctx.isAp(ctx.byId.get(id)) ? [...ids].filter((c) => ctx.apOf.get(c) === id && !used.has(c)).sort(ctx.order) : [];
+    kids.forEach((c) => used.add(c));
+    blocks.push(kids.length ? apBlock(id, kids) : { items: [[id, CELL_W / 2, CELL_H / 2]], w: CELL_W, h: CELL_H });
+  }
+  const area = blocks.reduce((s, b) => s + b.w * b.h, 0);
+  const size = packRows(blocks, Math.max(CELL_W * 3, ...blocks.map((b) => b.w), Math.sqrt(area) * 1.35), 0);
+  const items = blocks.flatMap((b) => b.items.map(([id, dx, dy]) => [id, b.x + dx, b.y + dy]));
+  return { items, w: size.w, h: size.h };
+}
+
+function mergeBlock(block, into) {
+  for (const [id, x, y] of block.items) into.positions.set(id, { x, y });
+}
+
+// Packs labelled groups (and loose blocks) to the window's shape.
+function packGroups(mode, groups, loose = []) {
+  const out = { positions: new Map(), parents: new Map(), groups: [], annotations: [] };
+  const blocks = [];
+  for (const g of groups) {
+    if (!g.ids.length) continue;
+    const block = g.layout === "grid" ? gridBlock(g.ids, g.ctx) : clusterBlock(g.ids, g.ctx);
+    const id = `grp:${mode}:${g.key}`;
+    out.groups.push({ id, label: g.label });
+    g.ids.forEach((d) => out.parents.set(d, id));
+    blocks.push({ ...block, key: g.key });
+  }
+  blocks.push(...loose.filter((b) => b && b.items.length));
+  const box = el("map").getBoundingClientRect();
+  const aspect = box.width > 0 && box.height > 0 ? Math.min(3, Math.max(0.8, box.width / box.height)) : 1.5;
+  const total = blocks.reduce((s, b) => s + (b.w + CLUSTER_GAP) * (b.h + CLUSTER_GAP), 0);
+  packRows(blocks, Math.max(...blocks.map((b) => b.w), Math.sqrt(total * aspect)), CLUSTER_GAP + 30);
+  for (const b of blocks) for (const [id, dx, dy] of b.items) out.positions.set(id, { x: b.x + dx, y: b.y + dy });
+  return out;
+}
+
+function networksGroup(ctx, mode) {
+  return { key: "~networks", label: "Subnets and VLANs", ids: ctx.networks.map((n) => n.id), layout: "grid", ctx, mode };
+}
+
+/* By channel */
+
+function channelOf(n) {
+  const ch = (n.channels || []).find((c) => Number.isFinite(Number(c)));
+  const f = (n.frequencies_mhz || []).find((x) => Number.isFinite(Number(x)));
+  if (ch != null) return { ch: Number(ch), freq: f };
+  if (f == null) return null;
+  if (f >= 5925) return { ch: Math.round((f - 5950) / 5), freq: f };
+  if (f >= 5000) return { ch: Math.round((f - 5000) / 5), freq: f };
+  if (f === 2484) return { ch: 14, freq: f };
+  return { ch: Math.round((f - 2407) / 5), freq: f };
+}
+
+function bandOf({ ch, freq }) {
+  if (freq >= 5925) return "6 GHz";
+  if (freq ? freq < 3000 : ch <= 14) return "2.4 GHz";
+  return "5 GHz";
+}
+
+function channelLayout(graph) {
+  const ctx = layoutContext(graph);
+  const groups = new Map();
+  const none = [];
+  for (const n of ctx.devices) {
+    const own = channelOf(n);
+    const ap = ctx.apOf.get(n.id);
+    const info = own || (ap ? channelOf(ctx.byId.get(ap)) : null);
+    if (!info || !(info.ch > 0)) {
+      none.push(n.id);
+      continue;
+    }
+    const band = bandOf(info);
+    const key = `${band}|${info.ch}`;
+    if (!groups.has(key)) groups.set(key, { key, band, ch: info.ch, ids: [] });
+    groups.get(key).ids.push(n.id);
+  }
+  const bandRank = { "2.4 GHz": 0, "5 GHz": 1, "6 GHz": 2 };
+  const list = [...groups.values()].sort((a, b) => bandRank[a.band] - bandRank[b.band] || a.ch - b.ch);
+  return packGroups("channel", [
+    ...list.map((g) => ({ key: g.key, label: `Channel ${g.ch} · ${g.band} (${g.ids.length})`, ids: g.ids, ctx })),
+    { key: "~none", label: `No Wi-Fi channel (${none.length})`, ids: none, layout: "grid", ctx },
+    networksGroup(ctx),
+  ]);
+}
+
+/* By network name */
+
+function ssidLayout(graph) {
+  const ctx = layoutContext(graph);
+  const groups = new Map();
+  const add = (key, label, id) => {
+    if (!groups.has(key)) groups.set(key, { key, label, ids: [] });
+    groups.get(key).ids.push(id);
+  };
+  const apGroup = (ap) => {
+    const ssid = (ap.ssids || []).find((s) => String(s || "").trim());
+    if (ssid) return [`s:${ssid}`, ssid];
+    return ap.extra?.hidden_ssid ? ["~hidden", "Hidden networks"] : ["~unnamed", "Networks with no name heard"];
+  };
+  const notWifi = [];
+  for (const n of ctx.devices) {
+    if (ctx.isAp(n)) add(...apGroup(n), n.id);
+    else if (ctx.apOf.has(n.id)) add(...apGroup(ctx.byId.get(ctx.apOf.get(n.id))), n.id);
+    else {
+      const ssid = (n.ssids || []).find((s) => String(s || "").trim());
+      if (ssid && n.medium === "wireless") add(`s:${ssid}`, ssid, n.id);
+      else notWifi.push(n.id);
+    }
+  }
+  const named = [...groups.values()].filter((g) => !g.key.startsWith("~")).sort((a, b) => b.ids.length - a.ids.length || a.label.localeCompare(b.label));
+  const other = [...groups.values()].filter((g) => g.key.startsWith("~"));
+  const count = (g) => {
+    const aps = g.ids.filter((id) => ctx.isAp(ctx.byId.get(id))).length;
+    return `${g.label} · ${plural(aps, "access point")}${g.ids.length > aps ? `, ${plural(g.ids.length - aps, "client")}` : ""}`;
+  };
+  return packGroups("ssid", [
+    ...[...named, ...other].map((g) => ({ ...g, label: count(g), ctx })),
+    { key: "~notwifi", label: `Not on Wi-Fi (${notWifi.length})`, ids: notWifi, layout: "grid", ctx },
+    networksGroup(ctx),
+  ]);
+}
+
+/* By maker */
+
+function makerLayout(graph) {
+  const ctx = layoutContext(graph);
+  const groups = new Map();
+  for (const n of ctx.devices) {
+    const v = String(n.vendor || "").trim();
+    const name = !v ? "Unknown maker" : /locally administered|random/i.test(v) ? "Randomized MAC (no maker)" : v;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(n.id);
+  }
+  const special = new Set(["Unknown maker", "Randomized MAC (no maker)"]);
+  const list = [...groups].sort(([a, x], [b, y]) => (special.has(a) - special.has(b)) || y.length - x.length || a.localeCompare(b));
+  return packGroups("maker", [...list.map(([name, ids]) => ({ key: name, label: `${name} (${ids.length})`, ids, layout: "grid", ctx })), networksGroup(ctx)]);
+}
+
+/* By signal strength */
+
+const SIGNAL_RINGS = [
+  { min: -50, label: "Stronger than −50 dBm" },
+  { min: -60, label: "−50 to −60 dBm" },
+  { min: -70, label: "−60 to −70 dBm" },
+  { min: -80, label: "−70 to −80 dBm" },
+  { min: -Infinity, label: "Weaker than −80 dBm" },
+];
+
+function signalLayout(graph) {
+  const ctx = layoutContext(graph);
+  const rings = SIGNAL_RINGS.map(() => []);
+  const none = [];
+  for (const n of ctx.devices) {
+    const s = Number(n.signal_max_dbm ?? n.signal_dbm);
+    if (n.signal_dbm == null || !Number.isFinite(s)) none.push(n.id);
+    else rings[SIGNAL_RINGS.findIndex((r) => s >= r.min)].push(n.id);
+  }
+  const strength = (id) => Number(ctx.byId.get(id).signal_max_dbm ?? ctx.byId.get(id).signal_dbm);
+  const out = { positions: new Map(), parents: new Map(), groups: [], annotations: [] };
+  // Each band fills outward in rings spaced wider than a device; the first ring of each band
+  // keeps an empty slot at the top for its label.
+  let r = 0;
+  rings.forEach((ids, i) => {
+    if (!ids.length) return;
+    let rest = [...ids].sort((a, b) => strength(b) - strength(a) || ctx.order(a, b));
+    r += RING_STEP;
+    let first = true;
+    while (rest.length) {
+      const capacity = Math.max(6, Math.floor((2 * Math.PI * r) / NODE_ARC));
+      const take = rest.slice(0, capacity - (first ? 1 : 0));
+      const slots = take.length + (first ? 1 : 0);
+      take.forEach((id, k) => {
+        const a = -Math.PI / 2 + ((k + (first ? 1 : 0)) * 2 * Math.PI) / slots;
+        out.positions.set(id, { x: r * Math.cos(a), y: r * Math.sin(a) });
+      });
+      // A faint outline for the ring the devices sit on (the label covers it at the top).
+      out.annotations.push({ id: `ann:ring:${Math.round(r)}`, ring: 2 * r, x: 0, y: 0 });
+      if (first) out.annotations.push({ id: `ann:signal:${i}`, label: `${SIGNAL_RINGS[i].label} (${ids.length})`, x: 0, y: -r });
+      rest = rest.slice(take.length);
+      first = false;
+      if (rest.length) r += 130;
+    }
+  });
+  if (none.length || ctx.networks.length) {
+    // Devices with no signal reading, and the networks, to the right of the rings.
+    const side = packGroups("signal", [{ key: "~none", label: `No signal reading (${none.length})`, ids: none, layout: "grid", ctx }, networksGroup(ctx)]);
+    const xs = [...side.positions.values()].map((p) => p.x);
+    const ys = [...side.positions.values()].map((p) => p.y);
+    const dx = (r || 0) + 260 - Math.min(...xs);
+    const dy = -r - Math.min(...ys);
+    for (const [id, p] of side.positions) out.positions.set(id, { x: p.x + dx, y: p.y + dy });
+    side.parents.forEach((v, k) => out.parents.set(k, v));
+    out.groups.push(...side.groups);
+  }
+  return out;
+}
+
+/* By location (GPS) */
+
+function locationLayout(graph) {
+  const ctx = layoutContext(graph);
+  const located = ctx.devices.filter((n) => Number.isFinite(n.gps?.lat) && Number.isFinite(n.gps?.lon));
+  const elsewhere = ctx.devices.filter((n) => !located.includes(n)).map((n) => n.id);
+  const out = { positions: new Map(), parents: new Map(), groups: [], annotations: [] };
+  let right = 0;
+  let top = 0;
+  if (located.length) {
+    const lat0 = located.reduce((s, n) => s + n.gps.lat, 0) / located.length;
+    const k = 111_320; // metres per degree of latitude
+    const pts = located.map((n) => ({ id: n.id, mx: (n.gps.lon - located[0].gps.lon) * k * Math.cos((lat0 * Math.PI) / 180), my: -(n.gps.lat - located[0].gps.lat) * k }));
+    const spanM = Math.max(1, Math.max(...pts.map((p) => p.mx)) - Math.min(...pts.map((p) => p.mx)), Math.max(...pts.map((p) => p.my)) - Math.min(...pts.map((p) => p.my)));
+    const spanPx = Math.max(1200, Math.sqrt(located.length) * CELL_W * 2.2);
+    const scale = spanPx / spanM; // px per metre
+    // Snap to a grid of device-sized cells; devices at the same spot spiral out to the nearest free cell.
+    const taken = new Set();
+    for (const p of pts.sort((a, b) => ctx.order(a.id, b.id))) {
+      const cx = Math.round((p.mx * scale) / CELL_W);
+      const cy = Math.round((p.my * scale) / CELL_H);
+      let placed = null;
+      for (let ring = 0; !placed && ring < 200; ring += 1) {
+        for (let dx = -ring; dx <= ring && !placed; dx += 1) {
+          for (let dy = -ring; dy <= ring && !placed; dy += 1) {
+            if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring || taken.has(`${cx + dx},${cy + dy}`)) continue;
+            placed = [cx + dx, cy + dy];
+          }
+        }
+      }
+      taken.add(`${placed[0]},${placed[1]}`);
+      out.positions.set(p.id, { x: placed[0] * CELL_W, y: placed[1] * CELL_H });
+    }
+    const xs = [...out.positions.values()].map((p) => p.x);
+    const ys = [...out.positions.values()].map((p) => p.y);
+    right = Math.max(...xs);
+    top = Math.min(...ys);
+    const metres = (CELL_W * 2) / scale;
+    const nice = metres >= 1000 ? `${(metres / 1000).toFixed(metres >= 10000 ? 0 : 1)} km` : `${Math.max(1, Math.round(metres))} m`;
+    out.annotations.push({ id: "ann:location:scale", label: `Two device widths ≈ ${nice}`, x: Math.min(...xs) + CELL_W, y: Math.max(...ys) + CELL_H * 1.2 });
+  }
+  if (elsewhere.length || ctx.networks.length) {
+    const side = packGroups("location", [{ key: "~none", label: `No location (${elsewhere.length})`, ids: elsewhere, layout: "grid", ctx }, networksGroup(ctx)]);
+    const xs = [...side.positions.values()].map((p) => p.x);
+    const ys = [...side.positions.values()].map((p) => p.y);
+    const dx = (located.length ? right + 320 : 0) - Math.min(...xs);
+    const dy = top - Math.min(...ys);
+    for (const [id, p] of side.positions) out.positions.set(id, { x: p.x + dx, y: p.y + dy });
+    side.parents.forEach((v, key) => out.parents.set(key, v));
+    out.groups.push(...side.groups);
+  }
+  return out;
+}
+
+/* Top-down hierarchy */
+
+const LEVEL_GAP = CELL_H * 1.9;
+const LEAF_WRAP = 8; // more leaves than this under one device wrap into rows
+
+function hierarchyLayout(graph) {
+  const ctx = layoutContext(graph);
+  const adj = new Map();
+  for (const l of graph.links || []) {
+    if (!CONNECTION_KINDS.has(l.kind) || l.source === l.target) continue;
+    if (!isDeviceNode(ctx.byId.get(l.source)) || !isDeviceNode(ctx.byId.get(l.target))) continue;
+    for (const [a, b] of [[l.source, l.target], [l.target, l.source]]) {
+      if (!adj.has(a)) adj.set(a, new Map());
+      const pr = KIND_PRIORITY[l.kind] ?? 9;
+      if (!adj.get(a).has(b) || pr < adj.get(a).get(b)) adj.get(a).set(b, pr);
+    }
+  }
+  const degree = (id) => adj.get(id)?.size || 0;
+  const isGateway = (id) => nodeRole(ctx.byId.get(id)) === "gateway";
+  const seen = new Set();
+  const trees = [];
+  // Roots: gateways first (busiest first), then the busiest device of whatever's left.
+  const candidates = ctx.devices.map((n) => n.id).filter((id) => adj.has(id)).sort((a, b) => isGateway(b) - isGateway(a) || degree(b) - degree(a) || ctx.order(a, b));
+  for (const root of candidates) {
+    if (seen.has(root)) continue;
+    const children = new Map([[root, []]]);
+    seen.add(root);
+    const queue = [root];
+    for (let qi = 0; qi < queue.length; qi += 1) {
+      const id = queue[qi];
+      const next = [...(adj.get(id) || [])].filter(([nb]) => !seen.has(nb)).sort((x, y) => x[1] - y[1] || ctx.order(x[0], y[0]));
+      for (const [nb] of next) {
+        if (seen.has(nb)) continue;
+        seen.add(nb);
+        children.get(id).push(nb);
+        children.set(nb, []);
+        queue.push(nb);
+      }
+    }
+    trees.push({ root, children });
+  }
+  const blocks = trees.map(({ root, children }) => treeBlock(root, children));
+  blocks.sort((a, b) => b.size - a.size);
+  const loose = ctx.devices.map((n) => n.id).filter((id) => !seen.has(id));
+  return packGroups("hierarchy", [{ key: "~loose", label: `Not connected (${loose.length})`, ids: loose, layout: "grid", ctx }, networksGroup(ctx)], blocks);
+}
+
+function treeBlock(root, children) {
+  const width = new Map();
+  const measure = (id) => {
+    const kids = children.get(id);
+    kids.forEach((k) => measure(k)); // every device needs a width, branch ends included
+    const leaves = kids.filter((k) => !children.get(k).length);
+    const inner = kids.filter((k) => children.get(k).length);
+    const wrap = leaves.length > LEAF_WRAP;
+    let w = inner.reduce((s, k) => s + width.get(k), 0) + (wrap ? 0 : leaves.length * CELL_W);
+    if (wrap) w = Math.max(w, LEAF_WRAP * CELL_W);
+    width.set(id, Math.max(CELL_W, w));
+    return width.get(id);
+  };
+  measure(root);
+  const items = [];
+  let maxY = 0;
+  const place = (id, x0, y) => {
+    const w = width.get(id);
+    items.push([id, x0 + w / 2, y]);
+    maxY = Math.max(maxY, y);
+    const kids = children.get(id);
+    if (!kids.length) return;
+    const leaves = kids.filter((k) => !children.get(k).length);
+    const inner = kids.filter((k) => children.get(k).length);
+    const wrap = leaves.length > LEAF_WRAP;
+    const row = wrap ? inner : kids;
+    const rowW = row.reduce((s, k) => s + (children.get(k).length ? width.get(k) : CELL_W), 0);
+    let x = x0 + (w - rowW) / 2;
+    for (const k of row) {
+      const kw = children.get(k).length ? width.get(k) : CELL_W;
+      place(k, x, y + LEVEL_GAP);
+      x += kw;
+    }
+    if (wrap) {
+      // Lots of leaves (an access point's clients): rows under the device.
+      const cols = Math.min(LEAF_WRAP, leaves.length);
+      const startY = y + LEVEL_GAP * (inner.length ? 2 : 1);
+      const gx = x0 + (w - cols * CELL_W) / 2;
+      leaves.forEach((k, i) => {
+        const ky = startY + Math.floor(i / cols) * CELL_H;
+        items.push([k, gx + (i % cols) * CELL_W + CELL_W / 2, ky]);
+        maxY = Math.max(maxY, ky);
+      });
+    }
+  };
+  place(root, 0, CELL_H / 2);
+  return { items, w: width.get(root), h: maxY + CELL_H / 2, size: children.size };
+}
+
+function arrangeLayout(graph, mode) {
+  switch (mode) {
+    case "connection":
+      return connectionLayout(graph);
+    case "location":
+      return locationLayout(graph);
+    case "channel":
+      return channelLayout(graph);
+    case "ssid":
+      return ssidLayout(graph);
+    case "hierarchy":
+      return hierarchyLayout(graph);
+    case "signal":
+      return signalLayout(graph);
+    case "maker":
+      return makerLayout(graph);
+    default:
+      return computeLayout(graph, state.groupBySubnet);
+  }
 }
 
 function computeLayout(graph, grouped) {
@@ -1798,13 +2220,51 @@ function cyStyle(c) {
     { selector: "edge:selected", style: { width: 3, "line-color": c.select, "target-arrow-color": c.select, "source-arrow-color": c.select, opacity: 1 } },
     { selector: ".faded", style: { opacity: 0.16 } },
     { selector: ".time-out", style: { display: "none" } },
+    { selector: 'node[role = "group"]', style: { "font-size": 20, "text-margin-y": -10, color: c.nodeText } },
+    {
+      selector: 'node[role = "ring"]',
+      style: {
+        shape: "ellipse",
+        width: "data(size)",
+        height: "data(size)",
+        "background-opacity": 0,
+        "border-width": 3,
+        "border-style": "dashed",
+        "border-color": c.muted,
+        "border-opacity": 0.75,
+        label: "",
+        events: "no",
+      },
+    },
+    {
+      selector: 'node[role = "annotation"]',
+      style: {
+        shape: "round-rectangle",
+        "background-opacity": 0,
+        "border-width": 0,
+        width: "label",
+        height: 22,
+        color: c.muted,
+        "font-size": 22,
+        "font-weight": 700,
+        "text-background-color": c.canvas,
+        "text-background-opacity": 0.85,
+        "text-background-padding": 4,
+        events: "no",
+      },
+    },
   ];
 }
 
 function toElements(graph) {
   usePositionsFor(getMap(state.activeMapId), layoutMode());
-  const { positions, parents } = layoutMode() === "connection" ? connectionLayout(graph) : computeLayout(graph, state.groupBySubnet);
+  const { positions, parents, groups = [], annotations = [] } = arrangeLayout(graph, layoutMode());
   const saved = getMap(state.activeMapId)?.positions || {};
+  // Boxes and labels made for this arrangement: not devices, not saved, not exported.
+  const extras = [
+    ...groups.map((g) => ({ data: { id: g.id, label: g.label, kind: "group", role: "group", synthetic: 1 }, selectable: false })),
+    ...annotations.map((a) => ({ data: a.ring ? { id: a.id, kind: "annotation", role: "ring", size: a.ring, synthetic: 1 } : { id: a.id, label: a.label, kind: "annotation", role: "annotation", synthetic: 1 }, position: { x: a.x, y: a.y }, selectable: false, grabbable: false })),
+  ];
   const nodeIds = new Set(graph.nodes.map((n) => n.id));
   const nodes = graph.nodes.map((raw) => {
     const n = overlayNode(raw);
@@ -1816,7 +2276,7 @@ function toElements(graph) {
     .filter(linkIsShown)
     .filter((l) => nodeIds.has(l.source) && nodeIds.has(l.target))
     .map((l) => ({ data: { id: l.id, source: l.source, target: l.target, label: edgeLabel(l), kind: l.kind, manual: isManualLink(l) ? 1 : 0 } }));
-  return nodes.concat(edges);
+  return extras.concat(nodes, edges);
 }
 
 function renderMap({ fit = true } = {}) {
@@ -1886,6 +2346,10 @@ function renderMap({ fit = true } = {}) {
     }
     const e = evt.originalEvent;
     if (!e) return;
+    if (t !== cy && t.isNode() && t.data("synthetic")) {
+      showContextMenu(e.clientX, e.clientY, false);
+      return;
+    }
     if (t !== cy && t.isNode()) syncSelectionFromCy();
     if (t !== cy && t.isEdge()) {
       const link = (state.graph?.links || []).find((l) => l.id === t.id());
@@ -3568,10 +4032,11 @@ function layoutHints() {
   const positions = {};
   const parents = {};
   cy.nodes().forEach((n) => {
+    if (n.data("synthetic")) return;
     const p = n.position();
     positions[n.id()] = [Math.round(p.x), Math.round(p.y)];
     const parent = n.data("parent");
-    if (parent) parents[n.id()] = parent;
+    if (parent && !cy.getElementById(parent).data("synthetic")) parents[n.id()] = parent;
   });
   return { positions, parents };
 }
@@ -3831,7 +4296,7 @@ function loadPrefs() {
   if (typeof prefs.groupBySubnet === "boolean") state.groupBySubnet = prefs.groupBySubnet;
   if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
-  if (prefs.layout === "connection" || prefs.layout === "subnet") state.prefs.layout = prefs.layout;
+  if (LAYOUTS[prefs.layout]) state.prefs.layout = prefs.layout;
   if (typeof prefs.timeZone === "string") state.prefs.timeZone = prefs.timeZone;
   if (["auto", "12", "24"].includes(prefs.clock)) state.prefs.clock = prefs.clock;
   for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
@@ -3852,7 +4317,7 @@ function renderLayerList() {
     const row = document.createElement("label");
     row.className = "layer-row";
     const covered = membershipHidden(layer.kind);
-    const why = layoutMode() === "connection" ? "Hidden while arranging by connection" : "Shown as boxes while grouping";
+    const why = layoutMode() !== "subnet" ? `Hidden while arranging ${LAYOUTS[layoutMode()].name.toLowerCase()}` : "Shown as boxes while grouping";
     row.innerHTML = `<input type="checkbox" ${state.filters[layer.kind] ? "checked" : ""} ${covered ? "disabled" : ""} />
       <i class="line-sample ${layer.line}" style="--c: var(${layer.color})"></i>
       <span>${escapeHtml(layer.name)}${covered ? `<small>${why}</small>` : ""}</span>`;
@@ -3871,8 +4336,8 @@ function renderLayerList() {
 // only clutter: subnets as boxes while grouping, and both left out of the connection
 // arrangement, which is about who talks to whom (membership stays in each device's Details).
 function membershipHidden(kind) {
-  if (kind === "subnet") return layoutMode() === "connection" || state.groupBySubnet;
-  if (kind === "vlan") return layoutMode() === "connection";
+  if (kind === "subnet") return layoutMode() !== "subnet" || state.groupBySubnet;
+  if (kind === "vlan") return layoutMode() !== "subnet";
   return false;
 }
 
@@ -4967,7 +5432,7 @@ const TOUR_STEPS = [
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
   { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map, and big ones (long wardrives) show their progress as they read." },
-  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and arranges devices by subnet or by connection." },
+  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and how devices are arranged: by subnet, connection, location, channel, network name, and more." },
   {
     target: "#sidebar",
     title: "Organize the sidebar",
@@ -5157,7 +5622,7 @@ function bindUi() {
   el("btn-show-all").addEventListener("click", () => setAllLayers(true));
   el("btn-show-none").addEventListener("click", () => setAllLayers(false));
   el("group-toggle").addEventListener("change", (e) => setGroupBySubnet(e.target.checked));
-  document.querySelectorAll("#layout-choice [data-layout]").forEach((b) => b.addEventListener("click", () => setLayoutMode(b.dataset.layout)));
+  el("layout-select").addEventListener("change", (e) => setLayoutMode(e.target.value));
   document.querySelectorAll(".tab").forEach((t) =>
     t.addEventListener("click", () => {
       setTab(t.dataset.tab);
