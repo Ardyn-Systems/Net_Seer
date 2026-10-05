@@ -42,7 +42,6 @@ const state = {
   undo: [],
   redo: [],
   filters: Object.fromEntries(LAYERS.map((l) => [l.kind, true])),
-  groupBySubnet: true,
   selection: [],
   inspectedLink: null,
   nodeIndex: new Map(),
@@ -1913,9 +1912,6 @@ function syncLayoutUi() {
   if (!select.options.length) select.innerHTML = Object.entries(LAYOUTS).map(([k, l]) => `<option value="${k}">${escapeHtml(l.name)}${k === DEFAULT_LAYOUT ? " (default)" : ""}</option>`).join("");
   select.value = mode;
   el("layout-hint").textContent = LAYOUTS[mode].hint;
-  const toggle = el("group-toggle");
-  toggle.disabled = mode !== "subnet";
-  el("group-row").classList.toggle("is-disabled", mode !== "subnet");
 }
 
 /* ---------- More arrangements ---------- */
@@ -2341,11 +2337,11 @@ function arrangeLayout(graph, mode) {
     case "maker":
       return makerLayout(graph);
     default:
-      return computeLayout(graph, state.groupBySubnet);
+      return computeLayout(graph);
   }
 }
 
-function computeLayout(graph, grouped) {
+function computeLayout(graph) {
   const nodes = graph.nodes || [];
   const links = graph.links || [];
   const byId = new Map(nodes.map((n) => [n.id, n]));
@@ -2355,27 +2351,26 @@ function computeLayout(graph, grouped) {
   const isDevice = (n) => n && n.kind !== "subnet" && n.kind !== "vlan";
   const parents = new Map();
 
-  if (grouped) {
-    const choose = (dev, sub) => {
-      const cur = parents.get(dev);
-      if (cur === undefined || subnetRank.get(sub) < subnetRank.get(cur)) parents.set(dev, sub);
-    };
-    const yours = new Set();
-    for (const l of links) {
-      if (l.kind !== "subnet" || !isManualLink(l)) continue;
-      if (subnetIds.has(l.target) && isDevice(byId.get(l.source))) {
-        parents.set(l.source, l.target);
-        yours.add(l.source);
-      }
+  // Each device goes in one subnet's box: one you put it in, else the first of its subnets.
+  const choose = (dev, sub) => {
+    const cur = parents.get(dev);
+    if (cur === undefined || subnetRank.get(sub) < subnetRank.get(cur)) parents.set(dev, sub);
+  };
+  const yours = new Set();
+  for (const l of links) {
+    if (l.kind !== "subnet" || !isManualLink(l)) continue;
+    if (subnetIds.has(l.target) && isDevice(byId.get(l.source))) {
+      parents.set(l.source, l.target);
+      yours.add(l.source);
     }
-    for (const l of links) {
-      if (l.kind !== "subnet" || isManualLink(l)) continue;
-      if (yours.has(l.source) || yours.has(l.target)) continue;
-      if (subnetIds.has(l.target) && isDevice(byId.get(l.source))) choose(l.source, l.target);
-      else if (subnetIds.has(l.source) && isDevice(byId.get(l.target))) choose(l.target, l.source);
-    }
-    for (const s of subnets) for (const m of s.extra?.members || []) if (isDevice(byId.get(m)) && !parents.has(m)) choose(m, s.id);
   }
+  for (const l of links) {
+    if (l.kind !== "subnet" || isManualLink(l)) continue;
+    if (yours.has(l.source) || yours.has(l.target)) continue;
+    if (subnetIds.has(l.target) && isDevice(byId.get(l.source))) choose(l.source, l.target);
+    else if (subnetIds.has(l.source) && isDevice(byId.get(l.target))) choose(l.target, l.source);
+  }
+  for (const s of subnets) for (const m of s.extra?.members || []) if (isDevice(byId.get(m)) && !parents.has(m)) choose(m, s.id);
 
   const isAp = (n) => nodeRole(overlayNode(n)) === "ap";
   const apClients = new Map();
@@ -2394,7 +2389,7 @@ function computeLayout(graph, grouped) {
     if (!apClients.has(ap.id)) apClients.set(ap.id, []);
     apClients.get(ap.id).push(cl.id);
   }
-  if (grouped) for (const [c, ap] of clientOf) if (!parents.has(c) && parents.has(ap)) parents.set(c, parents.get(ap));
+  for (const [c, ap] of clientOf) if (!parents.has(c) && parents.has(ap)) parents.set(c, parents.get(ap));
 
   const clusters = new Map();
   const add = (key, id) => {
@@ -4653,7 +4648,6 @@ async function copyDeviceDetails() {
 function loadPrefs() {
   const prefs = readLocal(PREFS_KEY, {});
   if (isPlainObject(prefs.filters)) for (const l of LAYERS) if (typeof prefs.filters[l.kind] === "boolean") state.filters[l.kind] = prefs.filters[l.kind];
-  if (typeof prefs.groupBySubnet === "boolean") state.groupBySubnet = prefs.groupBySubnet;
   if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
   // Before 0.4.8 the layout was saved whether or not anyone chose it, so only a real choice sticks.
@@ -4671,17 +4665,17 @@ function loadPrefs() {
 }
 
 function savePrefs() {
-  writeLocal(PREFS_KEY, { filters: state.filters, groupBySubnet: state.groupBySubnet, tab: document.querySelector(".tab.active")?.dataset.tab, ...state.prefs });
+  writeLocal(PREFS_KEY, { filters: state.filters, tab: document.querySelector(".tab.active")?.dataset.tab, ...state.prefs });
 }
 
 function renderLayerList() {
   const list = el("layer-list");
   list.innerHTML = "";
-  for (const layer of LAYERS) {
+  for (const layer of LAYERS.filter((l) => l.kind !== "subnet")) {
     const row = document.createElement("label");
     row.className = "layer-row";
     const covered = membershipHidden(layer.kind);
-    const why = layoutMode() !== "subnet" ? `Hidden while arranging ${LAYOUTS[layoutMode()].name.toLowerCase()}` : "Shown as boxes while grouping";
+    const why = `Hidden while arranging ${LAYOUTS[layoutMode()].name.toLowerCase()}`;
     row.innerHTML = `<input type="checkbox" ${state.filters[layer.kind] ? "checked" : ""} ${covered ? "disabled" : ""} />
       <i class="line-sample ${layer.line}" style="--c: var(${layer.color})"></i>
       <span>${escapeHtml(layer.name)}${covered ? `<small>${why}</small>` : ""}</span>`;
@@ -4692,7 +4686,6 @@ function renderLayerList() {
     });
     list.appendChild(row);
   }
-  el("group-toggle").checked = state.groupBySubnet;
   syncLayoutUi();
 }
 
@@ -4700,7 +4693,7 @@ function renderLayerList() {
 // only clutter: subnets as boxes while grouping, and both left out of the connection
 // arrangement, which is about who talks to whom (membership stays in each device's Details).
 function membershipHidden(kind) {
-  if (kind === "subnet") return layoutMode() !== "subnet" || state.groupBySubnet;
+  if (kind === "subnet") return true; // subnets are boxes (by subnet) or in Details (everywhere else)
   if (kind === "vlan") return layoutMode() !== "subnet";
   return false;
 }
@@ -4840,15 +4833,6 @@ const PLATFORM_NAMES = { windows: "Windows", linux: "Linux", macos: "macOS" };
 
 const repoUrl = (path = "") => `https://github.com/${state.server.repo}${path}`;
 
-function setGroupBySubnet(on) {
-  state.groupBySubnet = on;
-  el("group-toggle").checked = on;
-  el("settings-group").checked = on;
-  savePrefs();
-  renderLayerList();
-  renderMap({ fit: true });
-}
-
 function runningAs() {
   const { mode, platform, package: pkg } = state.server;
   if (mode === "hosted") return `Online copy (${location.host})`;
@@ -4881,7 +4865,6 @@ function showSettingsPane(name) {
 function renderSettings() {
   renderThemeGrid();
   document.querySelectorAll('input[name="zoom-speed"]').forEach((r) => (r.checked = r.value === state.prefs.zoomSpeed));
-  el("settings-group").checked = state.groupBySubnet;
   el("settings-hover").checked = state.prefs.hoverFade;
   el("settings-ssid").checked = state.prefs.apSsid;
   fillTimeSettings();
@@ -5273,7 +5256,6 @@ function bindSettings() {
       savePrefs();
     })
   );
-  el("settings-group").addEventListener("change", (e) => setGroupBySubnet(e.target.checked));
   el("settings-ssid").addEventListener("change", (e) => {
     state.prefs.apSsid = e.target.checked;
     savePrefs();
@@ -5985,7 +5967,6 @@ function bindUi() {
   el("btn-restore-samples").addEventListener("click", restoreBundledSamples);
   el("btn-show-all").addEventListener("click", () => setAllLayers(true));
   el("btn-show-none").addEventListener("click", () => setAllLayers(false));
-  el("group-toggle").addEventListener("change", (e) => setGroupBySubnet(e.target.checked));
   el("layout-select").addEventListener("change", (e) => setLayoutMode(e.target.value));
   document.querySelectorAll(".tab").forEach((t) =>
     t.addEventListener("click", () => {

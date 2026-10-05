@@ -127,10 +127,6 @@
           <h3 class="section-title">Arrange devices</h3>
           <select id="layout-select" class="layout-select" aria-label="Arrange devices"></select>
           <p id="layout-hint" class="hint layout-hint"></p>
-          <label class="switch-row" id="group-row">
-            <span>Group by subnet<small>Draw subnets as boxes around their devices</small></span>
-            <input id="group-toggle" type="checkbox" role="switch" checked />
-          </label>
           <h3 class="section-title">Links</h3>
           <div id="layer-list" class="layer-list"></div>
           <div class="row-actions">
@@ -483,8 +479,6 @@
             <p id="settings-time-sample" class="hint"></p>
 
             <h3>Map</h3>
-            <label class="switch-row"><span>Group by subnet<small>Draw a box around each subnet's devices</small></span>
-              <input id="settings-group" type="checkbox" role="switch" /></label>
             <label class="switch-row"><span>Show SSIDs under access points<small>A second line with the network name, unless you've written a caption</small></span>
               <input id="settings-ssid" type="checkbox" role="switch" /></label>
             <label class="switch-row"><span>Fade unrelated devices on hover<small>Fades everything not connected to the device under the pointer (off by default)</small></span>
@@ -642,6 +636,6 @@
         <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
       </div>
     </div>
-    <script src="/static/app.js?v=ui34"></script>
+    <script src="/static/app.js?v=ui35"></script>
   </body>
 </html>

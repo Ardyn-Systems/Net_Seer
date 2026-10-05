@@ -207,7 +207,7 @@ Add a short **label** for the map (such as `Port 14`) and a note on **where this
 
 ![Connect dialog: Wired, Wi-Fi, and Other, with a label and a note on where it came from](images/connect-dialog.png)
 
-**Add a device to a subnet or VLAN.** Right-click it and choose **Add to subnet or VLAN…**. Pick one already on the map, or type a new one (`10.20.0.0/24`, or a VLAN number). With **Group by subnet** on, the device moves into that subnet's box.
+**Add a device to a subnet or VLAN.** Right-click it and choose **Add to subnet or VLAN…**. Pick one already on the map, or type a new one (`10.20.0.0/24`, or a VLAN number). Arranged by subnet, the device moves into that subnet's box.
 
 **How they look.** Links you add keep their type's colour, with a dash-dot line and a ✎ pencil mark before the label. Click one to see when you added it, change its label or note, or **Remove this link**; right-click it for the same. The **Added by you** switch in **Layers** shows or hides them all.
 
@@ -223,7 +223,7 @@ Everything you add is saved with the map, included in backups, and can be undone
 
 The **Layers** tab controls what's drawn, and how devices are arranged.
 
-![Layers tab: the Arrange devices list, Group by subnet, link layer checkboxes, and the device legend](images/layers-tab.png)
+![Layers tab: the Arrange devices list, link layer checkboxes, and the device legend](images/layers-tab.png)
 
 - **Arrange devices** picks the layout:
   - **By network name** (the default) makes a box per Wi-Fi network (SSID) with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once. Wired devices share a **Not on Wi-Fi** box.
@@ -243,8 +243,7 @@ The **Layers** tab controls what's drawn, and how devices are arranged.
 
 ![The campus sample arranged by channel: a box per Wi-Fi channel with its access points and clients, then the wired devices](images/arrange-by-channel.png)
 
-- **Group by subnet** draws subnets as boxes (in the subnet arrangement). Turn it off to show subnets as separate nodes with membership links instead.
-- **Links** switches each kind of link on or off: wired, IP traffic, ports and services, wireless, VLAN membership, subnet membership, and bridges. Devices always stay visible.
+- **Links** switches each kind of link on or off: wired, IP traffic, ports and services, wireless, VLAN membership, bridges, and links added by you. Subnets are the boxes when arranged by subnet. Devices always stay visible.
 - **Devices** is the legend for shapes and colours.
 
 Your layer choices are remembered.
@@ -308,7 +307,7 @@ Press `?`, or open **Settings** → **Help** → **Keyboard shortcuts**, to see 
 
 Click the **cog** at the right of the top bar. A dot on the cog means a newer version is out.
 
-![Settings, General: theme, scroll-to-zoom speed, Group by subnet, and hover fading](images/settings-general.png)
+![Settings, General: theme, scroll-to-zoom speed, SSIDs under access points, and hover fading](images/settings-general.png)
 
 **General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes, SSIDs under access points, and hover fading on or off. **Time** sets the time zone and 12- or 24-hour clock used for capture times on the timeline and in Details.
 
