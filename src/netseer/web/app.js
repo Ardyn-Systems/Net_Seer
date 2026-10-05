@@ -51,7 +51,7 @@ const state = {
   suppressSelect: false,
   server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
-  prefs: { zoomSpeed: "normal", hoverFade: true, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
+  prefs: { zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
 };
 
 /* ---------- Small helpers ---------- */
@@ -1241,7 +1241,23 @@ function cyStyle(c) {
     { selector: 'edge[kind = "manual"]', style: { "line-color": c.manual } },
     // Added by you: the type's colour, a dash-dot line, and a pencil in the label.
     { selector: "edge[manual = 1]", style: { "line-style": "dashed", "line-dash-pattern": [10, 3, 2, 3], width: 2.2, opacity: 1 } },
-    { selector: "node:selected", style: { "border-color": c.select, "border-width": 3.5, "underlay-color": c.select, "underlay-opacity": 0.22, "underlay-padding": 6 } },
+    // Selected: a thick bright border, a strong glow, a bold label, drawn above everything else.
+    {
+      selector: "node:selected",
+      style: {
+        "border-color": c.select,
+        "border-width": 5,
+        "underlay-color": c.select,
+        "underlay-opacity": 0.42,
+        "underlay-padding": 11,
+        "underlay-shape": "round-rectangle",
+        "font-weight": "bold",
+        "background-blacken": -0.18,
+        "z-index": 30,
+        "z-compound-depth": "top",
+      },
+    },
+    { selector: "edge.sel-adj", style: { width: 2.8, opacity: 1, "z-index": 25 } },
     { selector: ":parent:selected", style: { "border-color": c.select, "background-opacity": 0.12 } },
     { selector: "edge:selected", style: { width: 3, "line-color": c.select, "target-arrow-color": c.select, "source-arrow-color": c.select, opacity: 1 } },
     { selector: ".faded", style: { opacity: 0.16 } },
@@ -1332,10 +1348,12 @@ function renderMap({ fit = true } = {}) {
     if (t !== cy && t.isNode()) syncSelectionFromCy();
     if (t !== cy && t.isEdge()) {
       const link = (state.graph?.links || []).find((l) => l.id === t.id());
-      if (link && isManualLink(link)) {
+      if (link) {
         state.inspectedLink = link.id;
+        t.select();
         renderInspector();
-        openMenuAt(e.clientX, e.clientY, [{ label: "Edit label and note", onSelect: () => el("manual-label")?.focus() }, "sep", { label: "Remove this link", danger: true, onSelect: () => removeManualLink(link.id) }]);
+        const items = isManualLink(link) ? [{ label: "Edit label and note", onSelect: () => el("manual-label")?.focus() }, "sep"] : [];
+        openMenuAt(e.clientX, e.clientY, [...items, { label: "Remove this link", hint: "devices stay put", danger: true, onSelect: () => removeLinks([link.id]) }]);
         return;
       }
     }
@@ -1407,6 +1425,9 @@ function fitMap(animate = true) {
 function syncSelectionFromCy() {
   if (!state.cy) return;
   state.selection = state.cy.nodes(":selected").map((n) => n.id());
+  // The links of selected devices stand out with them.
+  state.cy.edges(".sel-adj").removeClass("sel-adj");
+  state.cy.nodes(":selected").connectedEdges().addClass("sel-adj");
   if (state.selection.length) state.inspectedLink = null;
   syncSelectionUi();
   renderInspector();
@@ -1585,6 +1606,7 @@ function renderInspector() {
   body.querySelectorAll("[data-copy]").forEach((dd) => dd.addEventListener("click", () => copyText(dd.dataset.copy)));
   if (link) {
     if (isManualLink(link)) bindManualLinkPanel(link);
+    else el("link-remove")?.addEventListener("click", () => removeLinks([link.id]));
     return;
   }
   if (state.selection.length === 1) bindDevicePanel(nodeById(state.selection[0]));
@@ -1661,6 +1683,7 @@ function devicePanel(raw) {
     <div class="insp-section insp-actions">
       <button type="button" class="btn small" data-act="copy-details">Copy details</button>
       ${isDeviceNode(raw) ? '<button type="button" class="btn small" data-act="connect" title="Connect to another device from information you have">Connect to…</button>' : ""}
+      ${isDeviceNode(raw) && (state.graph?.links || []).some((l) => l.source === raw.id || l.target === raw.id) ? '<button type="button" class="btn small" data-act="disconnect" title="Remove links to another device; nothing moves">Disconnect from…</button>' : ""}
       ${isDeviceNode(raw) ? '<button type="button" class="btn small" data-act="member">Add to network…</button>' : ""}
       <button type="button" class="btn small" data-act="device-export" aria-haspopup="menu">Export<svg class="icon chev"><use href="#i-chevron"/></svg></button>
       <button type="button" class="btn small" data-act="move" aria-haspopup="menu">Move to<svg class="icon chev"><use href="#i-chevron"/></svg></button>
@@ -1812,7 +1835,7 @@ function linkPanel(link) {
       ${factRow("DNS query", extra.dns_query)}
     </dl></div>
     ${ports.length || link.services?.length ? `<div class="insp-section"><h3>Services</h3>${chips(ports.length ? ports : link.services)}</div>` : ""}
-    ${isManualLink(link) ? manualLinkPanel(link) : ""}`;
+    ${isManualLink(link) ? manualLinkPanel(link) : `<div class="insp-section insp-actions"><button type="button" class="btn small danger" id="link-remove" title="Both devices stay where they are">Remove this link</button></div>`}`;
 }
 
 function multiPanel(ids) {
@@ -1834,6 +1857,7 @@ function multiPanel(ids) {
       <button type="button" class="btn small" data-act="copy">Copy</button>
       <button type="button" class="btn small" data-act="cut">Cut</button>
       ${ids.filter((id) => isDeviceNode(nodeById(id))).length === 2 ? '<button type="button" class="btn small" data-act="connect">Connect…</button>' : ""}
+      ${ids.length === 2 && linksBetween(ids[0], ids[1]).length ? '<button type="button" class="btn small" data-act="disconnect">Disconnect…</button>' : ""}
       <button type="button" class="btn small" data-act="move" aria-haspopup="menu">Move to<svg class="icon chev"><use href="#i-chevron"/></svg></button>
       <button type="button" class="btn small" data-act="unwanted">Set aside</button>
       <button type="button" class="btn small danger" data-act="delete">Delete</button>
@@ -1852,6 +1876,10 @@ function runAction(act, anchor) {
     const ids = selectedIds();
     if (ids.length === 2) openConnectDialog(ids[0], ids[1]);
     else if (ids.length === 1) startConnect(ids[0]);
+  } else if (act === "disconnect") {
+    const ids = selectedIds();
+    if (ids.length === 2) openDisconnectDialog(ids[0], ids[1]);
+    else if (ids.length === 1) startDisconnect(ids[0]);
   } else if (act === "member" && selectedIds().length === 1) openMemberDialog(selectedIds()[0]);
   else if (act === "device-export") {
     openMenu(anchor, [
@@ -1884,7 +1912,9 @@ async function moveToNewMap() {
 function syncSelectionUi() {
   const n = state.selection.length;
   show("selection-bar", n > 0);
-  show("sel-connect", selectedIds().filter((id) => isDeviceNode(nodeById(id))).length === 2);
+  const pair = selectedIds().filter((id) => isDeviceNode(nodeById(id)));
+  show("sel-connect", pair.length === 2);
+  show("sel-disconnect", pair.length === 2 && linksBetween(pair[0], pair[1]).length > 0);
   el("selection-count").textContent = `${n} selected`;
 }
 
@@ -1896,11 +1926,20 @@ function syncPasteUi() {
 
 function connectMenuItems() {
   const ids = selectedIds().filter((id) => isDeviceNode(nodeById(id)));
-  if (ids.length === 2) return ["sep", { label: "Connect these two…", onSelect: () => openConnectDialog(ids[0], ids[1]) }];
+  if (ids.length === 2) {
+    const linked = linksBetween(ids[0], ids[1]).length > 0;
+    return [
+      "sep",
+      { label: "Connect these two…", onSelect: () => openConnectDialog(ids[0], ids[1]) },
+      { label: "Disconnect these two…", disabled: !linked, onSelect: () => openDisconnectDialog(ids[0], ids[1]) },
+    ];
+  }
   if (ids.length !== 1) return [];
+  const hasLinks = (state.graph?.links || []).some((l) => l.source === ids[0] || l.target === ids[0]);
   return [
     "sep",
     { label: "Connect to…", hint: "click another device", onSelect: () => startConnect(ids[0]) },
+    { label: "Disconnect from…", hint: "click another device", disabled: !hasLinks, onSelect: () => startDisconnect(ids[0]) },
     { label: "Add to subnet or VLAN…", onSelect: () => openMemberDialog(ids[0]) },
   ];
 }
@@ -1953,6 +1992,7 @@ function startConnect(fromId) {
   if (!isDeviceNode(from)) return;
   closeMenu();
   connectState.from = fromId;
+  connectState.mode = "connect";
   el("connect-banner-text").textContent = `Click the device to connect to ${displayName(from)}.`;
   show("connect-banner", true);
   el("stage").classList.add("connecting");
@@ -1971,8 +2011,10 @@ function connectTap(target) {
   if (!connectState.from) return false;
   const from = connectState.from;
   if (target?.isNode?.() && !target.isParent() && target.id() !== from && isDeviceNode(nodeById(target.id()))) {
+    const mode = connectState.mode;
     cancelConnect();
-    openConnectDialog(from, target.id());
+    if (mode === "disconnect") openDisconnectDialog(from, target.id());
+    else openConnectDialog(from, target.id());
   }
   return true; // taps elsewhere while connecting do nothing; Esc or Cancel ends it
 }
@@ -2014,26 +2056,6 @@ function addManualLink(aId, bId, { kind, label = "", note = "", snapshot = true 
   return link;
 }
 
-function removeManualLink(linkId) {
-  const map = getMap(state.activeMapId);
-  const link = map?.graph.links.find((l) => l.id === linkId);
-  if (!link || !isManualLink(link)) return;
-  snapshotUndo("remove link", [map.id]);
-  map.graph.links = map.graph.links.filter((l) => l.id !== linkId);
-  // A network you created that nothing belongs to any more goes too.
-  for (const end of [link.source, link.target]) {
-    const n = map.graph.nodes.find((x) => x.id === end);
-    if (n && !isDeviceNode(n) && isPlainObject(n.extra?.manual) && !map.graph.links.some((l) => l.source === end || l.target === end)) {
-      map.graph.nodes = map.graph.nodes.filter((x) => x.id !== end);
-    }
-  }
-  if (map.id === state.activeMapId) state.graph = map.graph;
-  if (state.inspectedLink === linkId) state.inspectedLink = null;
-  markMapEdited(map.id);
-  refreshAll();
-  toast("Removed the link you added.", { undo: true });
-}
-
 function manualLinkPanel(link) {
   const info = link.extra.manual;
   const added = Date.parse(info.added) ? new Date(info.added).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
@@ -2067,7 +2089,88 @@ function bindManualLinkPanel(link) {
     link.extra.manual = { ...link.extra.manual, note: e.target.value };
     save();
   });
-  el("manual-remove").addEventListener("click", () => removeManualLink(link.id));
+  el("manual-remove").addEventListener("click", () => removeLinks([link.id], { label: "remove link", message: "Removed the link you added." }));
+}
+
+/* Disconnecting: remove links between two devices, leaving both where they are. */
+
+function linksBetween(aId, bId) {
+  return (state.graph?.links || []).filter((l) => (l.source === aId && l.target === bId) || (l.source === bId && l.target === aId));
+}
+
+function linkDescription(link) {
+  const kind = isManualLink(link) ? `${MANUAL_KIND_NAMES[link.kind] || link.kind}, added by you` : LAYERS.find((l) => l.kind === link.kind)?.name || link.kind;
+  const label = edgeLabel(link).replace(MANUAL_MARK, "").trim();
+  return label && label !== kind ? `${kind}: ${label}` : kind;
+}
+
+function startDisconnect(fromId) {
+  startConnect(fromId);
+  connectState.mode = "disconnect";
+  el("connect-banner-text").textContent = `Click the device to disconnect from ${displayName(nodeById(fromId))}.`;
+}
+
+function openDisconnectDialog(aId, bId) {
+  const links = linksBetween(aId, bId);
+  if (!links.length) {
+    toast(`${displayName(nodeById(aId))} and ${displayName(nodeById(bId))} aren't connected on this map.`, { timeout: 3500 });
+    return;
+  }
+  el("disconnect-title").textContent = `Disconnect ${displayName(nodeById(aId))} and ${displayName(nodeById(bId))}`;
+  el("disconnect-list").innerHTML =
+    `<legend>${links.length === 1 ? "This link is removed" : "Links to remove"}</legend>` +
+    links
+      .map((l) => `<label><input type="checkbox" name="disconnect-link" value="${escapeHtml(l.id)}" checked /> <span>${escapeHtml(linkDescription(l))}${l.extra?.count ? `<small>${Number(l.extra.count).toLocaleString()} frames</small>` : ""}</span></label>`)
+      .join("");
+  connectState.pair = [aId, bId];
+  el("disconnect-dialog").showModal();
+  el("disconnect-ok").focus();
+}
+
+// Removes links without moving anything: every device on the map keeps its current spot.
+function removeLinks(linkIds, { label = "disconnect", message = "" } = {}) {
+  const map = getMap(state.activeMapId);
+  const ids = new Set(linkIds);
+  const gone = map?.graph.links.filter((l) => ids.has(l.id)) || [];
+  if (!gone.length) return;
+  snapshotUndo(label, [map.id]);
+  map.positions = map.positions || {};
+  state.cy?.nodes().forEach((n) => {
+    if (!n.isParent()) map.positions[n.id()] = { ...n.position() };
+  });
+  map.graph.links = map.graph.links.filter((l) => !ids.has(l.id));
+  for (const link of gone) {
+    for (const [end, other] of [[link.source, link.target], [link.target, link.source]]) {
+      const n = map.graph.nodes.find((x) => x.id === end);
+      if (!n || isDeviceNode(n)) continue;
+      // Leaving a subnet means leaving its box too.
+      if (Array.isArray(n.extra?.members)) n.extra.members = n.extra.members.filter((m) => m !== other);
+      // A network you created that nothing belongs to any more goes too.
+      if (isPlainObject(n.extra?.manual) && !map.graph.links.some((l) => l.source === end || l.target === end)) {
+        map.graph.nodes = map.graph.nodes.filter((x) => x.id !== end);
+      }
+    }
+  }
+  if (map.id === state.activeMapId) state.graph = map.graph;
+  if (ids.has(state.inspectedLink)) state.inspectedLink = null;
+  markMapEdited(map.id);
+  refreshAll();
+  toast(message || (gone.length === 1 ? "Removed the link." : `Removed ${gone.length} links.`), { undo: true });
+}
+
+function bindDisconnectDialog() {
+  const dialog = el("disconnect-dialog");
+  el("disconnect-cancel").addEventListener("click", () => dialog.close());
+  el("disconnect-list").addEventListener("change", () => {
+    el("disconnect-ok").disabled = !dialog.querySelector('input[name="disconnect-link"]:checked');
+  });
+  el("disconnect-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const chosen = [...dialog.querySelectorAll('input[name="disconnect-link"]:checked')].map((i) => i.value);
+    dialog.close();
+    const [a, b] = connectState.pair || [];
+    removeLinks(chosen, { message: `Disconnected ${displayName(nodeById(a))} and ${displayName(nodeById(b))}.` });
+  });
 }
 
 /* Subnet and VLAN membership */
@@ -3171,6 +3274,9 @@ function loadPrefs() {
   if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
   for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
+  // Version 2 turned hover fading off by default; earlier copies saved it as on without asking.
+  if (!(prefs.prefsVersion >= 2)) state.prefs.hoverFade = false;
+  state.prefs.prefsVersion = 2;
   if (Number.isFinite(prefs.sidebarWidth)) setSidebarWidth(prefs.sidebarWidth, { save: false });
 }
 
@@ -4288,12 +4394,12 @@ const TOUR_STEPS = [
     title: "Organize the sidebar",
     text: "Right-click a map or survey to rename, merge, remove, or delete it. Drag rows to reorder them, or drop one onto a map to merge it. Drag the sidebar's edge to make it wider.",
   },
-  { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Access points show their Wi-Fi network (SSID) under their name. Hover a device to see what it connects to." },
+  { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Access points show their Wi-Fi network (SSID) under their name. Click a device to highlight it and its links." },
   { target: ".search", title: "Find a device", text: "Search by name, IP, MAC, SSID, maker, or notes. Press / to jump here from anywhere. The arrows beside it undo and redo changes to your maps." },
   {
     target: "#inspector",
     title: "Details",
-    text: "Select a device to see everything NetSeer found: addresses, radio, services, and routing. Rename it, add notes, or connect it to another device from something you know (a port label, a diagram).",
+    text: "Select a device to see everything NetSeer found: addresses, radio, services, and routing. Rename it, add notes, or connect or disconnect it from another device using something you know (a port label, a diagram).",
     before: selectTourDevice,
   },
   { target: "#btn-export", title: "Export", text: "Save the map as a draw.io or Visio diagram, or create a PDF report with just the parts you need." },
@@ -4612,6 +4718,7 @@ async function init() {
   bindUpdateWizard();
   bindSidebarResize();
   bindManualDialogs();
+  bindDisconnectDialog();
   el("loading-stop").addEventListener("click", stopReading);
   el("loading-cancel").addEventListener("click", cancelReading);
   bindListDrag();

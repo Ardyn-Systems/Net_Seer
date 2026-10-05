@@ -300,6 +300,15 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.evaluate("() => { undoLast(); state.redo = []; syncUndoUi(); }")
         shots.reset()
 
+        # 7c. Disconnecting an access point and its client.
+        pair = page.evaluate("() => { const l = state.graph.links.find(l => l.kind === 'wireless'); return [l.target, l.source]; }")
+        page.evaluate("(ids) => { selectNodes(ids); openDisconnectDialog(ids[0], ids[1]); }", pair)
+        page.wait_for_selector("#disconnect-dialog[open]")
+        page.mouse.move(5, 5)
+        shots.save("disconnect-dialog", selectors=["#disconnect-dialog"], pad=0)
+        page.evaluate("() => el('disconnect-dialog').close()")
+        shots.reset()
+
         # 8. Themes.
         page.click("#btn-theme")
         page.wait_for_selector("body > .menu")

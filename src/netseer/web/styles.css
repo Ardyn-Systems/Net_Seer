@@ -622,7 +622,12 @@ input[role="switch"]:checked::after { transform: translateX(14px); background: v
   box-shadow: var(--shadow);
   white-space: nowrap;
   z-index: 5;
+  /* Clear of the status line (left) and zoom controls (right); wraps rather than overlapping them. */
+  flex-wrap: wrap;
+  justify-content: center;
+  max-width: calc(100% - 460px);
 }
+@media (max-width: 1180px) { .selection-bar { max-width: calc(100% - 1.5rem); bottom: 4rem; } }
 #selection-count { margin-right: 0.4rem; font-weight: 600; }
 .zoom-bar {
   position: absolute;
