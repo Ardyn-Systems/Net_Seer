@@ -66,9 +66,9 @@ The **Surveys** tab lists your captures and the bundled samples. Click one to op
 
 ## Read the map
 
-![The campus sample: subnets drawn as boxes, access points with their wireless clients, and VLANs at the bottom](images/overview.png)
+![The campus sample: a box for each Wi-Fi network with its access points and clients, the wired devices in Not on Wi-Fi, and the subnets and VLANs at the bottom](images/overview.png)
 
-- **Boxes are subnets.** Each device sits inside the subnet it was seen in (for example `10.10.10.0/24`). Turn this off with **Group by subnet** in **Layers**.
+- **Boxes are Wi-Fi networks.** Each network name (SSID) gets a box with its access points and their clients, titled with how many of each. Wired devices share a **Not on Wi-Fi** box, and subnets and VLANs come last. To see subnets as boxes instead, pick **By subnet** in **Layers** → **Arrange devices**.
 - **Shapes and colours show the device type.** Access points are hexagons; routers and gateways have cut corners; servers, hosts, and wireless clients are rounded boxes in their own colours. VLANs are tag shapes. The legend is at the bottom of the **Layers** tab.
 - **Lines are links.** Solid lines are wired neighbours, dashed lines are IP traffic, arrows run from a client to the service it used, and dotted pink lines with diamonds are bridges. Labels such as `http tcp/80` name the service.
 - **Access points sit with their clients**, so you can see who is on which Wi-Fi network. Each access point shows its **SSID** (network name) under its name, such as `HQ-Secure`, or `HQ-Secure +2` when it broadcasts several. **Hidden SSID** means the survey shows the network hides its name. A caption you type replaces it, and you can turn SSIDs off in **Settings**.
@@ -76,7 +76,7 @@ The **Surveys** tab lists your captures and the bundled samples. Click one to op
 
 Move around with the mouse: drag the background to pan and scroll to zoom (about 10% per notch). **Fit to screen** (or press `F`) frames everything.
 
-**Drag** any device, or a whole subnet box, to rearrange the map. NetSeer remembers positions for each map. **Tidy layout** (the grid button by the zoom controls) puts everything back; you can undo it.
+**Drag** any device, or a whole box, to rearrange the map. NetSeer remembers positions for each map. **Tidy layout** (the grid button by the zoom controls) puts everything back; you can undo it.
 
 ## Inspect a device
 
@@ -195,11 +195,11 @@ The **Layers** tab controls what's drawn, and how devices are arranged.
 ![Layers tab: the Arrange devices list, Group by subnet, link layer checkboxes, and the device legend](images/layers-tab.png)
 
 - **Arrange devices** picks the layout:
-  - **By subnet** (the default) puts each device in its subnet's box, with access points beside their clients.
+  - **By network name** (the default) makes a box per Wi-Fi network (SSID) with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once. Wired devices share a **Not on Wi-Fi** box.
+  - **By subnet** puts each device in its subnet's box, with access points beside their clients.
   - **By connection** puts devices that are linked next to each other. Each group of linked devices is its own cluster, biggest first. The busiest device (a gateway, switch, or access point) is in the middle, with what it connects to in rings around it, so lines stay short and rarely cross. Devices with no links follow in a grid, then the subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn in this view; each device's details still show its subnet and VLANs.
   - **By location (GPS)** places devices where they were heard, using the GPS in Kismet and wardrive surveys. A label shows the scale. Devices without a location are grouped in a box beside them.
   - **By channel** makes a box per Wi-Fi channel, labelled with its band. Clients sit in their access point's channel; wired devices come last.
-  - **By network name** makes a box per SSID with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once.
   - **Top-down hierarchy** puts gateways at the top, then what connects to them, level by level, like an org chart.
   - **By signal strength** places devices on dashed rings by how strongly they were heard, strongest in the middle, with each band's range labelled at the top. Devices with no signal reading are grouped separately.
   - **By maker** makes a box per manufacturer (from the MAC address), largest first.
@@ -252,7 +252,7 @@ Click the palette button in the top bar.
 
 ![The same map in the Terrain, Midnight, Daylight, and Blueprint themes](images/themes.png)
 
-**Terrain** is the default. **Daylight** works best for screenshots, projectors, and printing. Themes change the app only; exported files keep their own colours.
+**Terrain** is the default, with a topographic map behind your network. **Daylight** works best for screenshots, projectors, and printing. Themes change the app only; exported files keep their own colours.
 
 ## Keyboard shortcuts
 

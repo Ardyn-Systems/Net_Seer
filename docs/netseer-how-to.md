@@ -29,7 +29,7 @@ Click the **palette** button in the top bar and pick one:
 
 | Theme | Feel |
 | --- | --- |
-| **Terrain** (default) | Warm, earthy, with faint contour lines behind the map |
+| **Terrain** (default) | Warm, earthy, over a topographic map: contour lines with heavier index lines and elevations |
 | **Midnight** | Low-glare navy with a dot grid |
 | **Daylight** | Light and crisp; best for screenshots, projectors, and printing |
 | **Blueprint** | Engineering drawing on a blue grid |
@@ -202,11 +202,11 @@ NetSeer lays the map out the same way every time. **Layers** → **Arrange devic
 
 | Arrangement | What it does |
 | --- | --- |
-| **By subnet** (default) | Subnet boxes, access points with their clients, groups packed to fit the window (details below) |
+| **By network name** (default) | A box per SSID: its access points and their clients, titled with the counts. Wired devices go in **Not on Wi-Fi** |
+| **By subnet** | Subnet boxes, access points with their clients, groups packed to fit the window (details below) |
 | **By connection** | Linked devices together: each connected group is a cluster, biggest first, with its busiest device in the middle and the rest in rings around it. Unconnected devices follow in a grid, then subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn (they're in Details) |
 | **By location (GPS)** | Devices at their GPS position from Kismet or wardrive surveys, snapped so none overlap, with a scale label. Devices without a location are boxed separately |
 | **By channel** | A box per Wi-Fi channel, by band. Clients join their access point's channel; wired devices last |
-| **By network name** | A box per SSID: its access points and their clients |
 | **Top-down hierarchy** | Gateways at the top, then each level of what connects to them below |
 | **By signal strength** | Dashed rings by signal (stronger than −50 dBm in the middle, out to weaker than −80 dBm); no reading boxed separately |
 | **By maker** | A box per manufacturer, largest first |
@@ -222,7 +222,7 @@ In the subnet arrangement:
 - Routers and gateways come first in each group, then servers, access points, hosts, and wireless clients.
 - Groups are packed to fit the shape of your window.
 
-**Drag** any device (or a whole subnet box) to rearrange. Positions are saved per map. **Tidy layout** (grid button by the zoom controls, or right-click on empty space) discards dragged positions; you can undo it.
+**Drag** any device (or a whole box) to rearrange. Positions are saved per map. **Tidy layout** (grid button by the zoom controls, or right-click on empty space) discards dragged positions; you can undo it.
 
 Zoom with the wheel, the **−** / **+** buttons, or **Fit to screen** (`F`). Selected devices get a bright outline, a glow, and a bold label, and their links are drawn on top. **Fade unrelated devices on hover** (Settings → General, off by default) fades everything not connected to the device under the pointer.
 

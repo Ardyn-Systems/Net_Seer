@@ -275,7 +275,7 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.wait_for_timeout(800)
         page.mouse.move(5, 5)
         shots.save("arrange-by-channel", full=True)
-        page.select_option('#layout-select', 'subnet')
+        page.select_option('#layout-select', 'ssid')
         page.wait_for_timeout(800)
         page.click(".tab[data-tab=maps]")
 

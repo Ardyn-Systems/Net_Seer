@@ -128,7 +128,7 @@ The full guide, area by area, is [[netseer-how-to]] / [docs/netseer-how-to.md](n
 - **Find a device** (`/`) searches names, IPs, MACs, SSIDs, and notes.
 - Subnets are drawn as boxes; drag devices to rearrange and **Tidy layout** to reset.
 - **Export** gives draw.io, Visio (.vsdx / .vdx), and a full PDF report, laid out the way you see the map.
-- The **palette** button switches themes: **Terrain** (default), **Midnight**, **Daylight**, **Blueprint**.
+- The **palette** button switches themes: **Terrain** (default, over a topographic map), **Midnight**, **Daylight**, **Blueprint**.
 
 Maps, edits, notes, and positions are saved in this browser (IndexedDB for this origin), not in the capture files.
 
