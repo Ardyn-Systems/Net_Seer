@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import io
-from typing import Any
+import os
+from typing import Any, BinaryIO, Callable
 
 from scapy.all import (  # type: ignore[import-untyped]
     ARP,
@@ -20,9 +21,11 @@ from scapy.all import (  # type: ignore[import-untyped]
     Raw,
     conf,
 )
-from scapy.utils import PcapReader  # type: ignore[import-untyped]
+from scapy.config import conf  # type: ignore[import-untyped]
+from scapy.utils import PcapReader, RawPcapReader  # type: ignore[import-untyped]  # noqa: F401
 
 from netseer.graph import GraphBuilder
+from netseer.parsers.fastwifi import feed_raw
 from netseer.services import infer_service_from_payload, service_for_port
 from scapy.layers.dot11 import (  # type: ignore[import-untyped]
     Dot11,
@@ -36,7 +39,17 @@ from scapy.layers.dot11 import (  # type: ignore[import-untyped]
 
 conf.verb = 0
 
-MAX_PACKETS = 80_000
+# Packets read per capture: no limit by default; NETSEER_MAX_PACKETS sets one (the
+# public online copy uses it, together with its upload size limit).
+MAX_PACKETS = 80_000  # kept for callers that pass decoded packets (feed_packets)
+
+
+def max_packets() -> int | None:
+    try:
+        value = int(os.environ.get("NETSEER_MAX_PACKETS", "0"))
+    except ValueError:
+        return None
+    return value if value > 0 else None
 
 
 def _elt_info(elt: Any) -> bytes:
@@ -309,14 +322,47 @@ def _infer_packet_service(pkt: Any, sport: int | None, dport: int | None) -> tup
     return service_for_port(dport) or service_for_port(sport), meta
 
 
-def parse_pcap(builder: GraphBuilder, data: bytes, filename: str) -> None:
-    stream = io.BytesIO(data)
+def decode_frame(linktype: int, data: bytes) -> Any:
+    """A scapy packet for one frame of the given link type, as PcapReader would make."""
+    cls = conf.l2types.num2layer.get(linktype, conf.raw_layer)
     try:
-        reader = PcapReader(stream)
+        return cls(data)
+    except Exception:
+        return conf.raw_layer(data)
+
+
+def parse_pcap(
+    builder: GraphBuilder,
+    source: bytes | BinaryIO,
+    filename: str,
+    *,
+    progress: Callable[[int, int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> None:
+    """Stream a pcap or pcapng (bytes, or an open binary file) into the builder.
+
+    progress(packets, bytes_read) is called every few thousand packets.
+    """
+    stream = io.BytesIO(source) if isinstance(source, (bytes, bytearray)) else source
+    try:
+        reader = RawPcapReader(stream)
     except Exception as exc:
         raise ValueError(f"Could not open capture {filename}: {exc}") from exc
+    file_linktype = getattr(reader, "linktype", None)
+
+    def frames():
+        for data, meta in reader:
+            yield getattr(meta, "linktype", file_linktype), data
+
+    def report(count: int) -> None:
+        if progress is not None:
+            try:
+                progress(count, stream.tell())
+            except (OSError, ValueError):
+                progress(count, 0)
+
     try:
-        feed_packets(builder, reader, filename)
+        feed_raw(builder, frames(), filename, decode_frame, _handle_packet, max_packets=max_packets(), progress=report, should_stop=should_stop)
     finally:
         try:
             reader.close()

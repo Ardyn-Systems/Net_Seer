@@ -107,7 +107,7 @@ ssh -L 47331:127.0.0.1:47331 you@sensor   # then browse to http://127.0.0.1:4733
 
 **Kismet logs (`.kismet`)** are read directly; there's no need to convert them first. NetSeer decodes the packets Kismet logged, then adds Kismet's own summary of each device: SSIDs (including networks that hide their name), channels, encryption, maker, signal, location when Kismet had GPS, the networks clients probed for, and which clients joined which access points. Bluetooth and other non-Wi-Fi devices in the log are left out.
 
-Captures up to 50 MB each, and up to 80,000 packets per capture. Bundled campus samples let you try it without any files of your own.
+Installed copies open captures of any size, such as long wardrives, reading them straight from disk with a progress bar. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB. Bundled campus samples let you try it without any files of your own.
 
 From the frames and survey rows, NetSeer extracts:
 
@@ -152,16 +152,18 @@ Running from source and using your normal browser, maps live in that browser's s
 
 ## How much you can store
 
-Every version of NetSeer saves maps the same way: in the **IndexedDB** storage of the window or browser showing it. A saved map holds devices, links, names, notes, and positions, not the packets. The campus sample takes about 76 KB, and a map from a full 50 MB capture is usually a few MB. The storage limits below are far more than that, so the capture limits are the ones you'll actually meet.
+Every version of NetSeer saves maps the same way: in the **IndexedDB** storage of the window or browser showing it. A saved map holds devices, links, names, notes, and positions, not the packets. The campus sample takes about 76 KB, and even a long wardrive with thousands of access points makes a map of a few MB to a few tens of MB. The storage limits below are far more than that.
 
 | | Windows app | Linux app | Online copy |
 | --- | --- | --- | --- |
 | Saved by | Edge WebView2 (Chromium) | Chrome, Chromium, Edge, Brave, or Vivaldi in its own profile | Your browser |
 | Room for saved maps | Up to about 60% of the disk | Up to about 60% of the disk | Chrome and Edge: up to about 60% of the disk. Firefox: about 10% of the disk, at most 10 GB, until storage is protected. Safari: large, but see below. |
-| Largest capture | 50 MB per file | 50 MB per file | 20 MB per file |
-| Packets read per capture | 80,000 | 80,000 | 80,000 |
+| Largest capture | No limit | No limit | 20 MB per file |
+| Packets read per capture | All of them | All of them | All of them |
 
-These are the browsers' own rules and vary a little by version. The capture limit for a copy you run yourself is set with `NETSEER_MAX_UPLOAD_MB`.
+These are the browsers' own rules and vary a little by version. A copy you run yourself can set a capture limit with `NETSEER_MAX_UPLOAD_MB` (and `NETSEER_MAX_PACKETS`), but by default there is none.
+
+**Big captures and wardrives.** Installed copies stream a capture from disk instead of loading it into memory, and skip decoding frames that repeat what NetSeer already knows (the same beacon, the same encrypted conversation). That keeps the map exactly the same: frame counts and signal ranges still include every frame. A 220 MB wardrive with 2 million frames opens in about 20 seconds using around 50 MB of memory. While a big file reads, NetSeer shows how far it's got, with packet and device counts. **Stop and show map** draws what's been read so far; **Cancel** discards it.
 
 **Keeping maps from being cleared.** Browsers can delete a site's storage on their own when the disk is nearly full. To stop that, NetSeer asks the browser to mark its storage as *persistent*:
 - the desktop app asks when it starts

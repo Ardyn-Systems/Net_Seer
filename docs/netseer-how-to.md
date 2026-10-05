@@ -63,6 +63,7 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 - **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
 - First visit: the bundled campus survey opens automatically. An empty map shows a welcome card with **Open survey** and **Try the campus sample**.
 - Problems (unsupported file, empty capture, decode warnings) show up as a message at the top of the window.
+- **Size:** installed copies open captures of any size, streaming them from disk. A big file shows progress (percent read, packets, devices); **Stop and show map** draws what's been read, **Cancel** discards it. The online copy takes up to 20 MB per file.
 
 ---
 

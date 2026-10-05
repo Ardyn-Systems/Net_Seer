@@ -429,12 +429,13 @@ def test_malformed_graphs_are_rejected_cleanly():
     assert res.status_code == 400
     res = client.post("/api/parse", files={"file": ("bad.json", b'{"nodes":[{"id":"a"}],"links":[]}')})
     assert res.status_code == 400
+    # Installed copies have no size limit, so a big Content-Length isn't refused up front.
     res = client.post(
         "/api/parse",
         content=b"x",
         headers={"content-length": str(60 * 1024 * 1024), "content-type": "application/octet-stream"},
     )
-    assert res.status_code == 413
+    assert res.status_code != 413
 
 
 def test_rsn_akm_parsing_labels():
@@ -465,7 +466,7 @@ def test_per_capture_packet_cap_and_small_parser_fixes(monkeypatch, tmp_path):
     from netseer.graph import GraphBuilder
     from netseer.parsers.airodump import parse_airodump_csv
 
-    monkeypatch.setattr(pcapmod, "MAX_PACKETS", 3)
+    monkeypatch.setenv("NETSEER_MAX_PACKETS", "3")
     pkt = Ether(src="00:11:22:33:44:01", dst="00:11:22:33:44:02") / IP(src="10.0.0.1", dst="10.0.0.2") / UDP()
     path = tmp_path / "a.pcap"
     wrpcap(str(path), [pkt] * 5)
@@ -768,7 +769,7 @@ def test_hosted_mode_blocks_server_writes_and_reports_limits(monkeypatch, tmp_pa
     monkeypatch.delenv("NETSEER_HOSTED", raising=False)
     monkeypatch.delenv("NETSEER_MAX_UPLOAD_MB", raising=False)
     info = client.get("/api/health").json()
-    assert info["hosted"] is False and info["max_upload_mb"] == 50
+    assert info["hosted"] is False and info["max_upload_mb"] is None  # installed: no limit
     assert client.post("/api/unwanted/dump", json=group).status_code == 200
 
     monkeypatch.setenv("NETSEER_HOSTED", "1")

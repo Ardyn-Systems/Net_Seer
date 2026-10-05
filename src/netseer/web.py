@@ -1,10 +1,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import shutil
 import sys
+import tempfile
+import threading
 import time
+import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
@@ -27,7 +32,7 @@ from netseer.exporters import (
     safe_filename,
 )
 from netseer.exporters.reports import ReportOptions, device_properties
-from netseer.ingest import ingest_files, max_upload_bytes
+from netseer.ingest import ingest_files, ingest_sources, max_upload_bytes, size_error
 from netseer.samples import SAMPLES, files_for_sample
 from netseer.serialize import graph_from_dict
 
@@ -53,9 +58,10 @@ def hosted_mode() -> bool:
     return os.environ.get("NETSEER_HOSTED", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def max_body_bytes() -> int:
+def max_body_bytes() -> int | None:
     # Request bodies above this are refused before parsing (upload limit plus multipart overhead).
-    return max_upload_bytes() + 1024 * 1024
+    limit = max_upload_bytes()
+    return None if limit is None else limit + 1024 * 1024
 
 
 REPO = updater.REPO
@@ -85,14 +91,15 @@ app = FastAPI(title=PRODUCT_NAME, version=__version__, description=MOTTO)
 @app.middleware("http")
 async def limit_body_size(request: Request, call_next):
     length = request.headers.get("content-length")
-    if length is not None:
+    limit = max_body_bytes()
+    if length is not None and limit is not None:
         try:
-            too_big = int(length) > max_body_bytes()
+            too_big = int(length) > limit
         except ValueError:
             return JSONResponse({"detail": "Invalid Content-Length."}, status_code=400)
         if too_big:
-            limit = max_upload_bytes() // (1024 * 1024)
-            return JSONResponse({"detail": f"Request is larger than the {limit} MB limit."}, status_code=413)
+            error = size_error(int(length))
+            return JSONResponse({"detail": str(error) if error else "Request is too large."}, status_code=413)
     return await call_next(request)
 
 
@@ -119,7 +126,8 @@ def health() -> dict:
         "motto": MOTTO,
         "version": __version__,
         "hosted": hosted_mode(),
-        "max_upload_mb": max_upload_bytes() // (1024 * 1024),
+        # None: no limit (installed copies stream captures of any size from disk).
+        "max_upload_mb": None if max_upload_bytes() is None else max_upload_bytes() // (1024 * 1024),
         "mode": run_mode(),
         "platform": platform_name(),
         "frozen": bool(getattr(sys, "frozen", False)),
@@ -200,18 +208,179 @@ def sample_graph(sample_id: str):
     return graph.to_dict()
 
 
+log = logging.getLogger("netseer.web")
+
+
+def _upload_folder(name: str) -> tuple[Path, Path]:
+    folder = Path(tempfile.mkdtemp(prefix="netseer-upload-"))
+    # Keep the extension: it helps tell formats apart (.kismet, .netxml, .csv).
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", Path(name).name)[:120].strip("._") or "upload"
+    return folder, folder / safe
+
+
+async def _save_stream(chunks, path: Path) -> int:
+    """Write an upload to disk as it arrives, refusing it once it passes the size limit."""
+    limit = max_upload_bytes()
+    total = 0
+    with open(path, "wb") as out:
+        async for chunk in chunks:
+            total += len(chunk)
+            if limit is not None and total > limit:
+                raise HTTPException(status_code=413, detail=str(size_error(total)))
+            out.write(chunk)
+    if not total:
+        raise HTTPException(status_code=400, detail="The file is empty.")
+    return total
+
+
+async def _upload_chunks(file: UploadFile):
+    while chunk := await file.read(1024 * 1024):
+        yield chunk
+
+
+def _parse_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, EmptySurveyError):
+        return _http_error(exc, 422)
+    return _http_error(exc)
+
+
 @app.post("/api/parse")
 async def parse_upload(file: UploadFile = File(...)):
-    data = await file.read(max_upload_bytes() + 1)
+    """Parse one capture in a single request (small files; the page uses /api/parse/jobs)."""
     name = file.filename or "upload"
+    folder, path = _upload_folder(name)
     try:
+        await _save_stream(_upload_chunks(file), path)
         # Parsing is CPU-bound; keep it off the event loop so other requests still answer.
-        graph = await run_in_threadpool(ingest_files, [(name, data)])
-    except EmptySurveyError as exc:
-        raise _http_error(exc, 422) from exc
-    except (UnsupportedSurveyError, ValueError, OSError) as exc:
-        raise _http_error(exc) from exc
+        graph = await run_in_threadpool(ingest_sources, [(name, path)])
+    except (EmptySurveyError, UnsupportedSurveyError, ValueError, OSError) as exc:
+        raise _parse_error(exc) from exc
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
     return graph.to_dict()
+
+
+# ---------- Reading jobs: big captures, with progress, stop, and cancel ----------
+# POST the raw file to /api/parse/jobs?name=<file name>; poll GET /api/parse/jobs/<id>;
+# when it's done, GET .../result. POST .../stop keeps what's been read so far as the map;
+# DELETE cancels and discards it.
+
+PARSE_JOBS: dict[str, dict] = {}
+_jobs_lock = threading.Lock()
+JOB_KEEP_SECONDS = 15 * 60
+HOSTED_MAX_RUNNING_JOBS = 2
+
+
+def _forget_old_jobs() -> None:
+    now = time.monotonic()
+    with _jobs_lock:
+        for job_id, job in list(PARSE_JOBS.items()):
+            if job["state"] != "running" and now - (job.get("finished") or now) > JOB_KEEP_SECONDS:
+                PARSE_JOBS.pop(job_id, None)
+
+
+def _run_job(job: dict) -> None:
+    def progress(info: dict) -> None:
+        job["progress"] = info
+
+    try:
+        graph = ingest_sources([(job["name"], job["path"])], progress=progress, should_stop=job["stop"].is_set)
+        if not job["discard"]:
+            job["result"] = graph.to_dict()
+        job["state"] = "done"
+    except (EmptySurveyError, UnsupportedSurveyError, ValueError, OSError) as exc:
+        job.update(state="error", error=str(exc), status=422 if isinstance(exc, EmptySurveyError) else 400)
+    except Exception as exc:  # pragma: no cover - keep the details in the log
+        log.exception("Reading %s failed", job["name"])
+        job.update(state="error", error=f"NetSeer couldn't read {job['name']} ({exc}).", status=500)
+    finally:
+        shutil.rmtree(job["folder"], ignore_errors=True)
+        job["finished"] = time.monotonic()
+        if job["discard"]:
+            with _jobs_lock:
+                PARSE_JOBS.pop(job["id"], None)
+
+
+def _job_status(job: dict) -> dict:
+    progress = job.get("progress") or {}
+    return {
+        "id": job["id"],
+        "name": job["name"],
+        "state": job["state"],
+        "bytes": job["bytes"],
+        "packets": progress.get("packets", 0),
+        "fraction": progress.get("fraction", 0.0),
+        "devices": progress.get("devices", 0),
+        "elapsed": round((job.get("finished") or time.monotonic()) - job["started"], 1),
+        "stopping": job["stop"].is_set(),
+        "error": job.get("error"),
+    }
+
+
+def _get_job(job_id: str) -> dict:
+    job = PARSE_JOBS.get(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="That reading job isn't running any more.")
+    return job
+
+
+@app.post("/api/parse/jobs")
+async def start_parse_job(request: Request, name: str = "upload"):
+    _forget_old_jobs()
+    if hosted_mode():
+        running = sum(1 for j in PARSE_JOBS.values() if j["state"] == "running")
+        if running >= HOSTED_MAX_RUNNING_JOBS:
+            raise HTTPException(status_code=429, detail="This online copy is busy reading other captures. Try again in a minute.")
+    folder, path = _upload_folder(name)
+    try:
+        size = await _save_stream(request.stream(), path)
+    except BaseException:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    job = {
+        "id": uuid.uuid4().hex, "name": Path(name).name or "upload", "path": path, "folder": folder, "bytes": size,
+        "state": "running", "started": time.monotonic(), "stop": threading.Event(), "discard": False,
+    }
+    with _jobs_lock:
+        PARSE_JOBS[job["id"]] = job
+    threading.Thread(target=_run_job, args=(job,), name=f"netseer-read-{job['id'][:6]}", daemon=True).start()
+    return _job_status(job)
+
+
+@app.get("/api/parse/jobs/{job_id}")
+def parse_job_status(job_id: str) -> dict:
+    return _job_status(_get_job(job_id))
+
+
+@app.post("/api/parse/jobs/{job_id}/stop")
+def stop_parse_job(job_id: str) -> dict:
+    job = _get_job(job_id)
+    job["stop"].set()
+    return _job_status(job)
+
+
+@app.delete("/api/parse/jobs/{job_id}", status_code=204)
+def cancel_parse_job(job_id: str) -> Response:
+    job = PARSE_JOBS.get(job_id)
+    if job is not None:
+        job["discard"] = True
+        job["stop"].set()
+        if job["state"] != "running":
+            with _jobs_lock:
+                PARSE_JOBS.pop(job_id, None)
+    return Response(status_code=204)
+
+
+@app.get("/api/parse/jobs/{job_id}/result")
+def parse_job_result(job_id: str):
+    job = _get_job(job_id)
+    if job["state"] == "running":
+        raise HTTPException(status_code=409, detail="Still reading.")
+    with _jobs_lock:
+        PARSE_JOBS.pop(job_id, None)
+    if job["state"] == "error":
+        raise HTTPException(status_code=job.get("status", 400), detail=job["error"])
+    return JSONResponse(job["result"])
 
 
 def _layout_hints(body: dict) -> dict:

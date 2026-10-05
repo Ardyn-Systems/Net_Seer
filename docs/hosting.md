@@ -14,7 +14,7 @@ It uses [Render](https://render.com)'s free plan, set up by [`render.yaml`](../r
 
 **The trade-offs:**
 - **It sleeps.** After 15 minutes without visitors the server stops. The next visit wakes it, which takes about a minute, and then it's quick again.
-- **Small server.** About 512 MB of memory, so this setup limits uploads to 20 MB per capture.
+- **Small server.** About 512 MB of memory, so this setup limits uploads to 20 MB per capture. The app says so on the drop zone and the welcome card, and offers a link to install NetSeer when a file is bigger. Installed copies have no size limit.
 - **It's public.** Anyone with the address can use it.
 
 **How NetSeer behaves when hosted** (`NETSEER_HOSTED=1`, already set in `render.yaml`):
@@ -78,7 +78,7 @@ In the service's **Environment** tab:
 | Setting | Default here | Meaning |
 | --- | --- | --- |
 | `NETSEER_HOSTED` | `1` | Public mode: no writing to the server's disk |
-| `NETSEER_MAX_UPLOAD_MB` | `20` | Largest capture accepted, in MB |
+| `NETSEER_MAX_UPLOAD_MB` | `20` | Largest capture accepted, in MB (a hosted copy defaults to 20; `0` means no limit) |
 
 Saving a change redeploys the service.
 

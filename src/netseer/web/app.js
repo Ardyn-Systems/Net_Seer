@@ -2,7 +2,7 @@
 "use strict";
 
 const UNWANTED_ID = "map:unwanted";
-const ZOOM_MIN = 0.12;
+const ZOOM_MIN = 0.02; // far enough out to fit a long wardrive
 const ZOOM_MAX = 4;
 const UNDO_LIMIT = 30;
 const THEME_KEY = "netseer.theme";
@@ -49,7 +49,7 @@ const state = {
   graphVersion: 0,
   propsCache: new Map(),
   suppressSelect: false,
-  server: { hosted: false, maxUploadMb: 50, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
+  server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
   prefs: { zoomSpeed: "normal", hoverFade: true, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
 };
@@ -58,7 +58,7 @@ const state = {
 
 const el = (id) => document.getElementById(id);
 const show = (id, on) => el(id)?.classList.toggle("hidden", !on);
-const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
+const plural = (n, word, many = `${word}s`) => `${Number(n).toLocaleString()} ${n === 1 ? word : many}`;
 const cloneData = (value) => (value == null ? value : JSON.parse(JSON.stringify(value)));
 
 function escapeHtml(s) {
@@ -2546,7 +2546,7 @@ async function loadServerInfo() {
     const info = await parseResponse(await fetch("/api/health"));
     state.server = {
       hosted: Boolean(info.hosted),
-      maxUploadMb: Number(info.max_upload_mb) || 50,
+      maxUploadMb: Number(info.max_upload_mb) || 0, // 0: no limit (installed copies)
       version: String(info.version || ""),
       mode: info.mode || (info.hosted ? "hosted" : "server"),
       platform: info.platform || "",
@@ -2560,6 +2560,8 @@ async function loadServerInfo() {
   const hosted = state.server.hosted;
   show("hosted-note", hosted);
   show("empty-hosted", hosted);
+  document.querySelectorAll(".hosted-limit").forEach((n) => (n.textContent = `${state.server.maxUploadMb || 20} MB`));
+  document.querySelectorAll(".install-link").forEach((a) => (a.href = installUrl()));
   if (hosted) el("maps-hint").textContent = "Unwanted holds devices you set aside. Empty it to download them as JSON files you can reopen later.";
 }
 
@@ -2775,15 +2777,26 @@ function applyGraph(graph, title, surveyId) {
 }
 
 async function loadFile(file) {
-  if (file.size > state.server.maxUploadMb * 1024 * 1024) {
-    fail(new Error(`${file.name} is larger than this server's ${state.server.maxUploadMb} MB limit.`));
+  const limit = state.server.maxUploadMb;
+  if (limit && file.size > limit * 1024 * 1024) {
+    // Only the public online copy has a limit; installed copies read captures of any size.
+    toast(`${file.name} is ${formatSize(file.size)}, more than this online copy's ${limit} MB limit. Install NetSeer to open bigger captures: it has no size limit.`, {
+      error: true,
+      timeout: 12000,
+      action: { label: "Get NetSeer", onClick: () => window.open(installUrl(), "_blank", "noopener") },
+    });
     return;
   }
-  setBusy(true, `Reading ${file.name}…`);
-  const body = new FormData();
-  body.append("file", file);
+  const job = { file, xhr: null, id: null, cancelled: false };
+  readJob.current = job;
+  setBusy(true, `Opening ${file.name}…`);
+  showReadingControls(true);
   try {
-    const graph = await parseResponse(await fetch("/api/parse", { method: "POST", body }));
+    const started = await uploadForReading(job);
+    job.id = started.id;
+    await followReading(job);
+    if (job.cancelled) return;
+    const graph = await parseResponse(await fetch(`/api/parse/jobs/${encodeURIComponent(job.id)}/result`));
     setBusy(false);
     const id = `upload:${file.name}`;
     const item = { id, kind: "upload", name: file.name, summary: "Your capture", graph };
@@ -2796,8 +2809,102 @@ async function loadFile(file) {
     requestPersistentStorage();
   } catch (err) {
     setBusy(false);
-    fail(new Error(`${file.name}: ${err.message || err}`));
+    if (!job.cancelled) fail(new Error(`${file.name}: ${err.message || err}`));
+  } finally {
+    if (readJob.current === job) readJob.current = null;
+    showReadingControls(false);
+    setBusy(false);
   }
+}
+
+/* ---------- Reading big captures: upload, progress, stop, cancel ---------- */
+
+const readJob = { current: null };
+const installUrl = () => repoUrl("/releases/latest");
+
+function showReadingControls(on) {
+  show("loading-progress", on);
+  show("loading-detail", on);
+  show("loading-actions", on);
+  el("loading").classList.toggle("interactive", on);
+  el("loading-stop").disabled = false;
+  el("loading-stop").textContent = "Stop and show map";
+  if (on) setReadingProgress(0, "");
+}
+
+function setReadingProgress(fraction, detail) {
+  const pct = Math.max(0, Math.min(100, Math.round(fraction * 100)));
+  el("loading-bar").style.width = `${pct}%`;
+  el("loading-progress").setAttribute("aria-valuenow", String(pct));
+  el("loading-detail").textContent = detail;
+}
+
+// Sends the file as the raw request body, so the server can write it straight to disk.
+function uploadForReading(job) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    job.xhr = xhr;
+    xhr.open("POST", `/api/parse/jobs?name=${encodeURIComponent(job.file.name)}`);
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.upload.onprogress = (e) => {
+      if (!e.lengthComputable || job.cancelled) return;
+      el("loading-msg").textContent = `Sending ${job.file.name} to NetSeer…`;
+      setReadingProgress(e.loaded / e.total, `${formatSize(e.loaded)} of ${formatSize(e.total)}`);
+    };
+    xhr.onload = () => {
+      job.xhr = null;
+      let body = {};
+      try {
+        body = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        /* keep {} */
+      }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body);
+      else reject(new Error(body.detail || `The server answered ${xhr.status}.`));
+    };
+    xhr.onerror = () => reject(new Error("The upload stopped. Is NetSeer still running?"));
+    xhr.onabort = () => reject(new Error("Cancelled."));
+    xhr.send(job.file);
+  });
+}
+
+async function followReading(job) {
+  const name = job.file.name;
+  for (;;) {
+    if (job.cancelled) return null;
+    const status = await parseResponse(await fetch(`/api/parse/jobs/${encodeURIComponent(job.id)}`));
+    if (status.state !== "running") return status;
+    el("loading-msg").textContent = status.stopping ? `Finishing the map of ${name}…` : `Reading ${name}…`;
+    const parts = [`${Math.round(status.fraction * 100)}%`];
+    if (status.packets) parts.push(`${status.packets.toLocaleString()} packets`);
+    if (status.devices) parts.push(plural(status.devices, "device"));
+    parts.push(`${Math.round(status.elapsed)} s`);
+    setReadingProgress(status.fraction, parts.join(" · "));
+    await new Promise((r) => setTimeout(r, status.elapsed < 3 ? 150 : 400));
+  }
+}
+
+async function stopReading() {
+  const job = readJob.current;
+  if (!job?.id) return;
+  el("loading-stop").disabled = true;
+  el("loading-stop").textContent = "Stopping…";
+  try {
+    await fetch(`/api/parse/jobs/${encodeURIComponent(job.id)}/stop`, { method: "POST" });
+  } catch {
+    /* the next status poll shows what happened */
+  }
+}
+
+function cancelReading() {
+  const job = readJob.current;
+  if (!job) return;
+  job.cancelled = true;
+  job.xhr?.abort();
+  if (job.id) fetch(`/api/parse/jobs/${encodeURIComponent(job.id)}`, { method: "DELETE" }).catch(() => {});
+  showReadingControls(false);
+  setBusy(false);
+  toast(`Cancelled opening ${job.file.name}.`, { timeout: 2500 });
 }
 
 async function loadFiles(files) {
@@ -4174,7 +4281,7 @@ const TOUR_STEPS = [
     title: "Welcome to NetSeer",
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
-  { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map." },
+  { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map, and big ones (long wardrives) show their progress as they read." },
   { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn." },
   {
     target: "#sidebar",
@@ -4505,6 +4612,8 @@ async function init() {
   bindUpdateWizard();
   bindSidebarResize();
   bindManualDialogs();
+  el("loading-stop").addEventListener("click", stopReading);
+  el("loading-cancel").addEventListener("click", cancelReading);
   bindListDrag();
   loadPrefs();
   renderLayerList();
