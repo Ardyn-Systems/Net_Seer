@@ -192,15 +192,25 @@ Everything you add is saved with the map, included in backups, and can be undone
 
 The **Layers** tab controls what's drawn, and how devices are arranged.
 
-![Layers tab: Arrange devices by subnet or by connection, Group by subnet, link layer checkboxes, and the device legend](images/layers-tab.png)
+![Layers tab: the Arrange devices list, Group by subnet, link layer checkboxes, and the device legend](images/layers-tab.png)
 
 - **Arrange devices** picks the layout:
   - **By subnet** (the default) puts each device in its subnet's box, with access points beside their clients.
   - **By connection** puts devices that are linked next to each other. Each group of linked devices is its own cluster, biggest first. The busiest device (a gateway, switch, or access point) is in the middle, with what it connects to in rings around it, so lines stay short and rarely cross. Devices with no links follow in a grid, then the subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn in this view; each device's details still show its subnet and VLANs.
+  - **By location (GPS)** places devices where they were heard, using the GPS in Kismet and wardrive surveys. A label shows the scale. Devices without a location are grouped in a box beside them.
+  - **By channel** makes a box per Wi-Fi channel, labelled with its band. Clients sit in their access point's channel; wired devices come last.
+  - **By network name** makes a box per SSID with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once.
+  - **Top-down hierarchy** puts gateways at the top, then what connects to them, level by level, like an org chart.
+  - **By signal strength** places devices in rings by how strongly they were heard, strongest in the middle. Devices with no signal reading are grouped separately.
+  - **By maker** makes a box per manufacturer (from the MAC address), largest first.
+
+  Every arrangement except **By subnet** draws its own labelled boxes; they aren't devices, so they can't be selected and aren't exported. Subnet and VLAN membership lines are drawn only in the subnet arrangement.
 
   Each arrangement keeps its own dragged positions, so switching back and forth never scrambles either one.
 
 ![The campus sample arranged by connection: the router in the middle of its cluster, access points with their clients, and unconnected devices below](images/arrange-by-connection.png)
+
+![The campus sample arranged by channel: a box per Wi-Fi channel with its access points and clients, then the wired devices](images/arrange-by-channel.png)
 
 - **Group by subnet** draws subnets as boxes (in the subnet arrangement). Turn it off to show subnets as separate nodes with membership links instead.
 - **Links** switches each kind of link on or off: wired, IP traffic, ports and services, wireless, VLAN membership, subnet membership, and bridges. Devices always stay visible.

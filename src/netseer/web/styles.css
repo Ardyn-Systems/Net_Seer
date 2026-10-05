@@ -1270,18 +1270,6 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 
 /* ---------- Arrange devices ---------- */
 
-.segmented { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); }
-.segmented button {
-  padding: 0.4rem 0.5rem;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--muted);
-  font-weight: 600;
-  cursor: pointer;
-}
-.segmented button:hover { color: var(--text); }
-.segmented button[aria-pressed="true"] { background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
 .layout-hint { margin: 0.4rem 0 0.6rem; font-size: 12px; }
 .switch-row.is-disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -1349,3 +1337,5 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 .tl-note { text-align: center; }
 .icon-btn[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); }
 @media (max-width: 760px) { .tl-count { display: none; } }
+
+.layout-select { width: 100%; }
