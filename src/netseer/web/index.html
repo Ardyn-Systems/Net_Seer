@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui19" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui20" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -305,7 +305,7 @@
     <dialog id="compare-dialog" class="dialog compare-dialog" aria-labelledby="compare-title">
       <form method="dialog" id="compare-form">
         <h2 id="compare-title">Compare surveys</h2>
-        <p class="hint">Pick a baseline, then the surveys to check against it. Use the sliders to compare only part of a timeline. You get a new map for each one, with what changed marked:</p>
+        <p class="hint">Pick a baseline, then the surveys to check against it. Each capture has its own time window, so a morning baseline can be compared with an afternoon survey. You get a new map for each one, with what changed shaded:</p>
         <ul class="compare-key">
           <li><i class="change-swatch" style="--c: #e5484d"></i>Left a network, or no longer seen</li>
           <li><i class="change-swatch" style="--c: #30a46c"></i>Joined a network, or new</li>
@@ -636,6 +636,6 @@
         <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
       </div>
     </div>
-    <script src="/static/app.js?v=ui35"></script>
+    <script src="/static/app.js?v=ui37"></script>
   </body>
 </html>

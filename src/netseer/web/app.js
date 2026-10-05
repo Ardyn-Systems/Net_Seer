@@ -1415,13 +1415,30 @@ function graphSpan(graph) {
   return Number.isFinite(start) && end - start >= TL_MIN_SECONDS ? { start, end } : null;
 }
 
+// Whether a map or survey has a timeline. Formats that never record times are known before
+// a survey is opened; anything opened is checked (once per graph).
+const UNTIMED_KINDS = new Set(["kismet-netxml", "kismet-csv", "airodump-csv"]);
+const spanCache = new WeakMap();
+function hasTimeline(graph) {
+  if (!graph) return null;
+  if (!spanCache.has(graph)) spanCache.set(graph, Boolean(graphSpan(graph)));
+  return spanCache.get(graph);
+}
+function surveyHasTimeline(item) {
+  const own = getMap(`map:${item.id}`);
+  if (own && mapNodeCount(own)) return hasTimeline(own.graph);
+  if (item.graph) return hasTimeline(item.graph);
+  return UNTIMED_KINDS.has(item.format) ? false : null; // null: unknown until it's opened
+}
+const NO_TIMELINE = "no timeline";
+
 function compareChoices() {
   const maps = state.maps.filter((m) => m.kind !== "unwanted" && !isComparison(m) && mapNodeCount(m) > 0);
   const opened = new Set(maps.map((m) => m.id));
   const surveys = state.surveys.filter((s) => !opened.has(`map:${s.id}`) && s.id !== "empty-capture");
   return [
-    ...maps.map((m) => ({ value: `m|${m.id}`, label: `${m.name} · ${plural(mapNodeCount(m), "device")}` })),
-    ...surveys.map((s) => ({ value: `s|${s.id}`, label: `${s.name} (not opened yet)` })),
+    ...maps.map((m) => ({ value: `m|${m.id}`, label: `${m.name} · ${plural(mapNodeCount(m), "device")}${hasTimeline(m.graph) ? "" : ` · ${NO_TIMELINE}`}` })),
+    ...surveys.map((s) => ({ value: `s|${s.id}`, label: `${s.name} (not opened yet)${surveyHasTimeline(s) === false ? ` · ${NO_TIMELINE}` : ""}` })),
   ];
 }
 
@@ -1462,7 +1479,10 @@ function compareRow(role, preset = {}) {
       ${role === "later" ? '<button type="button" class="icon-btn compare-remove" aria-label="Remove this survey" title="Remove"><svg class="icon"><use href="#i-x" /></svg></button>' : ""}
     </div>
     <div class="compare-time hidden">
-      <div class="compare-time-head"><span class="compare-time-label"></span><button type="button" class="link-btn compare-whole">Whole capture</button></div>
+      <div class="compare-time-head"><span class="compare-time-title">This capture's time window</span><button type="button" class="link-btn compare-whole">Whole capture</button></div>
+      <canvas class="compare-chart" aria-hidden="true"></canvas>
+      <div class="compare-ends"><span class="compare-start"></span><span class="compare-end"></span></div>
+      <p class="compare-time-label"></p>
       <label class="compare-slider"><span>From</span><input type="range" class="compare-from" min="0" max="${COMPARE_STEPS}" step="1" value="0" /></label>
       <label class="compare-slider"><span>To</span><input type="range" class="compare-to" min="0" max="${COMPARE_STEPS}" step="1" value="${COMPARE_STEPS}" /></label>
     </div>
@@ -1478,8 +1498,9 @@ function compareRow(role, preset = {}) {
     const whole = Number(from.value) <= 0 && Number(to.value) >= COMPARE_STEPS;
     row._win = whole ? null : [at(from.value, span), at(to.value, span)];
     const [a, b] = row._win || [span.start, span.end];
-    row.querySelector(".compare-time-label").textContent = `${whole ? "Whole capture: " : ""}${formatTime(a, { date: true })} – ${formatTime(b, { date: true })} (${formatDuration(b - a)})`;
+    row.querySelector(".compare-time-label").textContent = `${whole ? "All of it: " : "Compares "}${formatTime(a, { date: true })} – ${formatTime(b, { date: true })} (${formatDuration(b - a)})`;
     row.querySelector(".compare-whole").classList.toggle("hidden", whole);
+    drawCompareChart(row, Number(from.value) / COMPARE_STEPS, Number(to.value) / COMPARE_STEPS);
   };
   const load = async (win) => {
     row._src = null;
@@ -1496,11 +1517,14 @@ function compareRow(role, preset = {}) {
     }
     const span = row._src?.span;
     if (!span) {
-      note.textContent = "This survey has no times, so all of it is compared.";
+      note.textContent = "No timeline: this survey doesn't record when devices were heard (NetXML and CSV surveys don't), so all of it is compared.";
       vis(note, true);
       return;
     }
     const w = win === undefined ? row._src.window : win;
+    row._bars = activityBars(row._src.graph, span, 72);
+    row.querySelector(".compare-start").textContent = formatTime(span.start, { date: true });
+    row.querySelector(".compare-end").textContent = formatTime(span.end, { date: true });
     from.value = String(w ? Math.max(0, step(w[0], span)) : 0);
     to.value = String(w ? Math.min(COMPARE_STEPS, step(w[1], span)) : COMPARE_STEPS);
     vis(row.querySelector(".compare-time"), true);
@@ -1531,6 +1555,54 @@ function compareRow(role, preset = {}) {
     load(preset.window);
   }
   return row;
+}
+
+// How many devices were heard in each slice of a capture, like the timeline's chart.
+function activityBars(graph, span, count) {
+  const bars = new Array(count).fill(0);
+  const width = span.end - span.start;
+  for (const n of (graph?.nodes || []).filter(isDeviceNode)) {
+    const hit = new Set();
+    for (const [s, e] of n.seen || []) {
+      const i0 = Math.max(0, Math.floor(((s - span.start) / width) * count));
+      const i1 = Math.min(count - 1, Math.floor(((e - span.start) / width) * count));
+      for (let i = i0; i <= i1; i += 1) hit.add(i);
+    }
+    hit.forEach((i) => (bars[i] += 1));
+  }
+  return bars;
+}
+
+function drawCompareChart(row, from, to) {
+  const canvas = row.querySelector(".compare-chart");
+  const bars = row._bars || [];
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (!w || !h || !bars.length) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const css = getComputedStyle(document.documentElement);
+  const accent = css.getPropertyValue("--accent").trim() || "#e0a84a";
+  // The chosen window, then the bars: bright inside it, faint outside.
+  ctx.fillStyle = css.getPropertyValue("--accent-soft").trim() || "rgba(224,168,74,0.14)";
+  ctx.fillRect(from * w, 0, Math.max(2, (to - from) * w), h);
+  const max = Math.max(1, ...bars);
+  const bw = w / bars.length;
+  bars.forEach((v, i) => {
+    if (!v) return;
+    const mid = (i + 0.5) / bars.length;
+    ctx.globalAlpha = mid >= from && mid <= to ? 0.85 : 0.22;
+    ctx.fillStyle = accent;
+    const bh = Math.max(2, (v / max) * (h - 4));
+    ctx.fillRect(i * bw + 0.5, h - bh, Math.max(1, bw - 1), bh);
+  });
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = accent;
+  ctx.fillRect(Math.min(w - 2, from * w), 0, 2, h);
+  ctx.fillRect(Math.max(0, to * w - 2), 0, 2, h);
 }
 
 function syncCompareRows() {
@@ -2553,12 +2625,17 @@ function cyStyle(c) {
     { selector: "edge:selected", style: { width: 3, "line-color": c.select, "target-arrow-color": c.select, "source-arrow-color": c.select, opacity: 1 } },
     { selector: ".faded", style: { opacity: 0.16 } },
     { selector: ".time-out", style: { display: "none" } },
-    // Comparison maps: a coloured ring outside the device's own border, so its type still shows.
+    // Comparison maps: a see-through colour behind each changed device (its border still shows
+    // its type). Selecting one deepens the colour instead of adding the usual glow.
     ...["gone", "detached", "new", "attached", "changed"].map((status) => ({
       selector: `node[change = "${status}"]`,
-      style: { "outline-width": 4, "outline-offset": 3, "outline-color": CHANGE_COLORS[status], "outline-opacity": 0.95, "font-weight": 700 },
+      style: { "background-color": CHANGE_COLORS[status], "background-opacity": 0.3, "font-weight": 700 },
     })),
-    { selector: 'node[change = "gone"]', style: { "border-style": "dashed", "background-opacity": 0.5 } },
+    { selector: 'node[change = "gone"]', style: { "border-style": "dashed" } },
+    ...[["host", c.host], ["server", c.server], ["gateway", c.gateway], ["ap", c.ap], ["wireless", c.wireless], ["vlan", c.vlan], ["subnet", c.subnet]].map(([role, color]) => ({
+      selector: `node[change][change != "same"][role = "${role}"]:selected`,
+      style: { "background-opacity": 0.75, "background-blacken": 0, "border-color": color, "border-width": role === "gateway" ? 3 : role === "ap" ? 2.5 : 2, "underlay-opacity": 0 },
+    })),
     { selector: 'node[change = "same"]', style: { opacity: 0.45 } },
     { selector: 'edge[change = "same"]', style: { opacity: 0.45 } },
     { selector: 'edge[change = "removed"]', style: { "line-color": CHANGE_COLORS.gone, "target-arrow-color": CHANGE_COLORS.gone, "line-style": "dashed", width: 3, opacity: 0.95 } },
@@ -3849,7 +3926,7 @@ function renderMapList() {
     row.dataset.dropType = "map";
     const n = mapNodeCount(map);
     row.innerHTML = `<button type="button" class="row-main"><span class="row-dot"></span><span class="row-text"><span class="row-title">${escapeHtml(map.name)}</span>
-      <span class="row-sub">${escapeHtml(mapKindLabel(map))} · ${plural(n, "device")}</span></span></button>
+      <span class="row-sub">${escapeHtml(mapKindLabel(map))} · ${plural(n, "device")}${map.kind === "survey" && n && !hasTimeline(map.graph) ? ` · ${NO_TIMELINE}` : ""}</span></span></button>
       <button type="button" class="icon-btn row-menu-btn" aria-label="Options for ${escapeHtml(map.name)}" aria-haspopup="menu" aria-expanded="false"><svg class="icon"><use href="#i-dots"/></svg></button>`;
     row.querySelector(".row-main").addEventListener("click", () => {
       showMap(map.id);
@@ -4051,7 +4128,7 @@ function hiddenSampleIds() {
   return Array.isArray(raw) ? raw.filter((id) => typeof id === "string") : [];
 }
 
-const sampleToSurvey = (s) => ({ id: s.id, kind: "sample", name: s.name, summary: s.summary });
+const sampleToSurvey = (s) => ({ id: s.id, kind: "sample", format: s.kind, name: s.name, summary: s.summary });
 
 function renderSurveyList() {
   const list = el("survey-list");
@@ -4065,7 +4142,7 @@ function renderSurveyList() {
     row.dataset.id = item.id;
     row.dataset.dragType = "survey";
     row.dataset.dropType = "survey";
-    const sub = item.kind === "upload" ? "Your capture" : item.summary;
+    const sub = `${surveyHasTimeline(item) === false && item.id !== "empty-capture" ? "No timeline · " : ""}${item.kind === "upload" ? "Your capture" : item.summary}`;
     row.innerHTML = `<button type="button" class="row-main" title="${escapeHtml(item.summary || "")}"><span class="row-dot"></span><span class="row-text"><span class="row-title">${escapeHtml(item.name)}</span>
       <span class="row-sub">${escapeHtml(sub)}</span></span></button>
       <button type="button" class="icon-btn row-menu-btn" aria-label="Options for ${escapeHtml(item.name)}" aria-haspopup="menu" aria-expanded="false"><svg class="icon"><use href="#i-dots"/></svg></button>`;

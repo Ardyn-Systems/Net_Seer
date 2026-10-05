@@ -105,11 +105,11 @@ Esc cancels a drag. The list scrolls by itself when you drag near its top or bot
 | --- | --- |
 | **Baseline** | The earlier survey or map. Unopened surveys are listed too |
 | **Compare with** | A later survey. **Add another survey** for up to five; each gets its own map |
-| **From** / **To** | Compare only part of a capture's timeline; **Whole capture** resets. Two windows of one capture work |
+| **From** / **To** | Each capture's own time window, over a chart of its activity: compare a morning baseline with an afternoon survey. **Whole capture** resets. Two windows of one capture work |
 
-The result is a **Comparison** map of every device from both, with a ring and a line under the name:
+The result is a **Comparison** map of every device from both, with a see-through shade and a line under the name:
 
-| Ring | Line | Means |
+| Shade | Line | Means |
 | --- | --- | --- |
 | Red | − Left … | Still here, but no longer on a Wi-Fi network, access point, subnet, or VLAN it was on |
 | Red, dashed | − No longer seen | In the baseline only |
@@ -117,7 +117,7 @@ The result is a **Comparison** map of every device from both, with a ring and a 
 | Blue | Δ … | Moved networks, roamed, randomized MAC rotated, possible rogue access point (a new BSSID using a known SSID), access point name, security, or channel changed, address, type, or services changed |
 | none (faded) | | No change |
 
-- Gone links are red and dashed; new links are green. **Details** lists every change.
+- Gone links are red and dashed; new links are green. **Details** lists every change. A selected device's shade deepens.
 - A vanished random MAC and a new one are paired as one device when they probe the same networks, use the same access point, or share an address.
 - **Layers** → **Changes** shows the counts and **Show unchanged devices** (off leaves only changes).
 - Names, captions, and notes carry over. Undo removes the comparison maps.
@@ -178,7 +178,7 @@ Shown under the map when a capture records times (pcap, pcapng, Kismet logs).
 
 - Sightings within a minute of each other are one stretch of activity. Details show **First seen**, **Last seen**, and **Active**.
 - Exports and the PDF report include only what's in the window; the report states the window.
-- Devices without times (NetXML, CSV, ones you add) always show.
+- Devices without times (NetXML, CSV, ones you add) always show. Maps and surveys with no times at all say **no timeline** in the sidebar and in **Compare surveys**, where they're compared whole.
 
 ---
 
