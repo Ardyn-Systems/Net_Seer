@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui16" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui17" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -47,7 +47,7 @@
         <svg class="icon"><use href="#i-menu" /></svg>
       </button>
       <div class="brand">
-        <img class="logo" src="/static/logo.svg" width="32" height="32" alt="" />
+        <img class="logo" id="brand-logo" src="/static/logo.svg" width="32" height="32" alt="" />
         <div class="brand-text">
           <span class="brand-name">NetSeer</span>
           <span class="brand-tag">Turn traffic into terrain.</span>
@@ -139,6 +139,7 @@
       <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-controls="sidebar" tabindex="0" title="Drag to resize. Double-click to reset."></div>
 
       <main class="stage" id="stage">
+        <canvas id="matrix-rain" class="matrix-rain" hidden aria-hidden="true"></canvas>
         <div id="map" class="map" role="application" aria-label="Network map"></div>
 
         <div class="canvas-top">
@@ -601,6 +602,13 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui30"></script>
+    <div id="egg-term" class="egg-term" role="dialog" aria-label="Terminal" hidden>
+      <div class="egg-bar" id="egg-bar"><span id="egg-title">Terminal</span><button type="button" class="egg-close" id="egg-close" aria-label="Close">×</button></div>
+      <div class="egg-body" id="egg-body">
+        <div class="egg-out" id="egg-out"></div>
+        <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
+      </div>
+    </div>
+    <script src="/static/app.js?v=ui31"></script>
   </body>
 </html>
