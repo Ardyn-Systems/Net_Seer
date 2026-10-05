@@ -315,25 +315,30 @@ def parse_pcap(builder: GraphBuilder, data: bytes, filename: str) -> None:
         reader = PcapReader(stream)
     except Exception as exc:
         raise ValueError(f"Could not open capture {filename}: {exc}") from exc
-    seen = 0
-    failed = 0
     try:
-        for pkt in reader:
-            # Cap per capture, not per builder, so combined surveys read every file.
-            if seen >= MAX_PACKETS:
-                builder.warnings.append(f"{filename}: stopped after {MAX_PACKETS} packets.")
-                break
-            seen += 1
-            builder.packet_count += 1
-            try:
-                _handle_packet(builder, pkt)
-            except Exception:
-                failed += 1
+        feed_packets(builder, reader, filename)
     finally:
         try:
             reader.close()
         except Exception:
             pass
+
+
+def feed_packets(builder: GraphBuilder, packets: Any, filename: str) -> None:
+    """Run decoded packets (from a pcap, or a Kismet log's packet table) into the builder."""
+    seen = 0
+    failed = 0
+    for pkt in packets:
+        # Cap per capture, not per builder, so combined surveys read every file.
+        if seen >= MAX_PACKETS:
+            builder.warnings.append(f"{filename}: stopped after {MAX_PACKETS} packets.")
+            break
+        seen += 1
+        builder.packet_count += 1
+        try:
+            _handle_packet(builder, pkt)
+        except Exception:
+            failed += 1
     if failed:
         builder.warnings.append(f"{filename}: skipped {failed} packets that could not be decoded.")
 

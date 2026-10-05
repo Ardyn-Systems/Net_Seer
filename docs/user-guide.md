@@ -44,9 +44,11 @@ Click **Open survey**, or drag capture files anywhere onto the NetSeer window. E
 | --- | --- |
 | Wireshark / tshark | `.pcap`, `.pcapng` |
 | tcpdump | `.pcap` |
-| Kismet | `.pcap`, `.pcapng`, `.netxml`, `.csv` |
+| Kismet | `.kismet` (its native log), `.pcap`, `.pcapng`, `.netxml`, `.csv` |
 | airodump-ng | `.csv`, `.cap` |
 | NetSeer | `Unwanted-*.json` dumps |
+
+A Kismet `.kismet` log needs no converting: NetSeer reads its packets and Kismet's device list, including SSIDs, encryption, makers, the networks clients probed for, and access points that hide their network name (shown as **Hidden SSID**).
 
 Captures can be up to 50 MB, and NetSeer reads up to 80,000 packets from each. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
 
@@ -67,7 +69,7 @@ The **Surveys** tab lists your captures and the bundled samples. Click one to op
 - **Boxes are subnets.** Each device sits inside the subnet it was seen in (for example `10.10.10.0/24`). Turn this off with **Group by subnet** in **Layers**.
 - **Shapes and colours show the device type.** Access points are hexagons; routers and gateways have cut corners; servers, hosts, and wireless clients are rounded boxes in their own colours. VLANs are tag shapes. The legend is at the bottom of the **Layers** tab.
 - **Lines are links.** Solid lines are wired neighbours, dashed lines are IP traffic, arrows run from a client to the service it used, and dotted pink lines with diamonds are bridges. Labels such as `http tcp/80` name the service.
-- **Access points sit with their clients**, so you can see who is on which Wi-Fi network. Each access point shows its **SSID** (network name) under its name, such as `HQ-Secure`, or `HQ-Secure +2` when it broadcasts several. A caption you type replaces it, and you can turn SSIDs off in **Settings**.
+- **Access points sit with their clients**, so you can see who is on which Wi-Fi network. Each access point shows its **SSID** (network name) under its name, such as `HQ-Secure`, or `HQ-Secure +2` when it broadcasts several. **Hidden SSID** means the survey shows the network hides its name. A caption you type replaces it, and you can turn SSIDs off in **Settings**.
 - **Hover a device** to fade everything that isn't connected to it.
 
 Move around with the mouse: drag the background to pan and scroll to zoom (about 10% per notch). **Fit to screen** (or press `F`) frames everything.
