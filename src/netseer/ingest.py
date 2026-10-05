@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError, netseer_payload, sniff_format
@@ -9,12 +10,25 @@ from netseer.models import SurveyGraph
 from netseer.parsers import parse_into
 from netseer.serialize import graph_from_dict
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+DEFAULT_MAX_UPLOAD_MB = 50
+
+
+def max_upload_bytes() -> int:
+    """Largest capture accepted. NETSEER_MAX_UPLOAD_MB lowers it on small servers."""
+    try:
+        megabytes = float(os.environ.get("NETSEER_MAX_UPLOAD_MB", DEFAULT_MAX_UPLOAD_MB))
+    except ValueError:
+        megabytes = DEFAULT_MAX_UPLOAD_MB
+    return int(max(1.0, megabytes) * 1024 * 1024)
+
+
+MAX_UPLOAD_BYTES = max_upload_bytes()
 
 
 def _check_size(data: bytes) -> None:
-    if len(data) > MAX_UPLOAD_BYTES:
-        raise UnsupportedSurveyError("File is larger than the 50 MB preview limit.")
+    limit = max_upload_bytes()
+    if len(data) > limit:
+        raise UnsupportedSurveyError(f"File is larger than the {limit // (1024 * 1024)} MB limit.")
 
 
 def ingest_netseer_json(data: bytes, filename: str, payload: dict | None = None) -> SurveyGraph:

@@ -754,3 +754,50 @@ def test_logo_assets_are_self_contained():
         assert (web / name).stat().st_size > 1000
     html = (web / "index.html").read_text(encoding="utf-8")
     assert "/static/logo.svg" in html
+
+
+def test_hosted_mode_blocks_server_writes_and_reports_limits(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import netseer.web as webmod
+
+    monkeypatch.setattr(webmod, "UNWANTED_DIR", tmp_path)
+    client = TestClient(webmod.app)
+    group = {"groups": [{"capture": "a.pcap", "nodes": [{"id": "n1", "kind": "host", "label": "Host"}]}]}
+
+    monkeypatch.delenv("NETSEER_HOSTED", raising=False)
+    monkeypatch.delenv("NETSEER_MAX_UPLOAD_MB", raising=False)
+    info = client.get("/api/health").json()
+    assert info["hosted"] is False and info["max_upload_mb"] == 50
+    assert client.post("/api/unwanted/dump", json=group).status_code == 200
+
+    monkeypatch.setenv("NETSEER_HOSTED", "1")
+    monkeypatch.setenv("NETSEER_MAX_UPLOAD_MB", "20")
+    info = client.get("/api/health").json()
+    assert info["hosted"] is True and info["max_upload_mb"] == 20
+    assert client.post("/api/unwanted/dump", json=group).status_code == 403
+    assert len(list(tmp_path.glob("*.json"))) == 1  # only the non-hosted write
+    big = client.post(
+        "/api/parse",
+        content=b"x",
+        headers={"content-length": str(25 * 1024 * 1024), "content-type": "application/octet-stream"},
+    )
+    assert big.status_code == 413 and "20 MB" in big.json()["detail"]
+
+
+def test_upload_limit_and_port_come_from_the_environment(monkeypatch):
+    import pytest
+
+    from netseer.cli import default_port
+    from netseer.detect import UnsupportedSurveyError
+    from netseer.ingest import ingest_files
+
+    monkeypatch.setenv("NETSEER_MAX_UPLOAD_MB", "1")
+    with pytest.raises(UnsupportedSurveyError, match="1 MB"):
+        ingest_files([("big.pcap", b"\xd4\xc3\xb2\xa1" + b"\0" * (1024 * 1024 + 10))])
+    monkeypatch.setenv("PORT", "10000")
+    assert default_port() == 10000
+    monkeypatch.setenv("PORT", "nope")
+    assert default_port() == 47331
+    monkeypatch.delenv("PORT")
+    assert default_port() == 47331

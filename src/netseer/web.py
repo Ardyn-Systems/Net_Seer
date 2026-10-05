@@ -26,7 +26,7 @@ from netseer.exporters import (
     safe_filename,
 )
 from netseer.exporters.reports import ReportOptions, device_properties
-from netseer.ingest import MAX_UPLOAD_BYTES, ingest_files
+from netseer.ingest import ingest_files, max_upload_bytes
 from netseer.samples import SAMPLES, files_for_sample
 from netseer.serialize import graph_from_dict
 
@@ -45,8 +45,17 @@ def _unwanted_dir() -> Path:
 
 
 UNWANTED_DIR = _unwanted_dir()
-# Request bodies above this are refused before parsing (uploads are multipart overhead + 50 MB).
-MAX_BODY_BYTES = MAX_UPLOAD_BYTES + 1024 * 1024
+
+
+def hosted_mode() -> bool:
+    """NETSEER_HOSTED=1 for a public server: no writing files to the server's disk."""
+    return os.environ.get("NETSEER_HOSTED", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def max_body_bytes() -> int:
+    # Request bodies above this are refused before parsing (upload limit plus multipart overhead).
+    return max_upload_bytes() + 1024 * 1024
+
 MAX_UNWANTED_GROUPS = 200
 MAX_UNWANTED_FILES = 1000
 
@@ -58,11 +67,12 @@ async def limit_body_size(request: Request, call_next):
     length = request.headers.get("content-length")
     if length is not None:
         try:
-            too_big = int(length) > MAX_BODY_BYTES
+            too_big = int(length) > max_body_bytes()
         except ValueError:
             return JSONResponse({"detail": "Invalid Content-Length."}, status_code=400)
         if too_big:
-            return JSONResponse({"detail": "Request is larger than the 50 MB preview limit."}, status_code=413)
+            limit = max_upload_bytes() // (1024 * 1024)
+            return JSONResponse({"detail": f"Request is larger than the {limit} MB limit."}, status_code=413)
     return await call_next(request)
 
 
@@ -83,7 +93,14 @@ def heartbeat(bye: bool = False) -> Response:
 
 @app.get("/api/health")
 def health() -> dict:
-    return {"ok": True, "name": PRODUCT_NAME, "motto": MOTTO, "version": __version__}
+    return {
+        "ok": True,
+        "name": PRODUCT_NAME,
+        "motto": MOTTO,
+        "version": __version__,
+        "hosted": hosted_mode(),
+        "max_upload_mb": max_upload_bytes() // (1024 * 1024),
+    }
 
 
 @app.get("/api/samples")
@@ -107,7 +124,7 @@ def sample_graph(sample_id: str):
 
 @app.post("/api/parse")
 async def parse_upload(file: UploadFile = File(...)):
-    data = await file.read(MAX_UPLOAD_BYTES + 1)
+    data = await file.read(max_upload_bytes() + 1)
     name = file.filename or "upload"
     try:
         # Parsing is CPU-bound; keep it off the event loop so other requests still answer.
@@ -255,6 +272,9 @@ def _unique_unwanted_path(stem: str) -> Path:
 
 @app.post("/api/unwanted/dump")
 def dump_unwanted(body: dict):
+    if hosted_mode():
+        # Anonymous visitors mustn't write to a public server's disk; the page downloads the files instead.
+        raise HTTPException(status_code=403, detail="Saving to the server is turned off on this public site.")
     groups = body.get("groups")
     if not isinstance(groups, list) or not groups:
         raise HTTPException(status_code=400, detail="Empty Unwanted dump needs at least one device group.")

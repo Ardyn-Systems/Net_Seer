@@ -12,7 +12,7 @@ Everything runs on your machine. NetSeer reads capture files you give it; it doe
 
 ## Contents
 
-- [Get NetSeer](#get-netseer)
+- [Get NetSeer](#get-netseer) (including [online](#try-it-online))
 - [What it reads](#what-it-reads)
 - [What you get](#what-you-get)
 - [Where your data lives](#where-your-data-lives)
@@ -31,8 +31,15 @@ Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) ·
 | Linux desktop | `NetSeer-<version>-x86_64.AppImage`, or the `.tar.gz` | Its own window (see below) |
 | Linux server, Kali, Raspberry Pi | Install from source with `uv` or `pipx` | A browser, locally or over SSH |
 | macOS | From source | A browser |
+| Anywhere, nothing to install | A public copy on Render's free plan | A browser, at your own `onrender.com` address |
 
 Download the Windows and Linux builds from [Releases](https://github.com/ardyn-systems/NetSeer/releases).
+
+### Try it online
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ardyn-systems/NetSeer)
+
+Put your own public copy of NetSeer online for free on Render. It runs in a safer public mode, and it redeploys automatically whenever `main` changes on GitHub. See [docs/hosting.md](docs/hosting.md) for sign-up, deployment, limits, and privacy.
 
 ### Windows
 
@@ -131,7 +138,7 @@ Running from source and using your normal browser, maps live in that browser's s
 | Option | Meaning |
 | --- | --- |
 | `--host HOST` | Address to listen on (default `127.0.0.1`, this machine only) |
-| `--port PORT` | Port (default `47331`) |
+| `--port PORT` | Port (default `$PORT` if set, else `47331`) |
 
 **`NetSeer.exe`, the AppImage, or `netseer-desktop`** runs the desktop app:
 
@@ -144,7 +151,14 @@ Running from source and using your normal browser, maps live in that browser's s
 | `--debug` | Verbose logging |
 | `--version` | Print the version |
 
-`NETSEER_UNWANTED_DIR` sets where Unwanted dumps are written.
+Environment variables:
+
+| Variable | Meaning |
+| --- | --- |
+| `NETSEER_UNWANTED_DIR` | Where Unwanted dumps are written |
+| `NETSEER_HOSTED=1` | Public mode for an internet-facing server: visitors can't write files to the server; Unwanted downloads to the browser instead |
+| `NETSEER_MAX_UPLOAD_MB` | Largest capture accepted (default 50) |
+| `PORT` | Default port, as set by hosting platforms |
 
 ## Develop
 
