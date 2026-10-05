@@ -208,7 +208,7 @@ NetSeer lays the map out the same way every time. **Layers** → **Arrange devic
 | **By channel** | A box per Wi-Fi channel, by band. Clients join their access point's channel; wired devices last |
 | **By network name** | A box per SSID: its access points and their clients |
 | **Top-down hierarchy** | Gateways at the top, then each level of what connects to them below |
-| **By signal strength** | Rings by signal (stronger than −50 dBm in the middle, out to weaker than −80 dBm); no reading boxed separately |
+| **By signal strength** | Dashed rings by signal (stronger than −50 dBm in the middle, out to weaker than −80 dBm); no reading boxed separately |
 | **By maker** | A box per manufacturer, largest first |
 
 Arrangements other than **By subnet** draw labelled boxes of their own. They can be dragged (their devices move with them) but not selected, and they're left out of exports. Subnet and VLAN membership lines are drawn only by subnet.

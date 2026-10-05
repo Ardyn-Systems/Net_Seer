@@ -201,7 +201,7 @@ The **Layers** tab controls what's drawn, and how devices are arranged.
   - **By channel** makes a box per Wi-Fi channel, labelled with its band. Clients sit in their access point's channel; wired devices come last.
   - **By network name** makes a box per SSID with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once.
   - **Top-down hierarchy** puts gateways at the top, then what connects to them, level by level, like an org chart.
-  - **By signal strength** places devices in rings by how strongly they were heard, strongest in the middle. Devices with no signal reading are grouped separately.
+  - **By signal strength** places devices on dashed rings by how strongly they were heard, strongest in the middle, with each band's range labelled at the top. Devices with no signal reading are grouped separately.
   - **By maker** makes a box per manufacturer (from the MAC address), largest first.
 
   Every arrangement except **By subnet** draws its own labelled boxes; they aren't devices, so they can't be selected and aren't exported. Subnet and VLAN membership lines are drawn only in the subnet arrangement.

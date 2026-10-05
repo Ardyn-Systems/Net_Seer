@@ -1814,6 +1814,8 @@ function signalLayout(graph) {
         const a = -Math.PI / 2 + ((k + (first ? 1 : 0)) * 2 * Math.PI) / slots;
         out.positions.set(id, { x: r * Math.cos(a), y: r * Math.sin(a) });
       });
+      // A faint outline for the ring the devices sit on (the label covers it at the top).
+      out.annotations.push({ id: `ann:ring:${Math.round(r)}`, ring: 2 * r, x: 0, y: 0 });
       if (first) out.annotations.push({ id: `ann:signal:${i}`, label: `${SIGNAL_RINGS[i].label} (${ids.length})`, x: 0, y: -r });
       rest = rest.slice(take.length);
       first = false;
@@ -2220,6 +2222,21 @@ function cyStyle(c) {
     { selector: ".time-out", style: { display: "none" } },
     { selector: 'node[role = "group"]', style: { "font-size": 20, "text-margin-y": -10, color: c.nodeText } },
     {
+      selector: 'node[role = "ring"]',
+      style: {
+        shape: "ellipse",
+        width: "data(size)",
+        height: "data(size)",
+        "background-opacity": 0,
+        "border-width": 3,
+        "border-style": "dashed",
+        "border-color": c.muted,
+        "border-opacity": 0.75,
+        label: "",
+        events: "no",
+      },
+    },
+    {
       selector: 'node[role = "annotation"]',
       style: {
         shape: "round-rectangle",
@@ -2246,7 +2263,7 @@ function toElements(graph) {
   // Boxes and labels made for this arrangement: not devices, not saved, not exported.
   const extras = [
     ...groups.map((g) => ({ data: { id: g.id, label: g.label, kind: "group", role: "group", synthetic: 1 }, selectable: false })),
-    ...annotations.map((a) => ({ data: { id: a.id, label: a.label, kind: "annotation", role: "annotation", synthetic: 1 }, position: { x: a.x, y: a.y }, selectable: false, grabbable: false })),
+    ...annotations.map((a) => ({ data: a.ring ? { id: a.id, kind: "annotation", role: "ring", size: a.ring, synthetic: 1 } : { id: a.id, label: a.label, kind: "annotation", role: "annotation", synthetic: 1 }, position: { x: a.x, y: a.y }, selectable: false, grabbable: false })),
   ];
   const nodeIds = new Set(graph.nodes.map((n) => n.id));
   const nodes = graph.nodes.map((raw) => {
