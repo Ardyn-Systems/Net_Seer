@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui8" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui10" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -154,6 +154,11 @@
           </button>
         </div>
 
+        <div id="connect-banner" class="connect-banner hidden" role="status">
+          <span id="connect-banner-text">Click the device to connect to.</span>
+          <button type="button" class="btn ghost small" id="connect-banner-cancel">Cancel</button>
+        </div>
+
         <div id="selection-bar" class="selection-bar hidden" role="toolbar" aria-label="Selection">
           <span id="selection-count">1 selected</span>
           <button type="button" class="btn ghost small" data-sel="copy" title="Ctrl+C">Copy</button>
@@ -162,6 +167,7 @@
             <button type="button" class="btn ghost small" data-sel="move" aria-haspopup="menu">Move to<svg class="icon chev"><use href="#i-chevron" /></svg></button>
           </div>
           <button type="button" class="btn ghost small" data-sel="unwanted">Set aside</button>
+          <button type="button" class="btn ghost small hidden" data-sel="connect" id="sel-connect" title="Connect the two selected devices">Connect</button>
           <button type="button" class="btn ghost small danger" data-sel="delete" title="Delete">Delete</button>
         </div>
 
@@ -224,6 +230,54 @@
         <div class="row-actions end">
           <button value="cancel" class="btn ghost" type="button" id="dialog-cancel">Cancel</button>
           <button value="ok" class="btn primary" type="submit" id="dialog-ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="connect-dialog" class="dialog connect-dialog" aria-labelledby="connect-title">
+      <form method="dialog" id="connect-form">
+        <h2 id="connect-title">Connect devices</h2>
+        <p class="hint">Add a connection the capture didn't show, from something you know: a switch port, a diagram, a label. It's marked as added by you, everywhere it appears.</p>
+        <fieldset class="connect-types">
+          <legend>How are they connected?</legend>
+          <label><input type="radio" name="connect-kind" value="l2" checked /> <span>Wired<small>Cable, switch port, patch panel</small></span></label>
+          <label id="connect-wifi-row"><input type="radio" name="connect-kind" value="wireless" /> <span>Wi-Fi<small>The client joins this access point</small></span></label>
+          <label><input type="radio" name="connect-kind" value="manual" /> <span>Other<small>Same network, same rack, uplink, VPN…</small></span></label>
+        </fieldset>
+        <label class="field-label">Label on the map <small>(optional)</small>
+          <input type="text" id="connect-label" maxlength="60" placeholder="Port 14, uplink, closet B" autocomplete="off" />
+        </label>
+        <label class="field-label">Where this came from <small>(optional)</small>
+          <textarea id="connect-note" rows="2" maxlength="500" placeholder="Switch port label, IT closet diagram, asked the network admin…"></textarea>
+        </label>
+        <div class="row-actions end">
+          <button type="button" class="btn ghost" id="connect-cancel">Cancel</button>
+          <button type="submit" class="btn primary" id="connect-ok">Connect</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="member-dialog" class="dialog connect-dialog" aria-labelledby="member-title">
+      <form method="dialog" id="member-form">
+        <h2 id="member-title">Add to a subnet or VLAN</h2>
+        <p class="hint">Put a device in a network the capture didn't place it in. It's marked as added by you.</p>
+        <div class="radio-row" role="radiogroup" aria-label="Network type">
+          <label><input type="radio" name="member-kind" value="subnet" checked /> Subnet</label>
+          <label><input type="radio" name="member-kind" value="vlan" /> VLAN</label>
+        </div>
+        <label class="field-label"><span id="member-pick-label">Subnet</span>
+          <select id="member-pick"></select>
+        </label>
+        <label class="field-label hidden" id="member-new-row"><span id="member-new-label">New subnet</span>
+          <input type="text" id="member-new" autocomplete="off" />
+        </label>
+        <label class="field-label">Where this came from <small>(optional)</small>
+          <textarea id="member-note" rows="2" maxlength="500" placeholder="DHCP reservation list, VLAN plan, switch config…"></textarea>
+        </label>
+        <p id="member-error" class="field-error hidden"></p>
+        <div class="row-actions end">
+          <button type="button" class="btn ghost" id="member-cancel">Cancel</button>
+          <button type="submit" class="btn primary">Add</button>
         </div>
       </form>
     </dialog>
@@ -490,6 +544,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui13"></script>
+    <script src="/static/app.js?v=ui16"></script>
   </body>
 </html>

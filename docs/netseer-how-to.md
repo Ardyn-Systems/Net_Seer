@@ -121,7 +121,7 @@ When something is selected, a toolbar appears at the bottom of the map: **Copy**
 | Paste | Open the destination map, then the **Paste** button at the top of the map, right-click on empty space, or Ctrl+V / Cmd+V |
 | Move | **Move to** → pick a map, or **New map…** to create one on the spot |
 | Delete | Toolbar, right-click, or Delete / Backspace |
-| Undo | The **undo** arrow at the top of the map, **Undo** in the message, or Ctrl+Z / Cmd+Z. Up to 30 steps: cut, paste, move, delete, merge, delete map, empty Unwanted, tidy layout |
+| Undo | The **undo** arrow at the top of the map, **Undo** in the message, or Ctrl+Z / Cmd+Z. Up to 30 steps: each drag, cut, paste, move, delete, merge, delete map, empty Unwanted, tidy layout, and links you add or remove |
 | Redo | The **redo** arrow beside it, **Redo** in the message after an undo, or Ctrl+Y / Ctrl+Shift+Z. A new change clears what's left to redo |
 
 Undo and Redo only change maps (devices, links, names, notes, positions), never the clipboard, the Surveys list, the order of the Maps list, or settings.
@@ -136,7 +136,7 @@ Copying, cutting, moving, or setting aside an **access point** also takes its as
 
 ## Find a device
 
-Press `/` or click **Find a device**. Search by name, caption, type, IP, MAC, SSID, maker, or notes. Arrow keys move through results; Enter selects and centers the device.
+Press `/` or click **Find a device**. Search by name, caption, SSID, IP, MAC, maker, type, probed SSIDs, or notes. Every match is listed (names first, then captions and SSIDs, addresses, makers), and each row says which field matched. Arrow keys move through results; Enter selects and centers the device. **Select all on the map** selects every match.
 
 ---
 
@@ -157,6 +157,21 @@ Click any value in Identity, Radio, or Routing to copy it.
 Select a **link** to see its type, both ends, frame count, VLANs, ports and services, and for bridges the mechanism (STP / WDS / attachment) and the device it runs through. Select several devices to see a count by type and bulk actions.
 
 **TX / RX / DA / RA** come from frames only and are never guessed. Wired: TX = Ethernet source, DA and RX = destination, RA omitted. 802.11 follows ToDS/FromDS.
+
+---
+
+## Add what the capture didn't show
+
+Links and memberships you add from outside information (a port label, a diagram, IT) are marked **added by you** everywhere.
+
+| To | Do |
+| --- | --- |
+| Connect two devices | Right-click one → **Connect to…** → click the other (Esc cancels), or select two → **Connect**. Choose **Wired**, **Wi-Fi** (one end must be an access point), or **Other**; add a map label and a note |
+| Put a device in a subnet or VLAN | Right-click → **Add to subnet or VLAN…**: pick one on the map, or type a new subnet (`10.20.0.0/24`) or VLAN (1–4094) |
+| Edit or remove one | Click the link: change its label or note, or **Remove this link**. Right-click it for the same |
+| Hide them | **Layers** → **Added by you** |
+
+On the map they keep their type's colour with a dash-dot line and a ✎ before the label. A Wi-Fi link you add puts the client with its access point; a subnet you add a device to takes it into that subnet's box. Exports keep the mark (draw.io and Visio: dash-dot and ✎; PDF: "added by you" with the note). Adding and removing can be undone.
 
 ---
 
@@ -190,6 +205,7 @@ Access points show their SSID as a second line (`HQ-Secure`, `HQ-Secure +2` for 
 | VLAN membership | Device ↔ VLAN |
 | Subnet membership | Device ↔ subnet (shown as boxes instead while grouping is on) |
 | Bridges and attachments | STP / WDS / spanning-host links between distinct networks |
+| Added by you | Connections and memberships you added from outside information (dash-dot, ✎) |
 
 **Show all** and **Hide all** flip every link layer. Devices always stay visible. The **Devices** legend below explains the shapes and colors.
 

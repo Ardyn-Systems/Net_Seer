@@ -13,7 +13,7 @@ from netseer.exporters.layout import (
     node_size,
     page_extent,
 )
-from netseer.exporters.xmlutil import xml_text
+from netseer.exporters.xmlutil import manual_caption, manual_info, xml_text
 from netseer.graph import device_map_label
 from netseer.models import Link, Node, SurveyGraph
 
@@ -49,6 +49,10 @@ def _link_color(kind: str, medium: str) -> str:
 
 
 def _link_caption(link) -> str:
+    return manual_caption(link, _plain_link_caption(link))
+
+
+def _plain_link_caption(link) -> str:
     if getattr(link, "kind", "") == "bridge":
         mechanism = (getattr(link, "extra", None) or {}).get("bridge_kind")
         tag = {"wds": "WDS", "stp": "STP bridge", "spanning-host": "Attachment"}.get(
@@ -64,7 +68,7 @@ def _link_caption(link) -> str:
         return ", ".join(displays[:4])
     if getattr(link, "services", None):
         return ", ".join(str(s) for s in link.services[:4])
-    return link.label or link.kind
+    return link.label or ("" if manual_info(link) is not None else link.kind)
 
 
 @dataclass
@@ -170,7 +174,7 @@ def export_vdx(
     for e in page.edges:
         link = e.link
         color = _link_color(link.kind, link.medium)
-        dashed = "2" if link.kind in {"wireless", "l3", "vlan", "bridge", "subnet"} else "1"
+        dashed = "4" if manual_info(link) is not None else "2" if link.kind in {"wireless", "l3", "vlan", "bridge", "subnet"} else "1"
         weight = "0.018" if link.kind == "bridge" else "0.012"
         shapes.append(
             f'''    <Shape ID="{e.sid}" Type="Shape" LineStyle="1">
@@ -266,6 +270,7 @@ def export_vsdx(
   <Cell N="EndY" V="{e.end[1]:.4f}"/>
   <Cell N="LineColor" V="{_link_color(link.kind, link.medium)}"/>
   <Cell N="LineWeight" V="{weight}"/>
+  <Cell N="LinePattern" V="{4 if manual_info(link) is not None else 2 if link.kind in {"wireless", "l3", "vlan", "bridge", "subnet"} else 1}"/>
   <Cell N="EndArrow" V="0"/>
   <Text>{xml_text(_link_caption(link))}</Text>
 </Shape>'''

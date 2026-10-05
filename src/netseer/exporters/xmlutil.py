@@ -29,3 +29,16 @@ def xml_attr(value: Any) -> str:
 def html_label(value: Any) -> str:
     """draw.io `html=1` label: HTML-escape the text, keep line breaks as <br>."""
     return html.escape(clean(value), quote=False).replace("\n", "<br>")
+
+
+MANUAL_MARK = "\u270e"  # pencil: drawn by a person, not seen in the capture
+
+
+def manual_info(link) -> dict | None:
+    """The "added by you" record on a link (note, date), or None for links from captures."""
+    info = (getattr(link, "extra", None) or {}).get("manual")
+    return info if isinstance(info, dict) else None
+
+
+def manual_caption(link, caption: str) -> str:
+    return f"{MANUAL_MARK} {caption}".strip() if manual_info(link) is not None else caption

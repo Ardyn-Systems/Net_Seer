@@ -14,14 +14,15 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 6. [Find a device](#find-a-device)
 7. [Select, copy, and move devices](#select-copy-and-move-devices)
 8. [Work with several maps](#work-with-several-maps)
-9. [Show and hide layers](#show-and-hide-layers)
-10. [Export diagrams and files](#export-diagrams-and-files)
-11. [Create a PDF report](#create-a-pdf-report)
-12. [Change the theme](#change-the-theme)
-13. [Keyboard shortcuts](#keyboard-shortcuts)
-14. [Settings, updates, and the tour](#settings-updates-and-the-tour)
-15. [Where your work is saved](#where-your-work-is-saved)
-16. [Troubleshooting](#troubleshooting)
+9. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
+10. [Show and hide layers](#show-and-hide-layers)
+11. [Export diagrams and files](#export-diagrams-and-files)
+12. [Create a PDF report](#create-a-pdf-report)
+13. [Change the theme](#change-the-theme)
+14. [Keyboard shortcuts](#keyboard-shortcuts)
+15. [Settings, updates, and the tour](#settings-updates-and-the-tour)
+16. [Where your work is saved](#where-your-work-is-saved)
+17. [Troubleshooting](#troubleshooting)
 
 ## A tour of the screen
 
@@ -105,7 +106,7 @@ Click a line to see what it represents: the two ends, how many frames were seen,
 
 ## Find a device
 
-Press `/` or click **Find a device**, then type part of a name, IP, MAC, SSID, maker, or note. Use the arrow keys and Enter, or click a result, to select the device and centre the map on it.
+Press `/` or click **Find a device**, then type part of a name, caption, SSID, IP, MAC, maker, or note. Every match is listed, best first (names, then captions and SSIDs, then addresses, then makers), and each row says what matched, such as `SSID: NETGEAR66-5G` or `maker: NETGEAR`. Use the arrow keys and Enter, or click a result, to select that device and centre the map on it. **Select all on the map** selects every match at once.
 
 ![Searching "HQ" lists access points and wireless clients on the HQ-Secure and HQ-Guest networks](images/search.png)
 
@@ -127,7 +128,7 @@ To copy instead, choose **Copy**, open the other map, and **Paste** (the button 
 
 **An access point brings its network.** Copying, cutting, or moving an access point also takes its associated wireless clients and any access points bridged to it. A wireless client on its own moves alone.
 
-**Undo** (the left arrow at the top of the map, the **Undo** button in the message, or Ctrl+Z) reverses the last 30 changes. **Redo** (the right arrow, **Redo** in the message, or Ctrl+Y or Ctrl+Shift+Z) puts them back. Undo and Redo only change maps: devices, links, names, notes, and positions. They don't touch the clipboard, the Surveys list, the order of your maps, or settings.
+**Undo** (the left arrow at the top of the map, the **Undo** button in the message, or Ctrl+Z) reverses the last 30 changes. Each drag counts as one change, so Undo puts what you dragged back where it was. **Redo** (the right arrow, **Redo** in the message, or Ctrl+Y or Ctrl+Shift+Z) puts them back. Undo and Redo only change maps: devices, links, names, notes, and positions. They don't touch the clipboard, the Surveys list, the order of your maps, or settings.
 
 ## Work with several maps
 
@@ -142,6 +143,28 @@ The **Maps** tab lists every map. Click one to switch. Right-click a map, or use
 - **Unwanted** is a holding area for devices you set aside. Its **Save to files and empty** option writes them to JSON files (one per original capture) and clears it. Drop one of those files back onto NetSeer to reload it.
 
 ![A blank map called "Lab bench" with a prompt to paste devices or open a survey](images/blank-map.png)
+
+## Add what the capture didn't show
+
+Sometimes you know more than the capture does: a switch port label, a network diagram, a note from IT. You can add that to the map, and it stays clearly marked as **added by you**, so it's never mistaken for something NetSeer saw.
+
+**Connect two devices.** Right-click a device and choose **Connect to…**, then click the other device (Esc cancels). Or select two devices and click **Connect** in the toolbar. Choose how they're connected:
+
+- **Wired**: a cable, switch port, or patch panel
+- **Wi-Fi**: the client joins this access point (offered when one of the two is an access point). The client then sits with that access point on the map.
+- **Other**: same network, same rack, uplink, VPN, or anything else
+
+Add a short **label** for the map (such as `Port 14`) and a note on **where this came from**.
+
+![Connect dialog: Wired, Wi-Fi, and Other, with a label and a note on where it came from](images/connect-dialog.png)
+
+**Add a device to a subnet or VLAN.** Right-click it and choose **Add to subnet or VLAN…**. Pick one already on the map, or type a new one (`10.20.0.0/24`, or a VLAN number). With **Group by subnet** on, the device moves into that subnet's box.
+
+**How they look.** Links you add keep their type's colour, with a dash-dot line and a ✎ pencil mark before the label. Click one to see when you added it, change its label or note, or **Remove this link**; right-click it for the same. The **Added by you** switch in **Layers** shows or hides them all.
+
+![A link added by you, labelled "✎ Port 14", with its details: added by you, the label, the note, and Remove this link](images/manual-link.png)
+
+Everything you add is saved with the map, included in backups, and can be undone. Exports carry the mark too: draw.io and Visio use the dash-dot line and ✎ label, and the PDF report marks each one as "added by you" with your note.
 
 ## Show and hide layers
 

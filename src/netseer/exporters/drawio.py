@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from typing import Any
 
 from netseer.exporters.layout import (
@@ -10,7 +12,7 @@ from netseer.exporters.layout import (
     node_size,
     page_extent,
 )
-from netseer.exporters.xmlutil import html_label, xml_attr
+from netseer.exporters.xmlutil import html_label, manual_caption, manual_info, xml_attr
 from netseer.graph import device_map_label
 from netseer.models import SurveyGraph
 
@@ -31,7 +33,10 @@ EDGE_STYLE = {
     "subnet": "endArrow=none;strokeColor=#9CA3AF;strokeWidth=1;dashed=1;",
     "client-server": "endArrow=block;strokeColor=#38BDF8;strokeWidth=2;",
     "bridge": "endArrow=diamond;startArrow=diamond;strokeColor=#F472B6;strokeWidth=3;dashed=1;dashPattern=1 6;",
+    "manual": "endArrow=none;strokeColor=#E879F9;strokeWidth=2;",
 }
+# Links added by a person keep their type's colour, with a dash-dot line and a pencil mark.
+MANUAL_DASH = "dashed=1;dashPattern=10 3 2 3;"
 
 
 def _label(node) -> str:
@@ -89,18 +94,16 @@ def export_drawio(
         if covered_by_container(link, containment):
             continue
         style = EDGE_STYLE.get(link.kind, EDGE_STYLE["l2"])
+        if manual_info(link) is not None:
+            style = re.sub(r"dashed=1;|dashPattern=[^;]*;", "", style) + MANUAL_DASH
         if link.kind == "bridge":
-            label = xml_attr(link.label or "Attachment")
+            text = link.label or "Attachment"
         else:
-            label = xml_attr(link.label or link.kind)
-            if link.ports:
-                displays = []
-                for item in link.ports:
-                    text = item.get("display")
-                    if text and text not in displays:
-                        displays.append(str(text))
-                if displays:
-                    label = xml_attr(", ".join(displays[:4]))
+            text = link.label or ("" if manual_info(link) is not None else link.kind)
+            displays = list(dict.fromkeys(str(item.get("display")) for item in link.ports or [] if item.get("display")))
+            if displays:
+                text = ", ".join(displays[:4])
+        label = xml_attr(manual_caption(link, text))
         cells.append(
             f'        <mxCell id="{xml_attr(link.id)}" value="{label}" style="{style}" edge="1" parent="1" '
             f'source="{xml_attr(link.source)}" target="{xml_attr(link.target)}">'

@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Any
 from xml.sax.saxutils import escape
 
-from netseer.exporters.xmlutil import clean, xml_attr, xml_text
+from netseer.exporters.xmlutil import clean, manual_info, xml_attr, xml_text
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
@@ -369,7 +369,18 @@ LINK_KIND_NAMES = {
     "vlan": "VLAN membership",
     "subnet": "Subnet membership",
     "bridge": "Bridge",
+    "manual": "Other connection",
 }
+ADDED_BY_YOU = "added by you"
+
+
+def _link_detail(link) -> str:
+    """Services and ports, or for a link added by a person, their label and note."""
+    info = manual_info(link)
+    if info is not None:
+        parts = [p for p in ((link.label or "").strip(), (info.get("note") or "").strip()) if p]
+        return " · ".join(parts) or "—"
+    return _stringify(link.ports) or _stringify(link.services) or "—"
 _CATEGORY_RANK = {key: i for i, key in enumerate(DEVICE_CATEGORIES)}
 _IDENTITY_FIELDS = (
     ("caption", "Caption"),
@@ -511,6 +522,9 @@ def _device_groups(
                 text = f"{'uses' if link.source == node.id else 'serves'} {detail}".strip()
             else:
                 text = LINK_KIND_NAMES.get(link.kind, link.kind) + (f" ({detail})" if detail else "")
+            if manual_info(link) is not None:
+                note = (manual_info(link).get("note") or "").strip()
+                text += f", {ADDED_BY_YOU}" + (f": {note}" if note else "")
             peers.setdefault(other, [])
             if text not in peers[other]:
                 peers[other].append(text)
@@ -602,6 +616,7 @@ def map_report_pdf(graph: SurveyGraph, title: str = DEFAULT_REPORT_TITLE, option
         by_kind: dict[str, int] = {}
         for link in links:
             by_kind[link.kind] = by_kind.get(link.kind, 0) + 1
+        added = sum(1 for link in links if manual_info(link) is not None)
         half = (CONTENT_W - 0.25 * inch) / 2
         left = _table(
             [[_p(DEVICE_CATEGORIES[c], styles["cell"]), _p(by_cat[c], styles["cell"])] for c in DEVICE_CATEGORIES if c in by_cat],
@@ -610,7 +625,8 @@ def map_report_pdf(graph: SurveyGraph, title: str = DEFAULT_REPORT_TITLE, option
             styles=styles,
         )
         right = _table(
-            [[_p(LINK_KIND_NAMES.get(k, k), styles["cell"]), _p(v, styles["cell"])] for k, v in sorted(by_kind.items(), key=lambda kv: -kv[1])],
+            [[_p(LINK_KIND_NAMES.get(k, k), styles["cell"]), _p(v, styles["cell"])] for k, v in sorted(by_kind.items(), key=lambda kv: -kv[1])]
+            + ([[_p("Of these, added by you", styles["cell"]), _p(added, styles["cell"])]] if added else []),
             [half - 0.7 * inch, 0.7 * inch],
             header=["Link type", "Count"],
             styles=styles,
@@ -680,10 +696,10 @@ def map_report_pdf(graph: SurveyGraph, title: str = DEFAULT_REPORT_TITLE, option
         for link in sorted(links, key=lambda l: (order.get(l.kind, 99), names.get(l.source, ""), names.get(l.target, ""))):
             rows.append(
                 [
-                    _p(LINK_KIND_NAMES.get(link.kind, link.kind), styles["cell"]),
+                    _p(LINK_KIND_NAMES.get(link.kind, link.kind) + (f" ({ADDED_BY_YOU})" if manual_info(link) is not None else ""), styles["cell"]),
                     _p(names.get(link.source, link.source), styles["cell"]),
                     _p(names.get(link.target, link.target), styles["cell"]),
-                    _p(_stringify(link.ports) or _stringify(link.services) or "—", styles["cell"]),
+                    _p(_link_detail(link), styles["cell"]),
                     _p((link.extra or {}).get("count", "—"), styles["cell"]),
                 ]
             )

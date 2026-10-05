@@ -127,6 +127,8 @@ From the frames and survey rows, NetSeer extracts:
 - **Access points labelled with their SSID**, so Wi-Fi networks are easy to pick out at a glance.
 - **Find a device** by name, IP, MAC, SSID, or notes (press `/`).
 - **Layers** to show or hide wired, IP, service, wireless, VLAN, subnet, and bridge links.
+- **Add what the capture didn't show.** Connect devices or put them in a subnet or VLAN from outside information (a port label, a diagram), with a note on where it came from. These stay marked as added by you, on the map and in every export.
+- **Search that finds everything**: every match for a name, SSID, address, or maker, with what matched and **Select all**. Every drag can be undone.
 - **Exports:**
   - **draw.io** and **Visio** (`.vsdx`, `.vdx`), laid out like the map on screen, with subnets as containers
   - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it

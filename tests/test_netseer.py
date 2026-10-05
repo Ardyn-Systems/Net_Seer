@@ -833,3 +833,39 @@ def test_health_reports_how_netseer_runs(monkeypatch, tmp_path):
     assert desktop.package_type() == "installer"
     monkeypatch.setenv("APPIMAGE", "/home/me/NetSeer.AppImage")
     assert desktop.package_type() == "appimage"
+
+
+def test_links_added_by_a_person_are_marked_in_exports():
+    import re as _re
+
+    from netseer.exporters.reports import ReportOptions
+    from netseer.serialize import graph_from_dict
+
+    graph = graph_from_dict({
+        "nodes": [
+            {"id": "mac:aa", "kind": "host", "label": "Printer"},
+            {"id": "mac:bb", "kind": "gateway", "label": "Core switch"},
+            {"id": "subnet:10.20.0.0/24", "kind": "subnet", "label": "10.20.0.0/24", "extra": {"manual": {"note": ""}}},
+        ],
+        "links": [
+            {"id": "manual:l2:mac:aa|mac:bb", "source": "mac:aa", "target": "mac:bb", "kind": "l2", "label": "Port 14",
+             "extra": {"manual": {"note": "IT closet label", "added": "2026-10-05T10:00:00Z"}}},
+            {"id": "manual:subnet:mac:aa|subnet:10.20.0.0/24", "source": "mac:aa", "target": "subnet:10.20.0.0/24", "kind": "subnet",
+             "extra": {"manual": {"note": "DHCP list"}}},
+        ],
+    })
+    assert graph.links[0].extra["manual"]["note"] == "IT closet label"  # survives the round trip
+
+    drawio = export_drawio(graph)
+    edge = _re.search(r'<mxCell id="manual:l2:mac:aa\|mac:bb" value="([^"]*)" style="([^"]*)"', drawio)
+    assert edge and edge.group(1) == "\u270e Port 14" and "dashPattern=10 3 2 3" in edge.group(2)
+
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(export_vsdx(graph))) as zf:
+        page = zf.read("visio/pages/page1.xml").decode("utf-8")
+    assert "\u270e Port 14" in page and 'N="LinePattern" V="4"' in page
+
+    pdf = map_report_pdf(graph, options=ReportOptions.from_dict({"preset": "standard"}))
+    assert pdf[:4] == b"%PDF"
