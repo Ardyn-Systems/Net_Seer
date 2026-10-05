@@ -62,6 +62,13 @@ Render bases the address on the service name, with a few random characters added
 
 `render.yaml` sets `autoDeployTrigger: commit`. Every push or merge to `main` on GitHub makes Render rebuild and redeploy within a few minutes, and the public copy then runs the newest code. Nothing else needs to be running.
 
+**Auto-deploy needs Render's GitHub App on the repo.** The Deploy button can build a public repo without it, so the first deploy works, but then GitHub has no way to tell Render about new commits. To check:
+
+1. In Render, open your account **Settings** → **Git Deployment Credentials** and expand your GitHub account.
+2. If it says **No repositories found**, open <https://github.com/apps/render/installations/new>.
+3. Choose **Only select repositories**, pick **NetSeer**, and click **Install**.
+4. After that, the next push to `main` deploys by itself. To pick up commits made before you installed it, choose **Manual Deploy** → **Deploy latest commit** on the service page.
+
 Each deploy is listed under **Events**. If one goes wrong, the previous version keeps running. To go back to an older version, choose **Rollback** on an earlier deploy.
 
 ## Change the settings
