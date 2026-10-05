@@ -202,9 +202,22 @@ def capture(url: str, channel: str | None) -> list[str]:
         fake_updater(context)
         page = context.new_page()
         page.goto(url)
-        page.wait_for_function("() => typeof state !== 'undefined' && state.cy && state.cy.nodes().length > 5")
-        page.wait_for_timeout(800)
+        page.wait_for_function("() => typeof state !== 'undefined' && state.ready")
+        page.wait_for_timeout(500)
         shots = Shots(page)
+
+        # 0. A fresh start is empty; the demo opens the samples.
+        page.mouse.move(5, 5)
+        shots.save("welcome", full=True)
+        page.click("#empty-sample")
+        page.wait_for_selector('#settings-dialog[open] .settings-pane[data-pane="demo"]:not(.hidden)')
+        page.mouse.move(5, 5)
+        shots.save("settings-demo", selectors=["#settings-dialog"], pad=0)
+        page.click('#demo-list [data-demo="office-lan"]')
+        page.wait_for_function("() => state.cy && state.cy.nodes().length > 5")
+        page.evaluate("() => openDemo('campus-all')")
+        page.wait_for_function("() => state.activeMapId === 'map:campus-all' && state.cy && state.cy.nodes().length > 10")
+        page.wait_for_timeout(800)
 
         # 1. First look and a tour of the screen.
         shots.save("overview", full=True)
@@ -399,13 +412,11 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("blank-map", full=True)
 
         # Compare surveys: the bundled branch office, a week apart.
-        page.click(".tab[data-tab=maps]")
-        page.click("#btn-compare")
+        page.click("#btn-settings")
+        page.click('.settings-nav [data-pane="demo"]')
+        page.click("#demo-compare")
         page.wait_for_selector("#compare-dialog[open]")
-        page.select_option('.compare-row[data-role="baseline"] .compare-source', "s|branch-baseline")
-        page.wait_for_function("() => document.querySelector('.compare-row[data-role=baseline]')._src")
-        page.select_option('.compare-row[data-role="later"] .compare-source', "s|branch-later")
-        page.wait_for_function("() => document.querySelector('.compare-row[data-role=later]')._src")
+        page.wait_for_function("() => [...document.querySelectorAll('.compare-row')].every((r) => r._src)")
         page.wait_for_timeout(300)
         shots.save("compare-dialog", selectors=["#compare-dialog"], pad=0)
         page.click("#compare-ok")

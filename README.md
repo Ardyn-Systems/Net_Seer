@@ -107,7 +107,7 @@ ssh -L 47331:127.0.0.1:47331 you@sensor   # then browse to http://127.0.0.1:4733
 
 **Kismet logs (`.kismet`)** are read directly; there's no need to convert them first. NetSeer decodes the packets Kismet logged, then adds Kismet's own summary of each device: SSIDs (including networks that hide their name), channels, encryption, maker, signal, location when Kismet had GPS, the networks clients probed for, and which clients joined which access points. Bluetooth and other non-Wi-Fi devices in the log are left out.
 
-Installed copies open captures of any size, such as long wardrives, reading them straight from disk with a progress bar. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB. Bundled samples let you try it without any files of your own, including a branch office surveyed twice a week apart, for trying **Compare surveys**.
+Installed copies open captures of any size, such as long wardrives, reading them straight from disk with a progress bar. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB. NetSeer starts empty. To try it without any files of your own, open **Settings → Demo**: sample captures open with one click, including a branch office surveyed twice a week apart, for trying **Compare surveys**.
 
 From the frames and survey rows, NetSeer extracts:
 

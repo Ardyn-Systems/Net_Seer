@@ -46,6 +46,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 | --- | --- |
 | **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Show SSIDs under access points**; **Fade unrelated devices on hover** (off by default); **Time**: time zone (this computer, UTC, or any) and 12- or 24-hour clock |
 | **Your data** | Count of saved maps and devices; whether storage is protected from automatic cleanup, with **Protect my maps** if not; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
+| **Demo** | The sample captures, each with **Open** (or **Show** once opened); **Compare the branch office samples** opens a pair a week apart and sets up **Compare surveys** |
 | **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); the current release and any newer ones, each with **Release notes** and **Reinstall** or **Update**; older ones are folded under **Earlier versions**: pick one from the list for its **Release notes** and **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
 | **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
 | **About** | Version, how NetSeer is running, links, and component licenses |
@@ -60,8 +61,8 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 - **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS).
 - Each capture becomes its own map and joins the **Surveys** tab.
-- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Compare with a baseline…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
-- First visit: the bundled campus survey opens automatically. An empty map shows a welcome card with **Open survey** and **Try the campus sample**.
+- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Compare with a baseline…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. Demo samples appear here once opened.
+- NetSeer starts empty: no maps or surveys until you open one. The welcome card has **Open survey** and **Try a demo** (opens **Settings** → **Demo**).
 - Problems (unsupported file, empty capture, decode warnings) show up as a message at the top of the window.
 - **Size:** installed copies open captures of any size, streaming them from disk. A big file shows progress (percent read, packets, devices); **Stop and show map** draws what's been read, **Cancel** discards it. The online copy takes up to 20 MB per file.
 
@@ -121,7 +122,7 @@ The result is a **Comparison** map of every device from both, with a see-through
 - A vanished random MAC and a new one are paired as one device when they probe the same networks, use the same access point, or share an address.
 - **Layers** → **Changes** shows the counts and **Show unchanged devices** (off leaves only changes).
 - Names, captions, and notes carry over. Undo removes the comparison maps.
-- Try it with the bundled **Branch Wi-Fi: baseline** and **Branch Wi-Fi: a week later**.
+- Try it: **Settings** → **Demo** → **Compare the branch office samples**.
 
 ## Unwanted (holding area)
 

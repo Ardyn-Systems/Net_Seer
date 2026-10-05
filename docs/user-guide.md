@@ -1,8 +1,8 @@
 # NetSeer user guide
 
-**Turn traffic into terrain.** NetSeer turns packet captures and wireless surveys into a network map you can explore, annotate, and export. This guide walks through it with screenshots from the bundled campus sample.
+**Turn traffic into terrain.** NetSeer turns packet captures and wireless surveys into a network map you can explore, annotate, and export. This guide walks through it with screenshots from the campus sample, one of the demo captures in **Settings → Demo**.
 
-To follow along without installing anything, open **[netseer.onrender.com](https://netseer.onrender.com)**; it starts with the same campus sample (the first visit can take about 50 seconds while the free server wakes up). For installing, see the [README](../README.md#get-netseer). For a terse reference of every control, see the [How to](netseer-how-to.md).
+To follow along without installing anything, open **[netseer.onrender.com](https://netseer.onrender.com)**; click **Try a demo** and open the campus sample to see the same map (the first visit can take about 50 seconds while the free server wakes up). For installing, see the [README](../README.md#get-netseer). For a terse reference of every control, see the [How to](netseer-how-to.md).
 
 ## Contents
 
@@ -31,7 +31,7 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 ![The NetSeer window with six numbered areas: map title, sidebar, search, map, details panel, and zoom controls](images/screen-tour.png)
 
 1. **Map title.** The map you're looking at. Click it to rename the map. **Open survey**, **Export**, the theme picker, and the **Settings** cog sit to its right.
-2. **Sidebar.** Three tabs: **Maps** (every map you have open), **Surveys** (captures and samples), and **Layers** (what the map shows).
+2. **Sidebar.** Three tabs: **Maps** (every map you have open), **Surveys** (your captures, and any demos you've opened), and **Layers** (what the map shows).
 3. **Find a device.** Search by name, IP, MAC, SSID, or notes.
 4. **The map.** Devices, the subnets they belong to, and the links between them. A toolbar appears at the bottom when you select something.
 5. **Details.** Everything NetSeer found about the selected device or link.
@@ -39,9 +39,15 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 
 ## Open your captures
 
-Click **Open survey**, or drag capture files anywhere onto the NetSeer window. Each capture becomes its own map.
+NetSeer starts empty. Click **Open survey**, or drag capture files anywhere onto the NetSeer window. Each capture becomes its own map.
 
-![Surveys tab with a drop zone and the bundled campus samples](images/surveys-tab.png)
+![A fresh start: the welcome card with Open survey and Try a demo](images/welcome.png)
+
+**Try a demo** (or **Settings** → **Demo**) lists sample captures to explore without any of your own. **Open** loads one as a survey and a map; it's marked **Opened** after that. **Compare the branch office samples** opens a pair surveyed a week apart and sets up [Compare surveys](#compare-surveys-for-changes) with them.
+
+![Settings, Demo: Compare the branch office samples, then each sample capture with Open](images/settings-demo.png)
+
+![Surveys tab with a drop zone and two opened captures](images/surveys-tab.png)
 
 | Source | Files |
 | --- | --- |
@@ -55,7 +61,7 @@ A Kismet `.kismet` log needs no converting: NetSeer reads its packets and Kismet
 
 Installed copies open captures of any size, including long wardrives. A big file shows a progress bar with how much has been read and how many packets and devices so far. **Stop and show map** draws what's been read so far; **Cancel** discards it. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB and says so when a file is bigger; install NetSeer for those. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
 
-The **Surveys** tab lists your captures and the bundled samples. Click one to open it. Right-click a survey (or use its **⋯** button) for more:
+The **Surveys** tab lists your captures, and any demo samples you've opened. Click one to open it. Right-click a survey (or use its **⋯** button) for more:
 
 ![Right-click menu on a survey: Open, Merge into, Compare with a baseline, Remove from list, and Delete survey and its map](images/survey-menu.png)
 
@@ -64,7 +70,7 @@ The **Surveys** tab lists your captures and the bundled samples. Click one to op
 - **Remove from list** hides the survey and keeps its map under **Maps**. Click **Bring back** in the message to restore it.
 - **Delete survey and its map…** removes both after asking. **Undo** brings the map back; **Bring back** in the message restores the survey to the list.
 
-**Restore bundled samples** brings back any samples you removed. Drag surveys up or down to put them in the order you like.
+Drag surveys up or down to put them in the order you like. A demo sample you remove from the list comes back when you open it again from **Settings** → **Demo**.
 
 ## Read the map
 
@@ -191,7 +197,7 @@ Each changed device also says what happened under its name (**+ Joined Branch-St
 - **Show unchanged devices** in **Layers** hides the faded ones, leaving only what changed.
 - Your names, captions, and notes come along from the surveys you compared. Undo removes the new maps.
 
-To try it, compare the bundled **Branch Wi-Fi: baseline** with **Branch Wi-Fi: a week later**.
+To try it, open **Settings** → **Demo** and click **Compare the branch office samples**: a branch surveyed twice, a week apart, with one of every kind of change.
 
 ## Add what the capture didn't show
 
@@ -309,7 +315,9 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 ![Settings, General: theme, scroll-to-zoom speed, SSIDs under access points, and hover fading](images/settings-general.png)
 
-**General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes, SSIDs under access points, and hover fading on or off. **Time** sets the time zone and 12- or 24-hour clock used for capture times on the timeline and in Details.
+**General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn SSIDs under access points and hover fading on or off. **Time** sets the time zone and 12- or 24-hour clock used for capture times on the timeline and in Details.
+
+**Demo.** Sample captures to try NetSeer with; see [Open your captures](#open-your-captures).
 
 **Your data.** Shows how many maps and devices are saved in this browser.
 

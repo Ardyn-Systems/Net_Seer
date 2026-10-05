@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui23" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui24" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -111,7 +111,6 @@
             <strong>Captures up to <span class="hosted-limit">20 MB</span>.</strong> For bigger ones, such as long wardrives, <a class="install-link" target="_blank" rel="noopener">install NetSeer</a>: it has no size limit.</p>
           <ul id="survey-list" class="list"></ul>
           <p id="survey-empty" class="hint hidden">No surveys yet. Drop a capture above.</p>
-          <button id="btn-restore-samples" class="btn ghost full hidden" type="button">Restore bundled samples</button>
         </section>
 
         <section class="tab-panel hidden" data-panel="layers" role="tabpanel">
@@ -227,10 +226,10 @@
             <img src="/static/logo.svg" width="56" height="56" alt="" />
             <h2 id="empty-title">Map your network</h2>
             <p id="empty-hosted" class="hosted-note hidden">Public copy: files you open are processed on this server and not kept, up to <span class="hosted-limit">20 MB</span> each. <a class="install-link" target="_blank" rel="noopener">Install NetSeer</a> for bigger captures.</p>
-            <p id="empty-body">Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page, or explore the bundled campus survey.</p>
+            <p id="empty-body">Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page. Or try a demo with the sample captures.</p>
             <div class="row-actions center">
               <button id="empty-open" class="btn primary" type="button"><svg class="icon"><use href="#i-upload" /></svg><span>Open survey</span></button>
-              <button id="empty-sample" class="btn" type="button">Try the campus sample</button>
+              <button id="empty-sample" class="btn" type="button">Try a demo</button>
             </div>
           </div>
         </div>
@@ -449,6 +448,7 @@
         <nav class="settings-nav" role="tablist" aria-label="Settings sections">
           <button role="tab" type="button" data-pane="general" aria-selected="true">General</button>
           <button role="tab" type="button" data-pane="data" aria-selected="false">Your data</button>
+          <button role="tab" type="button" data-pane="demo" aria-selected="false">Demo</button>
           <button role="tab" type="button" data-pane="updates" aria-selected="false">Updates<span id="updates-badge" class="nav-badge hidden">New</span></button>
           <button role="tab" type="button" data-pane="help" aria-selected="false">Help</button>
           <button role="tab" type="button" data-pane="about" aria-selected="false">About</button>
@@ -501,6 +501,16 @@
             <div class="settings-actions">
               <button id="data-clear" class="btn danger" type="button">Clear all data&hellip;</button>
             </div>
+          </section>
+
+          <section class="settings-pane hidden" data-pane="demo" role="tabpanel">
+            <h3>Try NetSeer with sample captures</h3>
+            <p class="hint">NetSeer starts empty. Open a sample here to see what it does without capturing anything yourself. Each one opens as a survey and a map, which you can remove from the lists any time.</p>
+            <div id="demo-compare-row" class="demo-compare">
+              <div><strong>Compare surveys</strong><span class="hint">A branch office surveyed twice, a week apart, with one of every kind of change.</span></div>
+              <button id="demo-compare" class="btn primary small" type="button">Compare the branch office samples</button>
+            </div>
+            <ol id="demo-list" class="release-list"></ol>
           </section>
 
           <section class="settings-pane hidden" data-pane="updates" role="tabpanel">
@@ -636,6 +646,6 @@
         <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
       </div>
     </div>
-    <script src="/static/app.js?v=ui40"></script>
+    <script src="/static/app.js?v=ui42"></script>
   </body>
 </html>
