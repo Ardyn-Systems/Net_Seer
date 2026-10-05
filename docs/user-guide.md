@@ -121,7 +121,7 @@ When a capture records times (pcap, pcapng, and Kismet logs do), a **timeline** 
 - **Exports follow the window:** draw.io, Visio, and the PDF report include only what's on the map, and the report notes the window.
 - Search still finds devices outside the window. They're marked, and picking one shows the whole capture again.
 
-Devices that are heard again within a minute count as one stretch of activity. NetXML and CSV surveys don't record reliable times, so their devices (and any you add yourself) always show.
+Devices that are heard again within a minute count as one stretch of activity. NetXML and CSV surveys don't record reliable times, so they have no timeline: their maps and surveys say **no timeline** in the sidebar and in **Compare surveys**, and their devices (and any you add yourself) always show.
 
 Times are shown in **this computer's time zone** unless you choose another in **Settings** → **General** → **Time**, along with a 12- or 24-hour clock. Captures record exact moments, so changing the zone only changes how they're written.
 
@@ -169,23 +169,23 @@ The **Maps** tab lists every map. Click one to switch. Right-click a map, or use
 
 Survey a site once as a **baseline**, survey it again later, and NetSeer shows what changed. Click **Compare surveys…** in the **Maps** tab (or **Compare with a baseline…** on a map or survey, or **Compare…** on the timeline).
 
-![Compare surveys: a baseline and a survey to compare with, each with From and To sliders for its time window](images/compare-dialog.png)
+![Compare surveys: a baseline and a survey to compare with, each with its own activity chart and From and To sliders for its time window](images/compare-dialog.png)
 
 1. **Baseline:** pick the earlier survey or map. Surveys you haven't opened yet are listed too.
 2. **Compare with:** pick the later survey. **Add another survey** compares more than one against the same baseline; each gets its own map.
-3. **Time windows:** drag **From** and **To** to compare only part of a capture, such as the first hour of one walk against the last hour of another. Two windows of the same capture work too. **Whole capture** resets them.
+3. **Time windows:** each capture has its own, with a small chart of its activity. Drag its **From** and **To** to compare only part of it: a baseline from the morning against a survey from the afternoon, or the first hour of one walk against the last hour of another. Two windows of the same capture work too. **Whole capture** resets one.
 4. Click **Compare**. A new **Comparison** map opens, and **Layers** shows what changed.
 
-![A comparison map: a client that left its Wi-Fi network ringed in red, a new client ringed in green, a laptop that moved networks and a possible rogue access point ringed in blue, and the unchanged devices faded](images/compare-map.png)
+![A comparison map: a client that left its Wi-Fi network shaded red, a new client shaded green, a laptop that moved networks and a possible rogue access point shaded blue, and the unchanged devices faded](images/compare-map.png)
 
-| Colour | Meaning |
+| Shade | Meaning |
 | --- | --- |
 | **Red** | Left a Wi-Fi network, access point, subnet, or VLAN it was on, or is no longer seen at all (dashed) |
 | **Green** | Joined a network it wasn't on, or is new since the baseline |
 | **Blue** | Something else changed: moved from one network to another, roamed to another access point, a randomized MAC that rotated, a new access point using a known network's name (a possible rogue), an access point's name, security, or channel, an address, a type, or its services |
 | Faded | Nothing NetSeer can see changed |
 
-Each changed device also says what happened under its name (**+ Joined Branch-Staff**, **− No longer seen**, **Δ MAC changed**), so the map reads without the colours too. Links that are gone are red and dashed; new links are green. Click a device to see every change in **Details**.
+Each changed device also says what happened under its name (**+ Joined Branch-Staff**, **− No longer seen**, **Δ MAC changed**), so the map reads without the colours too. Links that are gone are red and dashed; new links are green. Click a device to see every change in **Details**; its shade deepens to show it's selected.
 
 - **Randomized MACs:** phones change their MAC address. When one random MAC disappears and another appears that probes the same networks, uses the same access point, or has the same address, NetSeer treats them as one device and says why.
 - **Show unchanged devices** in **Layers** hides the faded ones, leaving only what changed.
