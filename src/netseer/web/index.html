@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui5" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui6" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -340,6 +340,8 @@
           <section class="settings-pane hidden" data-pane="data" role="tabpanel">
             <h3>Saved in this browser</h3>
             <p id="data-summary" class="hint">Counting&hellip;</p>
+            <p class="persist-row"><span id="data-persist" class="hint"></span>
+              <button id="data-persist-btn" class="btn small hidden" type="button">Protect my maps</button></p>
             <p class="hint">Maps, names, notes, and edits are kept on this device only. Back them up before moving to another computer or browser, or before trying another version.</p>
             <div class="settings-actions">
               <button id="data-backup" class="btn" type="button"><svg class="icon"><use href="#i-download" /></svg><span>Back up all maps</span></button>
@@ -432,6 +434,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui7"></script>
+    <script src="/static/app.js?v=ui8"></script>
   </body>
 </html>
