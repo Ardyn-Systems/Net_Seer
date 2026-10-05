@@ -120,7 +120,7 @@ From the frames and survey rows, NetSeer extracts:
 
 ## What you get
 
-- **A map that lays itself out.** Subnets are boxes around their devices, access points sit with their clients, and the layout fits your window. Drag anything to rearrange; positions are saved. **Tidy layout** resets them.
+- **A map that lays itself out**, two ways: **by subnet** (subnets are boxes, access points sit with their clients) or **by connection** (linked devices together, the busiest in the middle of each cluster). Drag anything to rearrange; positions are saved for each arrangement. **Tidy layout** resets them.
 - **Details for every device.** Click one to see what NetSeer found, rename it, add a caption and notes, copy any value, or edit any field. Edits are marked and can be reset.
 - **Several maps at once.** Each capture becomes a map. Copy, cut, paste, and move devices between maps (an access point brings its clients), merge maps, and set devices aside in **Unwanted**. Undo and Redo go 30 steps either way, and only ever change your maps.
 - **An organized sidebar.** Drag maps and surveys to reorder them, or drop one onto a map to merge it. Right-click for rename, merge, remove, and delete. Drag the sidebar's edge to make it wider.
@@ -128,6 +128,7 @@ From the frames and survey rows, NetSeer extracts:
 - **Find a device** by name, IP, MAC, SSID, or notes (press `/`).
 - **Layers** to show or hide wired, IP, service, wireless, VLAN, subnet, and bridge links.
 - **Add what the capture didn't show, or take away what you don't need.** Connect devices or put them in a subnet or VLAN from outside information (a port label, a diagram), with a note on where it came from; these stay marked as added by you, on the map and in every export. **Disconnect** removes links between two devices without moving or deleting anything.
+- **A timeline** under the map: pick a time window with two handles and see only the devices heard then, or make a new map of just that window. Times show in your time zone, or any you choose.
 - **Search that finds everything**: every match for a name, SSID, address, or maker, with what matched and **Select all**. Every drag can be undone.
 - **Exports:**
   - **draw.io** and **Visio** (`.vsdx`, `.vdx`), laid out like the map on screen, with subnets as containers

@@ -42,6 +42,14 @@ def _coerce(name: str, spec: Any, value: Any) -> Any:
             return out
         if name == "frequencies_mhz":
             return [f for f in (_optional_float(item) for item in value) if f is not None]
+        if name == "seen":  # [[start, end], ...] in Unix seconds
+            pairs = []
+            for item in value:
+                if isinstance(item, (list, tuple)) and len(item) == 2:
+                    start, end = _optional_float(item[0]), _optional_float(item[1])
+                    if start is not None and end is not None and end >= start:
+                        pairs.append([start, end])
+            return pairs
         return [str(item) for item in value if item is not None]
     if spec.default_factory is dict:
         return value if isinstance(value, dict) else {}

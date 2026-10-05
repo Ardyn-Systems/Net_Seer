@@ -320,14 +320,27 @@ F0:18:98:50:00:22, 2026-09-20 16:04:12, 2026-09-20 16:17:40, -48, 86, 00:15:6D:C
 """
 
 
+# The samples' packets are spread over ten minutes from a fixed start, so the timeline
+# has something to show and the files come out the same every time.
+SAMPLE_START = 1_789_920_131.0  # 2026-09-20 16:02:11 UTC, the Kismet sample's start time
+SAMPLE_MINUTES = 10
+
+
+def _timed(pkts: list, offset: float = 0.0) -> list:
+    step = SAMPLE_MINUTES * 60 / max(1, len(pkts) - 1)
+    for i, pkt in enumerate(pkts):
+        pkt.time = SAMPLE_START + offset + i * step
+    return pkts
+
+
 def write_all(dest: Path | None = None) -> Path:
     dest = dest or DATA
     dest.mkdir(parents=True, exist_ok=True)
-    wrpcap(str(dest / "office-lan.pcap"), office_lan_packets())
+    wrpcap(str(dest / "office-lan.pcap"), _timed(office_lan_packets()))
     wrpcap(str(dest / "empty-capture.pcap"), [])
     wifi = dest / "wifi-campus.pcapng"
     with PcapNgWriter(str(wifi)) as writer:
-        for pkt in wifi_packets():
+        for pkt in _timed(wifi_packets(), offset=45.0):
             writer.write(pkt)
     (dest / "kismet-walk.netxml").write_text(kismet_netxml(), encoding="utf-8")
     (dest / "kismet-aps.csv").write_text(kismet_csv(), encoding="utf-8")

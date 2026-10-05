@@ -11,18 +11,19 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 3. [Read the map](#read-the-map)
 4. [Inspect a device](#inspect-a-device)
 5. [Inspect a link](#inspect-a-link)
-6. [Find a device](#find-a-device)
-7. [Select, copy, and move devices](#select-copy-and-move-devices)
-8. [Work with several maps](#work-with-several-maps)
-9. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
-10. [Show and hide layers](#show-and-hide-layers)
-11. [Export diagrams and files](#export-diagrams-and-files)
-12. [Create a PDF report](#create-a-pdf-report)
-13. [Change the theme](#change-the-theme)
-14. [Keyboard shortcuts](#keyboard-shortcuts)
-15. [Settings, updates, and the tour](#settings-updates-and-the-tour)
-16. [Where your work is saved](#where-your-work-is-saved)
-17. [Troubleshooting](#troubleshooting)
+6. [Look at a time window](#look-at-a-time-window)
+7. [Find a device](#find-a-device)
+8. [Select, copy, and move devices](#select-copy-and-move-devices)
+9. [Work with several maps](#work-with-several-maps)
+10. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
+11. [Show and hide layers](#show-and-hide-layers)
+12. [Export diagrams and files](#export-diagrams-and-files)
+13. [Create a PDF report](#create-a-pdf-report)
+14. [Change the theme](#change-the-theme)
+15. [Keyboard shortcuts](#keyboard-shortcuts)
+16. [Settings, updates, and the tour](#settings-updates-and-the-tour)
+17. [Where your work is saved](#where-your-work-is-saved)
+18. [Troubleshooting](#troubleshooting)
 
 ## A tour of the screen
 
@@ -104,6 +105,23 @@ Click a line to see what it represents: the two ends, how many frames were seen,
 
 ![Details for an HTTP link from a host to a server, with the HTTP host intranet.hq.local](images/link-details.png)
 
+## Look at a time window
+
+When a capture records times (pcap, pcapng, and Kismet logs do), a **timeline** sits under the map. It shows when the capture started and ended, and a chart of how many devices were active over time.
+
+![The timeline under a map: start and end times, an activity chart, and a selected window with how many devices are in it](images/timeline.png)
+
+- **Drag the two handles** to pick a window. Only devices and links heard during it stay on the map; the rest disappear, and nothing moves. The bar shows the window, its length, and how many devices are in it.
+- **New map from this window** makes a separate map of just that time: the devices and links heard in it (and any you added), with their activity trimmed to the window and your names, captions, and notes carried over. It's named after the window, lays out fresh, and its own timeline covers only that period. The original map is unchanged; Undo removes the new one.
+- **Show all** goes back to the whole capture. The **×** hides the timeline (and shows everything); the **clock** button by the zoom controls brings it back.
+- A device's **Details** show when it was first and last seen, and how long it was active. Links show the same.
+- **Exports follow the window:** draw.io, Visio, and the PDF report include only what's on the map, and the report notes the window.
+- Search still finds devices outside the window. They're marked, and picking one shows the whole capture again.
+
+Devices that are heard again within a minute count as one stretch of activity. NetXML and CSV surveys don't record reliable times, so their devices (and any you add yourself) always show.
+
+Times are shown in **this computer's time zone** unless you choose another in **Settings** → **General** → **Time**, along with a 12- or 24-hour clock. Captures record exact moments, so changing the zone only changes how they're written.
+
 ## Find a device
 
 Press `/` or click **Find a device**, then type part of a name, caption, SSID, IP, MAC, maker, or note. Every match is listed, best first (names, then captions and SSIDs, then addresses, then makers), and each row says what matched, such as `SSID: NETGEAR66-5G` or `maker: NETGEAR`. Use the arrow keys and Enter, or click a result, to select that device and centre the map on it. **Select all on the map** selects every match at once.
@@ -172,11 +190,19 @@ Everything you add is saved with the map, included in backups, and can be undone
 
 ## Show and hide layers
 
-The **Layers** tab controls what's drawn.
+The **Layers** tab controls what's drawn, and how devices are arranged.
 
-![Layers tab: Group by subnet switch, link layer checkboxes, and the device legend](images/layers-tab.png)
+![Layers tab: Arrange devices by subnet or by connection, Group by subnet, link layer checkboxes, and the device legend](images/layers-tab.png)
 
-- **Group by subnet** draws subnets as boxes. Turn it off to show subnets as separate nodes with membership links instead.
+- **Arrange devices** picks the layout:
+  - **By subnet** (the default) puts each device in its subnet's box, with access points beside their clients.
+  - **By connection** puts devices that are linked next to each other. Each group of linked devices is its own cluster, biggest first. The busiest device (a gateway, switch, or access point) is in the middle, with what it connects to in rings around it, so lines stay short and rarely cross. Devices with no links follow in a grid, then the subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn in this view; each device's details still show its subnet and VLANs.
+
+  Each arrangement keeps its own dragged positions, so switching back and forth never scrambles either one.
+
+![The campus sample arranged by connection: the router in the middle of its cluster, access points with their clients, and unconnected devices below](images/arrange-by-connection.png)
+
+- **Group by subnet** draws subnets as boxes (in the subnet arrangement). Turn it off to show subnets as separate nodes with membership links instead.
 - **Links** switches each kind of link on or off: wired, IP traffic, ports and services, wireless, VLAN membership, subnet membership, and bridges. Devices always stay visible.
 - **Devices** is the legend for shapes and colours.
 
@@ -243,7 +269,7 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 ![Settings, General: theme, scroll-to-zoom speed, Group by subnet, and hover fading](images/settings-general.png)
 
-**General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes, SSIDs under access points, and hover fading on or off.
+**General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes, SSIDs under access points, and hover fading on or off. **Time** sets the time zone and 12- or 24-hour clock used for capture times on the timeline and in Details.
 
 **Your data.** Shows how many maps and devices are saved in this browser.
 
@@ -300,7 +326,7 @@ Versions before 0.4.0 can't update themselves. If you go back to one, download l
 
 On your first visit NetSeer offers a one-minute tour. You can start it any time from **Settings** → **Help** → **Take the tour**. It highlights each part of the screen in turn: opening surveys, the sidebar and how to organize it, the map, search, details, export, themes, and settings. Use **Next** and **Back** or the arrow keys. **Skip tour** or Esc ends it.
 
-![The tour highlighting the details panel, with step 7 of 10 explaining what it shows](images/tour.png)
+![The tour highlighting the details panel, with step 8 of 11 explaining what it shows](images/tour.png)
 
 ## Where your work is saved
 

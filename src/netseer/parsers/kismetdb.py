@@ -112,13 +112,13 @@ def _gps(lat: Any, lon: Any) -> GpsFix | None:
 
 def _frames(con: sqlite3.Connection, counts: Counter, limit: int | None) -> Any:
     """(link type, bytes) for each logged packet the decoder understands."""
-    query = "SELECT dlt, packet FROM packets ORDER BY ts_sec, ts_usec"
+    query = "SELECT dlt, packet, ts_sec, ts_usec FROM packets ORDER BY ts_sec, ts_usec"
     rows = con.execute(query + " LIMIT ?", (limit + 1,)) if limit else con.execute(query)
-    for dlt, blob in rows:
+    for dlt, blob, sec, usec in rows:
         if dlt not in PACKET_DLTS or not blob:
             counts["other_packets"] += 1
             continue
-        yield dlt, bytes(blob)
+        yield dlt, bytes(blob), (sec + (usec or 0) / 1e6) if sec else None
 
 
 def _apply_device(builder: GraphBuilder, row: tuple, counts: Counter) -> None:
@@ -214,8 +214,13 @@ def parse_kismetdb(
             total = min(n_packets, limit) if limit else n_packets
             report = (lambda seen: progress(seen, seen / total if total else 1.0)) if progress else None
             feed_raw(builder, _frames(con, counts, limit), filename, decode_frame, _handle_packet, max_packets=limit, progress=report, should_stop=should_stop)
-        for row in con.execute("SELECT phyname, devmac, avg_lat, avg_lon, type, device FROM devices"):
-            _apply_device(builder, row, counts)
+        for row in con.execute("SELECT phyname, devmac, avg_lat, avg_lon, type, device, first_time, last_time FROM devices"):
+            _apply_device(builder, row[:6], counts)
+            mac = _mac(row[1])
+            if mac and row[0] == "IEEE802.11":
+                node_id = builder.observe_mac(mac)
+                if node_id:
+                    builder.add_seen(node_id, row[6], row[7])
         if not builder.packet_count:
             builder.packet_count += 1  # device records alone still make a survey
         skipped = {k: v for k, v in counts.items() if k not in {"aps", "clients", "bridged", "other_wifi", "other_packets", "bad_packets"}}

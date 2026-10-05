@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui12" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui15" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -29,6 +29,7 @@
         <symbol id="i-cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></symbol>
         <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></symbol>
         <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></symbol>
+        <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5V12l3 2" /></symbol>
         <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></symbol>
         <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
         <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
@@ -110,7 +111,13 @@
         </section>
 
         <section class="tab-panel hidden" data-panel="layers" role="tabpanel">
-          <label class="switch-row">
+          <h3 class="section-title">Arrange devices</h3>
+          <div id="layout-choice" class="segmented" role="group" aria-label="Arrange devices">
+            <button type="button" data-layout="subnet" aria-pressed="true">By subnet</button>
+            <button type="button" data-layout="connection" aria-pressed="false">By connection</button>
+          </div>
+          <p id="layout-hint" class="hint layout-hint"></p>
+          <label class="switch-row" id="group-row">
             <span>Group by subnet<small>Draw subnets as boxes around their devices</small></span>
             <input id="group-toggle" type="checkbox" role="switch" checked />
           </label>
@@ -182,8 +189,30 @@
           <span id="zoom-pct" class="zoom-pct">100%</span>
           <button id="zoom-in" class="icon-btn" type="button" aria-label="Zoom in"><svg class="icon"><use href="#i-plus" /></svg></button>
           <button id="zoom-fit" class="icon-btn" type="button" aria-label="Fit to screen" title="Fit to screen"><svg class="icon"><use href="#i-fit" /></svg></button>
+          <span class="divider tl-only hidden"></span>
+          <button id="tl-toggle" class="icon-btn tl-only hidden" type="button" aria-label="Timeline" aria-pressed="false" title="Timeline: show devices seen in a time window"><svg class="icon"><use href="#i-clock" /></svg></button>
         </div>
         <div class="status" id="status">Loading…</div>
+
+        <div id="timeline" class="timeline hidden" role="group" aria-label="Timeline">
+          <div class="tl-head">
+            <span class="tl-title">Timeline</span>
+            <span id="tl-window" class="tl-window"></span>
+            <span id="tl-count" class="tl-count"></span>
+            <span class="tl-actions">
+              <button id="tl-newmap" class="btn small" type="button" title="Make a separate map with only what was heard in this window">New map from this window</button>
+              <button id="tl-reset" class="btn ghost small" type="button">Show all</button>
+              <button id="tl-close" class="icon-btn" type="button" aria-label="Hide the timeline" title="Hide the timeline"><svg class="icon"><use href="#i-x" /></svg></button>
+            </span>
+          </div>
+          <div class="tl-track" id="tl-track">
+            <canvas id="tl-chart" aria-hidden="true"></canvas>
+            <div id="tl-sel" class="tl-sel"></div>
+            <input type="range" id="tl-from" min="0" max="1000" value="0" step="1" aria-label="Start of the time window" />
+            <input type="range" id="tl-to" min="0" max="1000" value="1000" step="1" aria-label="End of the time window" />
+          </div>
+          <div class="tl-ends"><span id="tl-start"></span><span id="tl-note" class="tl-note"></span><span id="tl-end"></span></div>
+        </div>
 
         <div id="empty" class="overlay hidden">
           <div class="welcome">
@@ -411,6 +440,17 @@
             </div>
             <p class="hint">How far one notch of the mouse wheel zooms the map.</p>
 
+            <h3>Time</h3>
+            <label class="field-label">Time zone<small>Captures record exact moments; this is how they're shown.</small>
+              <select id="settings-tz"></select>
+            </label>
+            <div class="radio-row" role="radiogroup" aria-label="Clock">
+              <label><input type="radio" name="clock" value="auto" /> Like this computer</label>
+              <label><input type="radio" name="clock" value="24" /> 24-hour</label>
+              <label><input type="radio" name="clock" value="12" /> 12-hour</label>
+            </div>
+            <p id="settings-time-sample" class="hint"></p>
+
             <h3>Map</h3>
             <label class="switch-row"><span>Group by subnet<small>Draw a box around each subnet's devices</small></span>
               <input id="settings-group" type="checkbox" role="switch" /></label>
@@ -564,6 +604,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui20"></script>
+    <script src="/static/app.js?v=ui27"></script>
   </body>
 </html>
