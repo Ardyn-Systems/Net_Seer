@@ -870,3 +870,28 @@ def test_links_added_by_a_person_are_marked_in_exports():
 
     pdf = map_report_pdf(graph, options=ReportOptions.from_dict({"preset": "standard"}))
     assert pdf[:4] == b"%PDF"
+
+
+def test_page_and_files_are_never_reused_unchecked():
+    # After an update the app window must load the new page, not one it cached before.
+    from fastapi.testclient import TestClient
+
+    import netseer.web as webmod
+
+    client = TestClient(webmod.app)
+    for path in ("/", "/?v=9.9.9", "/static/app.js", "/static/styles.css?v=x", "/static/topo.svg", "/favicon.ico"):
+        res = client.get(path)
+        assert res.status_code == 200, path
+        assert res.headers["cache-control"] == "no-cache", path
+    # Checking a file that didn't change is a cheap "not modified".
+    etag = client.get("/static/app.js").headers["etag"]
+    assert client.get("/static/app.js", headers={"If-None-Match": etag}).status_code == 304
+    assert "cache-control" not in client.get("/api/samples").headers
+
+
+def test_desktop_window_url_carries_the_version():
+    import inspect
+
+    from netseer import desktop
+
+    assert 'url = f"http://127.0.0.1:{port}/?v={__version__}"' in inspect.getsource(desktop.main)
