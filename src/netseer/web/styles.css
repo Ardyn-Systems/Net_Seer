@@ -1076,6 +1076,17 @@ input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
 .release-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; justify-content: flex-end; }
 .release-actions a { text-decoration: none; }
 .release-cmd { grid-column: 1 / -1; display: flex; gap: 0.4rem; align-items: center; }
+.release-list > li.release-older { display: block; padding: 0; }
+.release-older summary { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 0.1rem; padding: 0.55rem 0.7rem; cursor: pointer; list-style: none; border-radius: 10px; }
+.release-older summary::-webkit-details-marker { display: none; }
+.release-older summary::before { content: "▸"; margin-right: 0.45rem; color: var(--muted); transition: transform 0.15s; display: inline-block; }
+.release-older details[open] summary::before { transform: rotate(90deg); }
+.release-older summary:hover { background: var(--raised); }
+.release-older summary .release-meta { flex-basis: 100%; margin-left: 1.05rem; }
+.release-pick { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; padding: 0 0.7rem; }
+.release-pick select { flex: 1; min-width: 12rem; }
+.release-older details > .release-meta { padding: 0.3rem 0.7rem 0.6rem; margin: 0; }
+@media (prefers-reduced-motion: reduce) { .release-older summary::before { transition: none; } }
 .release-cmd code {
   flex: 1;
   overflow-x: auto;
@@ -1385,8 +1396,55 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
 }
 [data-theme="matrix"] body { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
-[data-theme="matrix"] .map { background: transparent; }
-.matrix-rain { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+[data-theme="matrix"] .map, [data-theme="darkside"] .map { background: transparent; }
+.theme-backdrop { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+[data-theme="darkside"] {
+  color-scheme: dark;
+  --bg: #05060a;
+  --panel: #0a0c13;
+  --raised: #11141e;
+  --hover: #181c29;
+  --line: #1d2231;
+  --line-strong: #2c3347;
+  --text: #e6e9f2;
+  --muted: #8a93a8;
+  --faint: #5b6378;
+  --accent: #ff2a2a;
+  --accent-hover: #ff5252;
+  --on-accent: #ffffff;
+  --accent-soft: rgba(255, 42, 42, 0.14);
+  --danger: #ff6b4a;
+  --danger-soft: rgba(255, 107, 74, 0.14);
+  --canvas: #05060a;
+  --canvas-image: none;
+  --canvas-size: auto;
+  --node-fill: rgba(10, 12, 19, 0.9);
+  --node-text: #eef1f8;
+  --edge-text: #aab3c8;
+  --node-host: #c7d0e0;
+  --node-server: #3fa9ff;
+  --node-gateway: #ff2a2a;
+  --node-ap: #ffd23f;
+  --node-wireless: #9fb4d8;
+  --node-subnet: #4a5266;
+  --node-vlan: #b06cff;
+  --group-fill: #2a3044;
+  --edge-l2: #3fa9ff;
+  --edge-l3: #9fb4d8;
+  --edge-service: #66e0ff;
+  --edge-wireless: #ffd23f;
+  --edge-vlan: #b06cff;
+  --edge-subnet: #4a5266;
+  --edge-bridge: #ff2a2a;
+  --edge-manual: #3dff8f;
+  --select: #ff4d4d;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.75);
+}
+[data-theme="darkside"] .brand-name { letter-spacing: 0.22em; text-transform: uppercase; font-size: 0.95em; }
+[data-theme="darkside"] .btn.primary { box-shadow: 0 0 0 1px rgba(255, 42, 42, 0.6), 0 0 14px rgba(255, 42, 42, 0.55); }
+[data-theme="darkside"] .tab.active { text-shadow: 0 0 10px rgba(255, 42, 42, 0.6); }
+.egg-out > .egg-ok.egg-ok-darkside { color: #ff3b3b; text-shadow: 0 0 8px rgba(255, 42, 42, 0.7); }
 
 .egg-term {
   position: fixed;

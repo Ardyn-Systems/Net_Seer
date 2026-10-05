@@ -146,11 +146,11 @@ async function copyText(text, label = "Copied") {
 /* ---------- Theme ---------- */
 
 // The Matrix theme is listed once someone has found it (see the logo terminal).
-const themeList = () => (matrixUnlocked() || currentTheme() === "matrix" ? [...THEMES, MATRIX_THEME] : THEMES);
+const themeList = () => [...THEMES, ...SECRET_THEMES.filter((t) => secretUnlocked(t.id) || currentTheme() === t.id)];
 
 function currentTheme() {
   const id = document.documentElement.dataset.theme;
-  return THEMES.some((t) => t.id === id) || id === "matrix" ? id : "terrain";
+  return THEMES.some((t) => t.id === id) || secretTheme(id) ? id : "terrain";
 }
 
 function themeColors() {
@@ -184,11 +184,11 @@ function themeColors() {
 }
 
 function applyTheme(id) {
-  const theme = [...THEMES, MATRIX_THEME].find((t) => t.id === id) || THEMES[0];
+  const theme = [...THEMES, ...SECRET_THEMES].find((t) => t.id === id) || THEMES[0];
   document.documentElement.dataset.theme = theme.id;
   writeLocal(THEME_KEY, theme.id);
   if (state.cy) state.cy.style(cyStyle(themeColors()));
-  syncMatrixRain();
+  syncThemeBackdrop();
 }
 
 function openThemeMenu(anchor) {
@@ -5224,7 +5224,7 @@ const installCommand = (tag) => `uv tool install --force "git+https://github.com
 
 function updateHowText() {
   const { platform, package: pkg } = state.server;
-  if (state.server.updater) return "Click Update, or Roll back on an older version. NetSeer downloads it, checks it against GitHub's checksum, and installs it for you, then reopens.";
+  if (state.server.updater) return "Click Update, or open Earlier versions to roll back. NetSeer downloads it, checks it against GitHub's checksum, and installs it for you, then reopens.";
   if (pkg === "installer") return "To switch versions, download that version's installer and run it. It replaces the version you have now.";
   if (pkg === "appimage") return "To switch versions, download that version's AppImage, make it executable, and run it instead of this one. Keep the old file if you might want to go back.";
   if (pkg === "portable") {
@@ -5257,23 +5257,65 @@ function renderUpdates() {
   renderReleaseList(cache.releases);
 }
 
+// The current version and anything newer get a card each. Older versions, wanted only to roll
+// back, wait in a folded "Earlier versions" list with one picker.
+const releaseUi = { olderOpen: false, picked: null };
+
+function releaseDate(r) {
+  return Date.parse(r.date) ? new Date(r.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+}
+
+function releaseActions(r) {
+  const cmp = compareVersions(r.tag, state.server.version);
+  const asset = assetFor(r);
+  const verb = cmp > 0 ? "Update" : cmp < 0 ? "Roll back" : "Reinstall";
+  let actions = `<a class="btn small ghost" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Release notes</a>`;
+  if (asset && state.server.updater) actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-update="${escapeHtml(r.tag)}">${verb}</button>`;
+  else if (asset) actions += `<a class="btn small${cmp > 0 ? " primary" : ""}" href="${escapeHtml(asset.url)}" target="_blank" rel="noopener" title="${escapeHtml(asset.name)}, ${formatSize(asset.size)}">${verb}</a>`;
+  else if (state.server.package === "source") actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-copy="${escapeHtml(r.tag)}">Copy ${verb.toLowerCase()} command</button>`;
+  return actions;
+}
+
+function releaseMeta(r) {
+  const asset = assetFor(r);
+  return `${escapeHtml(releaseDate(r))}${asset ? ` · ${escapeHtml(asset.name)}` : ""}`;
+}
+
 function renderReleaseList(releases) {
   const list = el("release-list");
   list.innerHTML = "";
-  for (const r of releases.slice(0, 12)) {
+  const all = releases.slice(0, 40);
+  const older = all.filter((r) => compareVersions(r.tag, state.server.version) < 0);
+  for (const r of all.filter((x) => !older.includes(x))) {
     const cmp = compareVersions(r.tag, state.server.version);
     const li = document.createElement("li");
     li.classList.toggle("current", cmp === 0);
-    const tag = cmp === 0 ? '<span class="release-tag">Current</span>' : cmp > 0 ? '<span class="release-tag newer">Newer</span>' : "";
-    const date = Date.parse(r.date) ? new Date(r.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
-    const asset = assetFor(r);
-    const verb = cmp > 0 ? "Update" : cmp < 0 ? "Roll back" : "Reinstall";
-    let actions = `<a class="btn small ghost" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Release notes</a>`;
-    if (asset && state.server.updater) actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-update="${escapeHtml(r.tag)}">${verb}</button>`;
-    else if (asset) actions += `<a class="btn small${cmp > 0 ? " primary" : ""}" href="${escapeHtml(asset.url)}" target="_blank" rel="noopener" title="${escapeHtml(asset.name)}, ${formatSize(asset.size)}">${verb}</a>`;
-    else if (state.server.package === "source") actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-copy="${escapeHtml(r.tag)}">Copy ${verb.toLowerCase()} command</button>`;
-    li.innerHTML = `<span><span class="release-name">${escapeHtml(r.name)}</span>${tag}<span class="release-meta">${escapeHtml(date)}${asset ? ` · ${escapeHtml(asset.name)}` : ""}</span></span>
-      <span class="release-actions">${actions}</span>`;
+    const tag = cmp === 0 ? '<span class="release-tag">Current</span>' : '<span class="release-tag newer">Newer</span>';
+    li.innerHTML = `<span><span class="release-name">${escapeHtml(r.name)}</span>${tag}<span class="release-meta">${releaseMeta(r)}</span></span>
+      <span class="release-actions">${releaseActions(r)}</span>`;
+    list.appendChild(li);
+  }
+  if (older.length) {
+    const li = document.createElement("li");
+    li.className = "release-older";
+    const picked = older.find((r) => r.tag === releaseUi.picked) || older[0];
+    li.innerHTML = `<details${releaseUi.olderOpen ? " open" : ""}>
+        <summary><span class="release-name">Earlier versions</span><span class="release-tag">${older.length}</span><span class="release-meta">Only needed to roll back</span></summary>
+        <div class="release-pick">
+          <select id="release-older" aria-label="Earlier version">${older
+            .map((r) => `<option value="${escapeHtml(r.tag)}"${r === picked ? " selected" : ""}>${escapeHtml(r.name)}${releaseDate(r) ? ` · ${escapeHtml(releaseDate(r))}` : ""}</option>`)
+            .join("")}</select>
+          <span class="release-actions" id="release-older-actions">${releaseActions(picked)}</span>
+        </div>
+        <p class="release-meta" id="release-older-meta">${releaseMeta(picked)}</p>
+      </details>`;
+    li.querySelector("details").addEventListener("toggle", (e) => (releaseUi.olderOpen = e.currentTarget.open));
+    li.querySelector("select").addEventListener("change", (e) => {
+      const r = older.find((x) => x.tag === e.target.value);
+      releaseUi.picked = r.tag;
+      el("release-older-actions").innerHTML = releaseActions(r);
+      el("release-older-meta").innerHTML = releaseMeta(r);
+    });
     list.appendChild(li);
   }
   if (!list.children.length) list.innerHTML = '<li class="hint">No releases yet.</li>';
@@ -6183,8 +6225,13 @@ function startHeartbeat() {
 
 // Not a real shell: a pretend PowerShell (Windows) or terminal (everything else) that knows a
 // few NetSeer-only commands. Opened by clicking the logo five times in quick succession.
-const MATRIX_THEME = { id: "matrix", name: "Matrix", note: "You found it", swatch: ["#000000", "#00ff41", "#7dffb0", "#c8ff00"] };
-const MATRIX_KEY = "netseer.matrix";
+// Secret themes: listed in Themes only once someone has found them in the terminal.
+const SECRET_THEMES = [
+  { id: "matrix", name: "Matrix", note: "You found it", swatch: ["#000000", "#00ff41", "#7dffb0", "#c8ff00"], key: "netseer.matrix" },
+  { id: "darkside", name: "Dark Side", note: "Order 66 executed", swatch: ["#05060a", "#ff2a2a", "#3fa9ff", "#ffd23f"], key: "netseer.darkside" },
+];
+const secretTheme = (id) => SECRET_THEMES.find((t) => t.id === id);
+const secretUnlocked = (id) => readLocal(secretTheme(id).key, false) === true;
 const ARDYN_ART = String.raw`   ███╗     ██████╗  ██████╗  ██╗   ██╗ ███╗   ██╗
   █████╗    ██╔══██╗ ██╔══██╗ ╚██╗ ██╔╝ ████╗  ██║
   ██╔██╗    ██████╔╝ ██║  ██║  ╚████╔╝  ██╔██╗ ██║
@@ -6196,9 +6243,8 @@ S       Y       S       T       E       M       S
 
          Tools for those who look closer.`;
 
-const egg = { clicks: [], history: [], at: 0, before: null, rain: null };
+const egg = { clicks: [], history: [], at: 0, before: null, backdrop: null };
 const eggWindows = () => /windows/i.test(navigator.userAgent);
-const matrixUnlocked = () => readLocal(MATRIX_KEY, false) === true;
 
 function onLogoClick() {
   const now = Date.now();
@@ -6252,7 +6298,10 @@ function runEggCommand(raw) {
   const name = cmd.toLowerCase();
   if (name === "whoami") eggPrint(ARDYN_ART, "egg-art");
   else if (name === "hacktheworld") hackTheWorld();
-  else if (name === "unplug") unplug();
+  else if (name === "unplug") forgetTheme("matrix", { nothing: "Nothing to unplug from.", done: "Unplugged" });
+  // Run the way each shell runs a script: .\order66 in PowerShell, ./order66 in bash.
+  else if (name === (eggWindows() ? ".\\order66" : "./order66")) executeOrder66();
+  else if (name === "rescindorder66") forgetTheme("darkside", { nothing: "There's no order to rescind.", done: "Order rescinded" });
   else if (name === "help" || name === "get-help")
     eggPrint("whoami         who made this\nhacktheworld   see the network for what it really is\nunplug         leave the Matrix and forget it was there\nclear          clear the screen\nexit           close this window");
   else if (name === "clear" || name === "cls") el("egg-out").textContent = "";
@@ -6262,45 +6311,60 @@ function runEggCommand(raw) {
     eggPrint(
       eggWindows()
         ? `${word} : The term '${word}' is not recognized as the name of a cmdlet, function, script file, or operable program.`
-        : `${word}: command not found`,
+        : `${word.replace(/\\(.)/g, "$1")}: command not found`, // bash drops a backslash before a character
       "egg-error"
     );
   }
 }
 
-function hackTheWorld() {
-  if (currentTheme() === "matrix") {
-    eggPrint("You're already in. Type 'unplug' to leave.");
+// Plays a few lines, then switches to a secret theme and lists it in Themes.
+function enterSecretTheme(id, lines, okAt, already) {
+  if (currentTheme() === id) {
+    eggPrint(already);
     return;
   }
-  const lines = ["Bypassing the mainframe...", "Rerouting packets through the green rain...", "Access granted.", "Follow the falling code. Type 'unplug' to leave."];
-  egg.before = currentTheme();
-  writeLocal(MATRIX_KEY, true);
+  // Remember the everyday theme to go back to, even when hopping between secret ones.
+  if (THEMES.some((t) => t.id === currentTheme())) egg.before = currentTheme();
+  writeLocal(secretTheme(id).key, true);
   lines.forEach((text, i) =>
     setTimeout(() => {
-      eggPrint(text, i === 2 ? "egg-ok" : "");
-      if (i === 2) applyTheme("matrix");
+      eggPrint(text, i === okAt ? `egg-ok egg-ok-${id}` : "");
+      if (i === okAt) applyTheme(id);
     }, 450 * (i + 1))
   );
 }
 
-function unplug() {
-  const inMatrix = currentTheme() === "matrix";
-  if (!inMatrix && !matrixUnlocked()) {
-    eggPrint("Nothing to unplug from.");
+function hackTheWorld() {
+  enterSecretTheme("matrix", ["Bypassing the mainframe...", "Rerouting packets through the green rain...", "Access granted.", "Follow the falling code. Type 'unplug' to leave."], 2, "You're already in. Type 'unplug' to leave.");
+}
+
+function executeOrder66() {
+  enterSecretTheme(
+    "darkside",
+    ["Transmitting to every unit on the network...", "Order acknowledged.", "Switching to the dark side.", "Type 'rescindorder66' to stand down."],
+    2,
+    "The order has already been carried out. Type 'rescindorder66' to stand down."
+  );
+}
+
+// Leaving a secret theme takes it out of Themes too; its command brings it back.
+function forgetTheme(id, { nothing, done }) {
+  const theme = secretTheme(id);
+  const inIt = currentTheme() === id;
+  if (!inIt && !secretUnlocked(id)) {
+    eggPrint(nothing);
     return;
   }
-  // Leaving takes Matrix out of the theme options too; hacktheworld brings it back.
   try {
-    localStorage.removeItem(MATRIX_KEY);
+    localStorage.removeItem(theme.key);
   } catch {
     /* Nothing stored, nothing to forget. */
   }
-  if (inMatrix) {
-    const back = egg.before && egg.before !== "matrix" ? egg.before : "terrain";
+  if (inIt) {
+    const back = THEMES.some((t) => t.id === egg.before) ? egg.before : "terrain";
     applyTheme(back);
-    eggPrint(`Unplugged. Back to ${THEMES.find((t) => t.id === back).name}, and the Matrix is gone from Themes.`);
-  } else eggPrint("Unplugged. The Matrix is gone from Themes.");
+    eggPrint(`${done}. Back to ${THEMES.find((t) => t.id === back).name}, and ${theme.name} is gone from Themes.`);
+  } else eggPrint(`${done}. ${theme.name} is gone from Themes.`);
 }
 
 function bindEggTerminal() {
@@ -6349,62 +6413,143 @@ function bindEggTerminal() {
   });
 }
 
-/* The green rain behind the map, drawn only while the Matrix theme is on. */
-function syncMatrixRain() {
-  const on = currentTheme() === "matrix";
-  const canvas = el("matrix-rain");
+/* The moving backdrop behind the map for the secret themes: green rain, or a starfield. */
+function syncThemeBackdrop() {
+  const id = currentTheme();
+  const kind = id === "matrix" || id === "darkside" ? id : null;
+  const canvas = el("theme-backdrop");
   if (!canvas) return;
-  canvas.hidden = !on;
-  if (!on) {
-    if (egg.rain) cancelAnimationFrame(egg.rain.frame);
-    egg.rain = null;
-    return;
+  canvas.hidden = !kind;
+  if (egg.backdrop && egg.backdrop.kind !== kind) {
+    cancelAnimationFrame(egg.backdrop.frame);
+    egg.backdrop = null;
   }
-  if (egg.rain) return;
+  if (!kind || egg.backdrop) return;
   const ctx = canvas.getContext("2d");
-  const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEF";
-  const size = 16;
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const rain = (egg.rain = { frame: 0, drops: [], last: 0, w: 0, h: 0 });
+  const fx = (egg.backdrop = { kind, frame: 0, last: 0, w: 0, h: 0, born: performance.now() });
+  const painter = kind === "matrix" ? matrixRain(ctx, fx) : starfield(ctx, fx);
   const fit = () => {
     const dpr = window.devicePixelRatio || 1;
-    rain.w = canvas.clientWidth;
-    rain.h = canvas.clientHeight;
-    canvas.width = Math.max(1, rain.w * dpr);
-    canvas.height = Math.max(1, rain.h * dpr);
+    fx.w = canvas.clientWidth;
+    fx.h = canvas.clientHeight;
+    canvas.width = Math.max(1, fx.w * dpr);
+    canvas.height = Math.max(1, fx.h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, rain.w, rain.h);
-    const cols = Math.ceil(rain.w / size);
-    rain.drops = Array.from({ length: cols }, (_, i) => rain.drops[i] ?? Math.random() * -rain.h / size);
-  };
-  const draw = () => {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-    ctx.fillRect(0, 0, rain.w, rain.h);
-    ctx.font = `${size - 2}px ui-monospace, Consolas, monospace`;
-    rain.drops.forEach((y, i) => {
-      const ch = glyphs[(Math.random() * glyphs.length) | 0];
-      ctx.fillStyle = Math.random() < 0.06 ? "#d6ffe0" : "#00c43a";
-      ctx.fillText(ch, i * size, y * size);
-      rain.drops[i] = y * size > rain.h && Math.random() > 0.975 ? 0 : y + 1;
-    });
+    painter.fit();
   };
   fit();
   if (still) {
-    // One settled frame instead of motion.
-    for (let i = 0; i < 60; i++) draw();
+    painter.still(); // one settled frame instead of motion
     return;
   }
   const tick = (t) => {
-    if (egg.rain !== rain) return;
+    if (egg.backdrop !== fx) return;
     if (canvas.width !== Math.round(canvas.clientWidth * (window.devicePixelRatio || 1))) fit();
-    if (!document.hidden && t - rain.last > 50) {
-      rain.last = t;
-      draw();
+    if (!document.hidden && t - fx.last > painter.every) {
+      fx.last = t;
+      painter.draw(t);
     }
-    rain.frame = requestAnimationFrame(tick);
+    fx.frame = requestAnimationFrame(tick);
   };
-  rain.frame = requestAnimationFrame(tick);
+  fx.frame = requestAnimationFrame(tick);
+}
+
+function matrixRain(ctx, fx) {
+  const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEF";
+  const size = 16;
+  let drops = [];
+  const draw = () => {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.fillRect(0, 0, fx.w, fx.h);
+    ctx.font = `${size - 2}px ui-monospace, Consolas, monospace`;
+    drops.forEach((y, i) => {
+      const ch = glyphs[(Math.random() * glyphs.length) | 0];
+      ctx.fillStyle = Math.random() < 0.06 ? "#d6ffe0" : "#00c43a";
+      ctx.fillText(ch, i * size, y * size);
+      drops[i] = y * size > fx.h && Math.random() > 0.975 ? 0 : y + 1;
+    });
+  };
+  return {
+    every: 50,
+    fit() {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, fx.w, fx.h);
+      drops = Array.from({ length: Math.ceil(fx.w / size) }, (_, i) => drops[i] ?? (Math.random() * -fx.h) / size);
+    },
+    draw,
+    still() {
+      for (let i = 0; i < 60; i++) draw();
+    },
+  };
+}
+
+// Stars drifting slowly towards you; the first moments after switching are a jump to light speed.
+function starfield(ctx, fx) {
+  const WARP_MS = 1400;
+  let stars = [];
+  const spawn = (far) => ({ x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: far ? 1 : 0.05 + Math.random() * 0.95, tw: Math.random() * Math.PI * 2, red: Math.random() < 0.04 });
+  const sky = () => {
+    ctx.fillStyle = "#05060a";
+    ctx.fillRect(0, 0, fx.w, fx.h);
+    // A faint red glow low on one side, like a distant nebula.
+    const g = ctx.createRadialGradient(fx.w * 0.15, fx.h * 0.95, 0, fx.w * 0.15, fx.h * 0.95, Math.max(fx.w, fx.h) * 0.7);
+    g.addColorStop(0, "rgba(160, 20, 30, 0.16)");
+    g.addColorStop(1, "rgba(160, 20, 30, 0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, fx.w, fx.h);
+  };
+  const project = (s) => {
+    const f = Math.min(fx.w, fx.h) * 0.6;
+    return [fx.w / 2 + (s.x / s.z) * f, fx.h / 2 + (s.y / s.z) * f];
+  };
+  const draw = (t) => {
+    const age = t - fx.born;
+    const warp = age < WARP_MS ? Math.sin((age / WARP_MS) * Math.PI) : 0; // up, then back down
+    const speed = 0.0009 + warp * 0.05;
+    sky();
+    for (const s of stars) {
+      const [x0, y0] = project(s);
+      s.z -= speed;
+      s.tw += 0.05;
+      if (s.z <= 0.04) Object.assign(s, spawn(true));
+      const [x1, y1] = project(s);
+      if (x1 < -20 || x1 > fx.w + 20 || y1 < -20 || y1 > fx.h + 20) {
+        Object.assign(s, spawn(true));
+        continue;
+      }
+      const near = 1 - s.z;
+      const alpha = Math.min(1, 0.25 + near * 0.9) * (0.75 + 0.25 * Math.sin(s.tw));
+      const colour = s.red ? `rgba(255, 90, 90, ${alpha})` : `rgba(225, 235, 255, ${alpha})`;
+      if (warp > 0.15) {
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = 0.6 + near * 1.6;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = colour;
+        const r = 0.35 + near * 1.5;
+        ctx.beginPath();
+        ctx.arc(x1, y1, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  };
+  return {
+    every: 33,
+    fit() {
+      const count = Math.round(Math.min(700, (fx.w * fx.h) / 2600));
+      stars = Array.from({ length: count }, () => spawn(false));
+      sky();
+    },
+    draw,
+    still() {
+      fx.born = -Infinity; // no warp
+      draw(0);
+    },
+  };
 }
 
 async function init() {
@@ -6422,7 +6567,7 @@ async function init() {
   bindTimeline();
   bindCompareDialog();
   bindEggTerminal();
-  syncMatrixRain();
+  syncThemeBackdrop();
   el("loading-stop").addEventListener("click", stopReading);
   el("loading-cancel").addEventListener("click", cancelReading);
   bindListDrag();

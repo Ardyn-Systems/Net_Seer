@@ -46,7 +46,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 | --- | --- |
 | **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Show SSIDs under access points**; **Fade unrelated devices on hover** (off by default); **Time**: time zone (this computer, UTC, or any) and 12- or 24-hour clock |
 | **Your data** | Count of saved maps and devices; whether storage is protected from automatic cleanup, with **Protect my maps** if not; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
-| **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); every release with **Release notes** and **Update**, **Reinstall**, or **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
+| **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); the current release and any newer ones, each with **Release notes** and **Reinstall** or **Update**; older ones are folded under **Earlier versions**: pick one from the list for its **Release notes** and **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
 | **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
 | **About** | Version, how NetSeer is running, links, and component licenses |
 
@@ -326,7 +326,7 @@ NetSeer remembers your choices for next time (the selection itself isn't remembe
 
 ## Update and uninstall
 
-**Settings** → **Updates** lists every release with the right download for your install, including older ones to roll back to. Back up first under **Your data**.
+**Settings** → **Updates** lists newer releases with the right download for your install; older ones to roll back to are under **Earlier versions**. Back up first under **Your data**.
 
 Stay on [[netseer-install-and-use]]: `git pull origin main`, `uv sync --group dev`, restart `netseer`. To uninstall, stop the process and delete the clone / venv.
 
