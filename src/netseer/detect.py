@@ -41,6 +41,10 @@ def sniff_format(data: bytes, filename: str = "") -> str:
         return "pcap"
     if head[:4] == PCAPNG_MAGIC:
         return "pcapng"
+    if head[:16] == b"SQLite format 3\x00":
+        if name.endswith(".kismet") or not name:
+            return "kismetdb"
+        raise UnsupportedSurveyError("This is an SQLite database. NetSeer reads Kismet logs (.kismet); rename the file if it is one.")
     text_prefix = head[:400].decode("utf-8", errors="replace")
     lowered = text_prefix.lower()
     if netseer_payload(data, filename) is not None:
@@ -61,5 +65,5 @@ def sniff_format(data: bytes, filename: str = "") -> str:
         return "airodump-csv" if "station mac" in lowered else "kismet-csv"
     raise UnsupportedSurveyError(
         "Unsupported survey format. Use Wireshark/tshark .pcap/.pcapng, tcpdump .pcap, "
-        "Kismet .pcap/.netxml/.csv, airodump-ng CSV/.cap, or a NetSeer Unwanted/*.json dump."
+        "Kismet .kismet/.pcap/.netxml/.csv, airodump-ng CSV/.cap, or a NetSeer Unwanted/*.json dump."
     )

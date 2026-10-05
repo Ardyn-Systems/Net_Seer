@@ -3,6 +3,7 @@ from __future__ import annotations
 from netseer.graph import GraphBuilder
 from netseer.parsers.airodump import parse_airodump_csv
 from netseer.parsers.kismet import parse_kismet_csv, parse_kismet_netxml
+from netseer.parsers.kismetdb import parse_kismetdb
 from netseer.parsers.pcap import parse_pcap
 
 
@@ -12,6 +13,8 @@ def parse_into(builder: GraphBuilder, data: bytes, filename: str, kind: str) -> 
         parse_pcap(builder, data, filename)
     elif kind == "kismet-netxml":
         parse_kismet_netxml(builder, data, filename)
+    elif kind == "kismetdb":
+        parse_kismetdb(builder, data, filename)
     elif kind == "kismet-csv":
         parse_kismet_csv(builder, data, filename)
     elif kind == "airodump-csv":
