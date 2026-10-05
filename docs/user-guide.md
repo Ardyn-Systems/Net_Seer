@@ -19,14 +19,15 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 11. [Create a PDF report](#create-a-pdf-report)
 12. [Change the theme](#change-the-theme)
 13. [Keyboard shortcuts](#keyboard-shortcuts)
-14. [Where your work is saved](#where-your-work-is-saved)
-15. [Troubleshooting](#troubleshooting)
+14. [Settings, updates, and the tour](#settings-updates-and-the-tour)
+15. [Where your work is saved](#where-your-work-is-saved)
+16. [Troubleshooting](#troubleshooting)
 
 ## A tour of the screen
 
 ![The NetSeer window with six numbered areas: map title, sidebar, search, map, details panel, and zoom controls](images/screen-tour.png)
 
-1. **Map title.** The map you're looking at. Click it to rename the map. **Open survey**, **Export**, the theme picker, and the shortcuts list sit to its right.
+1. **Map title.** The map you're looking at. Click it to rename the map. **Open survey**, **Export**, the theme picker, and the **Settings** cog sit to its right.
 2. **Sidebar.** Three tabs: **Maps** (every map you have open), **Surveys** (captures and samples), and **Layers** (what the map shows).
 3. **Find a device.** Search by name, IP, MAC, SSID, or notes.
 4. **The map.** Devices, the subnets they belong to, and the links between them. A toolbar appears at the bottom when you select something.
@@ -180,7 +181,7 @@ Click the palette button in the top bar.
 
 ## Keyboard shortcuts
 
-Press `?` or click the **?** button to see them in NetSeer.
+Press `?`, or open **Settings** → **Help** → **Keyboard shortcuts**, to see them in NetSeer.
 
 ![Keyboard shortcuts dialog](images/shortcuts.png)
 
@@ -192,7 +193,51 @@ Press `?` or click the **?** button to see them in NetSeer.
 | Delete or Backspace | Delete the selected devices |
 | Shift + click, Shift + drag | Add to the selection, box-select |
 | `F` | Fit the map to the screen |
+| `?` | Show the shortcuts |
 | Esc | Close menus and clear the selection |
+
+## Settings, updates, and the tour
+
+Click the **cog** at the right of the top bar. A dot on the cog means a newer version is out.
+
+![Settings, General: theme, scroll-to-zoom speed, Group by subnet, and hover fading](images/settings-general.png)
+
+**General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes and hover fading on or off.
+
+**Your data.** Shows how many maps and devices are saved in this browser.
+
+![Settings, Your data: a summary, Back up all maps, Restore a backup, and Clear all data](images/settings-data.png)
+
+- **Back up all maps** downloads one `NetSeer-backup-<date>.json` file with every map, name, note, edit, position, and preference.
+- **Restore a backup…** replaces what's saved here with a backup file. It asks first.
+- **Clear all data…** removes everything saved here and starts fresh. It asks first. Your capture files aren't touched.
+
+Use a backup to move your maps to another computer or browser, or before trying a different version.
+
+**Updates.** Shows your version and how NetSeer is installed. **Check for updates** asks GitHub for the list of releases. This is the only time NetSeer goes online, and nothing about you or your maps is sent.
+
+![Settings, Updates: version 0.2.0 installed, an example newer release with an Update button, and an older one with Roll back](images/settings-updates.png)
+
+*The releases in this picture are an example.*
+
+- Each release has **Release notes** and a download that matches your install: the installer, the portable zip, the AppImage, or the Linux archive. From source, it's an install command you can copy.
+- **Update** gets a newer version. **Roll back** gets an older one, if a new release gives you trouble. Either way, you install it the same way you installed NetSeer, and your maps stay where they are.
+- **Check when NetSeer opens** (off by default) checks at most once a day and tells you once about each new release.
+- The [online copy](https://netseer.onrender.com) updates itself, so it shows no list.
+
+**Help.** Start the tour, see the keyboard shortcuts, open this guide, or report a problem on GitHub.
+
+![Settings, Help: Take the tour, Keyboard shortcuts, User guide, and Report a problem](images/settings-help.png)
+
+**About.** Version, how NetSeer is running, links, and the open-source components it's built with.
+
+![Settings, About: logo, version, how it's running, links, and the components NetSeer is built with](images/settings-about.png)
+
+### The tour
+
+On your first visit NetSeer offers a one-minute tour. You can start it any time from **Settings** → **Help** → **Take the tour**. It highlights each part of the screen in turn: opening surveys, the sidebar, the map, search, details, export, themes, and settings. Use **Next** and **Back** or the arrow keys. **Skip tour** or Esc ends it.
+
+![The tour highlighting the details panel, with step 6 of 9 explaining what it shows](images/tour.png)
 
 ## Where your work is saved
 
@@ -206,6 +251,8 @@ NetSeer never changes your capture files. Maps, names, notes, edits, and positio
 
 If you run NetSeer from source and use your normal browser, maps are saved in that browser for `http://127.0.0.1:47331`. Clearing that site's data removes them.
 
+To keep a copy, or to move your maps somewhere else, use **Settings** → **Your data** → **Back up all maps**.
+
 ## Troubleshooting
 
 **Windows says "Windows protected your PC".** The builds aren't code-signed yet. Choose **More info** → **Run anyway**.
@@ -217,6 +264,8 @@ If you run NetSeer from source and use your normal browser, maps are saved in th
 **NetSeer opened in my web browser instead of a window.** On Windows, install [Microsoft Edge WebView2](https://go.microsoft.com/fwlink/p/?LinkId=2124703). On Linux, install Chrome, Chromium, Edge, Brave, or Vivaldi for a separate app window. In the browser, NetSeer quits by itself a couple of minutes after you close its tab.
 
 **A capture won't open.** Check that it's one of the [supported formats](#open-your-captures) and under 50 MB. Files that parse but contain no devices say "No hosts, access points, or links were found".
+
+**A new version is misbehaving.** Open **Settings** → **Updates**, click **Check for updates**, and choose **Roll back** on the version that worked. Back up your maps first.
 
 **Something else looks wrong.** The log (see the table above) has the details. Run `NetSeer --smoke-test` (or `NetSeer.exe --smoke-test`) to check the installation; exit code 0 means it's working.
 

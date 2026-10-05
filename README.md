@@ -10,7 +10,7 @@ NetSeer turns packet captures and wireless surveys into an interactive network m
 
 **Try it now at [netseer.onrender.com](https://netseer.onrender.com)**, no install needed. Or get the desktop app for Windows or Linux.
 
-NetSeer reads capture files you give it; it doesn't sniff live traffic. The desktop app and source installs run entirely on your machine and make no network requests of their own.
+NetSeer reads capture files you give it; it doesn't sniff live traffic. The desktop app and source installs run entirely on your machine. The only network request they make is to GitHub's public release list, and only when you check for updates in **Settings**.
 
 ## Contents
 
@@ -127,6 +127,7 @@ From the frames and survey rows, NetSeer extracts:
   - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it
   - per-device **PDF, CSV, XML, or text**
 - **Four themes:** Terrain (default), Midnight, Daylight (good for printing), and Blueprint.
+- **Settings** (the cog): scroll-zoom speed, back up and restore all your maps, check for updates or roll back to an earlier release, a one-minute guided tour, and an About page.
 
 The [user guide](docs/user-guide.md) walks through all of it with screenshots; the [How to](docs/netseer-how-to.md) lists every control and keyboard shortcut.
 
@@ -243,7 +244,9 @@ bash packaging/linux/build-appimage.sh 0.2.0   # AppImage and .tar.gz in dist/
 - **AppImage:** replace the file (run `--install` again if you added it to the menu). To remove it, run `--uninstall`, then delete the file.
 - **From source:** `uv tool upgrade netseer` (or `git pull` in a clone, then `uv sync`). Remove with `uv tool uninstall netseer`.
 
-Your saved maps stay in the folders listed under [Where your data lives](#where-your-data-lives) until you delete them.
+In the app, **Settings** → **Updates** lists every release with the right download for your install, so you can update, or roll back if a new version gives you trouble.
+
+Your saved maps stay in the folders listed under [Where your data lives](#where-your-data-lives) until you delete them. To copy them to another computer or browser, use **Settings** → **Your data** → **Back up all maps**, then **Restore a backup** on the other one.
 
 ---
 

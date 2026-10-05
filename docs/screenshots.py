@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import math
 import os
 import subprocess
@@ -26,6 +27,14 @@ VIEWPORT = {"width": 1440, "height": 900}
 
 from playwright.sync_api import Page, sync_playwright  # noqa: E402
 
+# Settings → Updates asks GitHub for releases; answer with a fixed example list instead.
+EXAMPLE_RELEASES = [
+    {"tag_name": tag, "name": f"NetSeer {tag[1:]}", "draft": False, "prerelease": False, "published_at": date,
+     "html_url": f"https://github.com/ardyn-systems/NetSeer/releases/tag/{tag}",
+     "assets": [{"name": f"NetSeer-Setup-{tag[1:]}.exe", "browser_download_url": f"https://github.com/ardyn-systems/NetSeer/releases/download/{tag}/NetSeer-Setup-{tag[1:]}.exe", "size": size}]}
+    for tag, date, size in (("v0.3.0", "2026-11-02T12:00:00Z", 26_900_000), ("v0.2.0", "2026-10-04T22:41:46Z", 26_360_573), ("v0.1.0", "2026-09-12T12:00:00Z", 25_100_000))
+]
+
 CALLOUT_CSS = """
 .ns-callout { position: fixed; z-index: 9999; width: 30px; height: 30px; border-radius: 50%;
   background: #e0a84a; color: #2a1d05; font: 700 15px/30px system-ui, sans-serif; text-align: center;
@@ -39,7 +48,14 @@ def start_server() -> tuple[str, subprocess.Popen]:
     from netseer.desktop import free_ephemeral_port, wait_ready
 
     port = free_ephemeral_port()
-    env = dict(os.environ, PYTHONPATH=str(ROOT / "src"), NETSEER_UNWANTED_DIR=tempfile.mkdtemp(prefix="netseer-docs-"))
+    env = dict(
+        os.environ,
+        PYTHONPATH=str(ROOT / "src"),
+        NETSEER_UNWANTED_DIR=tempfile.mkdtemp(prefix="netseer-docs-"),
+        # Show Settings → Updates as the Windows installer sees it.
+        NETSEER_MODE="desktop",
+        NETSEER_PACKAGE="installer",
+    )
     server = subprocess.Popen(
         [sys.executable, "-m", "netseer", "--port", str(port)],
         env=env,
@@ -137,6 +153,9 @@ def capture(url: str, channel: str | None) -> list[str]:
     with sync_playwright() as p:
         browser = p.chromium.launch(channel=channel) if channel else p.chromium.launch()
         context = browser.new_context(viewport=VIEWPORT, device_scale_factor=1, color_scheme="dark", accept_downloads=True)
+        # Skip the first-visit "Take the tour" message, and keep the docs offline.
+        context.add_init_script("if (!localStorage.getItem('netseer.prefs.v1')) localStorage.setItem('netseer.prefs.v1', '{\"tourOffered\":true}')")
+        context.route("https://api.github.com/**", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(EXAMPLE_RELEASES)))
         page = context.new_page()
         page.goto(url)
         page.wait_for_function("() => typeof state !== 'undefined' && state.cy && state.cy.nodes().length > 5")
@@ -238,8 +257,31 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.evaluate("() => applyTheme('terrain')")
         save_theme_grid(frames)
 
-        # 9. Help, and an empty map.
-        page.click("#btn-help")
+        # 9. Settings, the tour, and shortcuts.
+        page.click("#btn-settings")
+        page.wait_for_selector("#settings-dialog[open]")
+        page.mouse.move(5, 5)
+        shots.save("settings-general", selectors=["#settings-dialog"], pad=0)
+        page.click('.settings-nav [data-pane="data"]')
+        shots.save("settings-data", selectors=["#settings-dialog"], pad=0)
+        page.click('.settings-nav [data-pane="updates"]')
+        page.click("#updates-check")
+        page.wait_for_selector("#release-list .release-name")
+        page.mouse.move(5, 5)
+        shots.save("settings-updates", selectors=["#settings-dialog"], pad=0)
+        page.evaluate("() => { localStorage.removeItem('netseer.updates.v1'); showUpdateBadges(null); }")
+        page.click('.settings-nav [data-pane="help"]')
+        shots.save("settings-help", selectors=["#settings-dialog"], pad=0)
+        page.click('.settings-nav [data-pane="about"]')
+        shots.save("settings-about", selectors=["#settings-dialog"], pad=0)
+        page.click('.settings-nav [data-pane="help"]')
+        page.click("#help-tour")
+        for _ in range(5):
+            page.keyboard.press("ArrowRight")
+        page.wait_for_timeout(400)
+        shots.save("tour", full=True)
+        page.keyboard.press("Escape")
+        page.evaluate("() => el('help-dialog').showModal()")
         shots.save("shortcuts", selectors=["#help-dialog"], pad=0)
         shots.reset()
         page.evaluate("() => { const m = upsertMap({ id: 'map:blank-docs', name: 'Lab bench', kind: 'blank', graph: emptyGraph('Lab bench') }); showMap(m.id); }")

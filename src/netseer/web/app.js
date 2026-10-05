@@ -47,7 +47,9 @@ const state = {
   graphVersion: 0,
   propsCache: new Map(),
   suppressSelect: false,
-  server: { hosted: false, maxUploadMb: 50 },
+  server: { hosted: false, maxUploadMb: 50, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer" },
+  // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
+  prefs: { zoomSpeed: "normal", hoverFade: true, autoUpdate: false, tourOffered: false },
 };
 
 /* ---------- Small helpers ---------- */
@@ -84,14 +86,31 @@ function writeLocal(key, value) {
 
 /* ---------- Toast ---------- */
 
-function toast(msg, { undo = false, error = false, timeout } = {}) {
+// action: { label, onClick } adds a button that runs onClick and closes the message.
+function toast(msg, { undo = false, error = false, timeout, action = null } = {}) {
   const box = el("toast");
   el("toast-msg").textContent = msg;
   el("toast-undo").classList.toggle("hidden", !(undo && state.undo.length));
+  const actionBtn = el("toast-action");
+  actionBtn.classList.toggle("hidden", !action);
+  actionBtn.textContent = action?.label || "";
+  toast.action = action?.onClick || null;
   box.classList.toggle("error", error);
   box.classList.remove("hidden");
+  // As a popover the message sits in the top layer, above any open dialog. Re-showing
+  // it puts it above a dialog opened since.
+  if (box.showPopover) {
+    if (box.matches(":popover-open")) box.hidePopover();
+    box.showPopover();
+  }
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => box.classList.add("hidden"), timeout ?? (error ? 8000 : 4500));
+  toast.timer = setTimeout(hideToast, timeout ?? (error ? 8000 : 4500));
+}
+
+function hideToast() {
+  const box = el("toast");
+  box.classList.add("hidden");
+  if (box.hidePopover && box.matches(":popover-open")) box.hidePopover();
 }
 
 function fail(err) {
@@ -1177,7 +1196,7 @@ function renderMap({ fit = true } = {}) {
   });
   cy.on("mouseover", "node", (evt) => {
     const n = evt.target;
-    if (n.isParent() || cy.nodes(":grabbed").length) return;
+    if (!state.prefs.hoverFade || n.isParent() || cy.nodes(":grabbed").length) return;
     const keepEls = n.closedNeighborhood().union(n.ancestors());
     cy.elements().not(keepEls).not(":parent").addClass("faded");
   });
@@ -1261,7 +1280,8 @@ function zoomBy(factor) {
 
 // Cytoscape's own wheel zoom jumps 25-40% per mouse notch. Handle the wheel here
 // instead: ~10% per notch, proportional for trackpads, centred on the cursor.
-const WHEEL_ZOOM_PER_PIXEL = 0.001; // 100 px (one notch) -> ~10%
+// Settings → Scroll to zoom. "normal": 100 px (one notch) -> ~10%.
+const WHEEL_ZOOM_PER_PIXEL = { slow: 0.0006, normal: 0.001, fast: 0.0016 };
 const PINCH_ZOOM_PER_PIXEL = 0.01; // trackpad pinch arrives as small ctrl+wheel deltas
 const WHEEL_STEP_LIMIT = 0.25;
 
@@ -1278,7 +1298,7 @@ function onMapWheel(e) {
   // Stop the event before Cytoscape's own handler sees it.
   e.preventDefault();
   e.stopPropagation();
-  const rate = e.ctrlKey ? PINCH_ZOOM_PER_PIXEL : WHEEL_ZOOM_PER_PIXEL;
+  const rate = e.ctrlKey ? PINCH_ZOOM_PER_PIXEL : WHEEL_ZOOM_PER_PIXEL[state.prefs.zoomSpeed] || WHEEL_ZOOM_PER_PIXEL.normal;
   const step = Math.max(-WHEEL_STEP_LIMIT, Math.min(WHEEL_STEP_LIMIT, -wheelPixels(e) * rate));
   const level = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, cy.zoom() * Math.exp(step)));
   if (level === cy.zoom()) return;
@@ -2083,7 +2103,15 @@ async function createBlankMap() {
 async function loadServerInfo() {
   try {
     const info = await parseResponse(await fetch("/api/health"));
-    state.server = { hosted: Boolean(info.hosted), maxUploadMb: Number(info.max_upload_mb) || 50 };
+    state.server = {
+      hosted: Boolean(info.hosted),
+      maxUploadMb: Number(info.max_upload_mb) || 50,
+      version: String(info.version || ""),
+      mode: info.mode || (info.hosted ? "hosted" : "server"),
+      platform: info.platform || "",
+      package: info.package || "source",
+      repo: info.repo || state.server.repo,
+    };
   } catch {
     /* keep defaults */
   }
@@ -2487,10 +2515,12 @@ function loadPrefs() {
   if (isPlainObject(prefs.filters)) for (const l of LAYERS) if (typeof prefs.filters[l.kind] === "boolean") state.filters[l.kind] = prefs.filters[l.kind];
   if (typeof prefs.groupBySubnet === "boolean") state.groupBySubnet = prefs.groupBySubnet;
   if (prefs.tab) setTab(prefs.tab);
+  if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
+  for (const k of ["hoverFade", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
 }
 
 function savePrefs() {
-  writeLocal(PREFS_KEY, { filters: state.filters, groupBySubnet: state.groupBySubnet, tab: document.querySelector(".tab.active")?.dataset.tab });
+  writeLocal(PREFS_KEY, { filters: state.filters, groupBySubnet: state.groupBySubnet, tab: document.querySelector(".tab.active")?.dataset.tab, ...state.prefs });
 }
 
 function renderLayerList() {
@@ -2597,6 +2627,546 @@ function closeNarrowPanels() {
   el("sidebar").classList.remove("open");
 }
 
+/* ---------- Settings ---------- */
+
+const UPDATES_KEY = "netseer.updates.v1";
+const UPDATE_CHECK_EVERY_MS = 24 * 60 * 60 * 1000;
+const PLATFORM_NAMES = { windows: "Windows", linux: "Linux", macos: "macOS" };
+
+const repoUrl = (path = "") => `https://github.com/${state.server.repo}${path}`;
+
+function setGroupBySubnet(on) {
+  state.groupBySubnet = on;
+  el("group-toggle").checked = on;
+  el("settings-group").checked = on;
+  savePrefs();
+  renderLayerList();
+  renderMap({ fit: true });
+}
+
+function runningAs() {
+  const { mode, platform, package: pkg } = state.server;
+  if (mode === "hosted") return `Online copy (${location.host})`;
+  const os = PLATFORM_NAMES[platform] || platform || "this computer";
+  if (mode === "desktop") {
+    if (pkg === "installer") return `Desktop app for ${os}, installed`;
+    if (pkg === "portable") return `Desktop app for ${os}, portable`;
+    if (pkg === "appimage") return `Desktop app for ${os}, AppImage`;
+    return `Desktop app for ${os}, run from source`;
+  }
+  return `Local server on ${os} (the netseer command)`;
+}
+
+function openSettings(pane = "general") {
+  closeMenu();
+  renderSettings();
+  showSettingsPane(pane);
+  const dialog = el("settings-dialog");
+  if (!dialog.open) dialog.showModal();
+  dialog.querySelector(`.settings-nav [data-pane="${pane}"]`)?.focus();
+}
+
+function showSettingsPane(name) {
+  document.querySelectorAll(".settings-nav [data-pane]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.pane === name)));
+  document.querySelectorAll(".settings-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== name));
+  if (name === "data") refreshDataSummary();
+  if (name === "updates") renderUpdates();
+}
+
+function renderSettings() {
+  renderThemeGrid();
+  document.querySelectorAll('input[name="zoom-speed"]').forEach((r) => (r.checked = r.value === state.prefs.zoomSpeed));
+  el("settings-group").checked = state.groupBySubnet;
+  el("settings-hover").checked = state.prefs.hoverFade;
+  el("updates-auto").checked = state.prefs.autoUpdate;
+  const version = state.server.version || "unknown";
+  document.querySelectorAll(".app-version").forEach((n) => (n.textContent = version));
+  el("about-mode").textContent = runningAs();
+  el("updates-build").textContent = runningAs();
+  const links = {
+    repo: repoUrl(),
+    guide: repoUrl("/blob/main/docs/user-guide.md"),
+    issue: repoUrl(`/issues/new?body=${encodeURIComponent(`\n\n---\nNetSeer ${version}, ${runningAs()}`)}`),
+  };
+  document.querySelectorAll("#settings-dialog [data-link]").forEach((a) => (a.href = links[a.dataset.link]));
+}
+
+function renderThemeGrid() {
+  const grid = el("settings-themes");
+  const active = currentTheme();
+  grid.innerHTML = "";
+  for (const t of THEMES) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip-btn";
+    btn.setAttribute("role", "radio");
+    btn.setAttribute("aria-checked", String(t.id === active));
+    btn.setAttribute("aria-pressed", String(t.id === active));
+    btn.innerHTML = `<span class="theme-swatch">${t.swatch.map((c) => `<i style="background:${c}"></i>`).join("")}</span>
+      <span class="theme-name">${escapeHtml(t.name)}<small>${escapeHtml(t.note)}</small></span>`;
+    btn.addEventListener("click", () => {
+      applyTheme(t.id);
+      renderThemeGrid();
+    });
+    grid.appendChild(btn);
+  }
+}
+
+/* ---------- Settings: your data ---------- */
+
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function refreshDataSummary() {
+  const maps = state.maps.filter((m) => m.kind !== "unwanted");
+  const devices = maps.reduce((n, m) => n + mapNodeCount(m), 0);
+  const unwanted = mapNodeCount(getMap(UNWANTED_ID));
+  let text = `${plural(maps.length, "map")} with ${plural(devices, "device")}`;
+  if (unwanted) text += `, plus ${unwanted} in Unwanted`;
+  text += ".";
+  try {
+    const est = await navigator.storage?.estimate?.();
+    if (est?.usage) text += ` About ${formatSize(est.usage)} of browser storage in use.`;
+  } catch {
+    /* the estimate is optional */
+  }
+  if (!store.available) text += " This browser isn't letting NetSeer save, so these will be lost when you close it.";
+  el("data-summary").textContent = text;
+}
+
+function netseerLocalKeys() {
+  try {
+    return Object.keys(localStorage).filter((k) => k.startsWith("netseer."));
+  } catch {
+    return [];
+  }
+}
+
+async function backupAll() {
+  await flushSave();
+  const local = {};
+  for (const k of netseerLocalKeys()) if (k !== UPDATES_KEY) local[k] = localStorage.getItem(k);
+  const maps = state.maps.map(serializeMap);
+  const now = new Date();
+  const day = [now.getFullYear(), now.getMonth() + 1, now.getDate()].map((n) => String(n).padStart(2, "0")).join("-");
+  downloadJson(`NetSeer-backup-${day}.json`, {
+    netseer: "backup",
+    format: 1,
+    version: state.server.version,
+    created: new Date().toISOString(),
+    maps,
+    deviceMeta: metaCache,
+    session: { activeMapId: state.activeMapId, order: maps.map((m) => m.id) },
+    local,
+  });
+  toast(`Backed up ${plural(maps.filter((m) => m.kind !== "unwanted").length, "map")}.`);
+}
+
+async function restoreBackup(file) {
+  let data = null;
+  try {
+    data = JSON.parse(await file.text());
+  } catch {
+    /* handled below */
+  }
+  if (data?.netseer !== "backup" || !Array.isArray(data.maps)) {
+    toast(`${file.name} isn't a NetSeer backup. Make one with Back up all maps.`, { error: true });
+    return;
+  }
+  const maps = data.maps.filter((m) => isPlainObject(m) && typeof m.id === "string").map(normalizeMap);
+  const count = maps.filter((m) => m.kind !== "unwanted").length;
+  const when = Date.parse(data.created) ? new Date(data.created).toLocaleString() : "an unknown date";
+  const ok = await openDialog({
+    title: "Restore this backup?",
+    body: `It has ${plural(count, "map")}, saved ${when}. Restoring replaces everything saved here now, so anything made since then is lost unless you back it up first.`,
+    okLabel: "Replace and restore",
+    danger: true,
+  });
+  if (!ok) return;
+  await replaceAllData({
+    maps,
+    deviceMeta: isPlainObject(data.deviceMeta) ? data.deviceMeta : {},
+    session: { activeMapId: data.session?.activeMapId || null, clipboard: null, order: Array.isArray(data.session?.order) ? data.session.order : maps.map((m) => m.id) },
+    local: isPlainObject(data.local) ? data.local : {},
+  });
+}
+
+async function clearAllData() {
+  const ok = await openDialog({
+    title: "Clear all data?",
+    body: "This removes every map, name, note, and preference saved in this browser, then starts NetSeer fresh. It can't be undone, so back up first if you might want them again.",
+    okLabel: "Clear everything",
+    danger: true,
+  });
+  if (ok) await replaceAllData({});
+}
+
+// Rewrites storage in one go, then reloads so every part of the page starts from it.
+async function replaceAllData({ maps = [], deviceMeta = {}, session = null, local = {} }) {
+  clearTimeout(store.timer);
+  const wasAvailable = store.available;
+  store.available = false; // stop the page saving its old state over the new one on the way out
+  try {
+    await idbTx(["maps", "kv"], "readwrite", (tx) => {
+      const mapStore = tx.objectStore("maps");
+      const kv = tx.objectStore("kv");
+      mapStore.clear();
+      kv.clear();
+      for (const m of maps) mapStore.put(serializeMap(m));
+      if (maps.length) {
+        kv.put(deviceMeta, "deviceMeta");
+        kv.put(session, "session");
+      }
+    });
+  } catch (err) {
+    store.available = wasAvailable;
+    fail(err);
+    return;
+  }
+  try {
+    for (const k of netseerLocalKeys()) localStorage.removeItem(k);
+    for (const [k, v] of Object.entries(local)) if (k.startsWith("netseer.") && typeof v === "string") localStorage.setItem(k, v);
+  } catch {
+    /* preferences are a convenience */
+  }
+  location.reload();
+}
+
+/* ---------- Settings: updates ---------- */
+// The only request NetSeer makes to the internet, and only when asked: the public list
+// of releases from GitHub.
+
+function parseVersion(v) {
+  const m = String(v || "").trim().replace(/^v/i, "").match(/^(\d+)\.(\d+)(?:\.(\d+))?/);
+  return m ? [Number(m[1]), Number(m[2]), Number(m[3] || 0)] : null;
+}
+
+function compareVersions(a, b) {
+  const x = parseVersion(a);
+  const y = parseVersion(b);
+  if (!x || !y) return 0;
+  for (let i = 0; i < 3; i += 1) if (x[i] !== y[i]) return x[i] - y[i];
+  return 0;
+}
+
+function readUpdateCache() {
+  const cache = readLocal(UPDATES_KEY, null);
+  return isPlainObject(cache) && Array.isArray(cache.releases) ? cache : null;
+}
+
+const newerRelease = (cache) => {
+  const latest = cache?.releases?.[0];
+  return latest && state.server.version && compareVersions(latest.tag, state.server.version) > 0 ? latest : null;
+};
+
+async function fetchReleases() {
+  let res;
+  try {
+    res = await fetch(`https://api.github.com/repos/${state.server.repo}/releases?per_page=30`, { cache: "no-store" });
+  } catch {
+    throw new Error("Couldn't reach GitHub. Check your internet connection and try again.");
+  }
+  if (res.status === 403 || res.status === 429) throw new Error("GitHub is limiting requests from this network right now. Try again in an hour.");
+  if (!res.ok) throw new Error(`GitHub answered with an error (${res.status}). Try again later.`);
+  const list = await res.json();
+  const releases = (Array.isArray(list) ? list : [])
+    .filter((r) => !r.draft && !r.prerelease && parseVersion(r.tag_name))
+    .map((r) => ({
+      tag: r.tag_name,
+      name: r.name || r.tag_name,
+      date: r.published_at,
+      url: r.html_url,
+      assets: (r.assets || []).map((a) => ({ name: a.name, url: a.browser_download_url, size: a.size })),
+    }))
+    .sort((a, b) => compareVersions(b.tag, a.tag));
+  const cache = { ...(readUpdateCache() || {}), checkedAt: Date.now(), releases };
+  writeLocal(UPDATES_KEY, cache);
+  return cache;
+}
+
+function showUpdateBadges(cache) {
+  const newer = Boolean(newerRelease(cache));
+  show("update-dot", newer);
+  show("updates-badge", newer);
+  el("btn-settings").title = newer ? "Settings: an update is available" : "Settings, help, and updates";
+}
+
+function setUpdateStatus(text, kind = "") {
+  const status = el("updates-status");
+  status.textContent = text;
+  status.className = `update-status ${kind}`;
+}
+
+// The download that matches how this copy was installed.
+function assetFor(release) {
+  const { platform, package: pkg } = state.server;
+  const pick = (re) => release.assets.find((a) => re.test(a.name)) || null;
+  if (pkg === "installer") return pick(/setup.*\.exe$/i);
+  if (pkg === "appimage") return pick(/\.appimage$/i);
+  if (pkg === "portable" && platform === "windows") return pick(/windows.*\.zip$/i);
+  if (pkg === "portable" && platform === "linux") return pick(/linux.*\.tar\.gz$/i);
+  return null;
+}
+
+const installCommand = (tag) => `uv tool install --force "git+https://github.com/${state.server.repo}.git@${tag}"`;
+
+function updateHowText() {
+  const { platform, package: pkg } = state.server;
+  if (pkg === "installer") return "To switch versions, download that version's installer and run it. It replaces the version you have now.";
+  if (pkg === "appimage") return "To switch versions, download that version's AppImage, make it executable, and run it instead of this one. Keep the old file if you might want to go back.";
+  if (pkg === "portable") {
+    const app = platform === "windows" ? "NetSeer.exe" : "NetSeer";
+    return `To switch versions, download that version, unpack it to a new folder, and run ${app} from there. Keep the old folder if you might want to go back.`;
+  }
+  return "This copy was installed from source. To switch versions, copy that version's install command, run it in a terminal, then restart NetSeer.";
+}
+
+function renderUpdates() {
+  const hosted = state.server.mode === "hosted";
+  show("updates-local", !hosted);
+  show("updates-hosted", hosted);
+  show("updates-check", !hosted);
+  if (hosted) {
+    setUpdateStatus("This online copy is always the newest version.", "good");
+    return;
+  }
+  el("updates-how").textContent = updateHowText();
+  const cache = readUpdateCache();
+  if (!cache) {
+    setUpdateStatus("");
+    return;
+  }
+  const newer = newerRelease(cache);
+  const checked = new Date(cache.checkedAt).toLocaleString();
+  if (newer) setUpdateStatus(`${newer.name} is available. You have ${state.server.version}. (Checked ${checked}.)`, "new");
+  else if (cache.releases.length) setUpdateStatus(`You have the newest version. (Checked ${checked}.)`, "good");
+  else setUpdateStatus(`No releases found on GitHub. (Checked ${checked}.)`);
+  renderReleaseList(cache.releases);
+}
+
+function renderReleaseList(releases) {
+  const list = el("release-list");
+  list.innerHTML = "";
+  for (const r of releases.slice(0, 12)) {
+    const cmp = compareVersions(r.tag, state.server.version);
+    const li = document.createElement("li");
+    li.classList.toggle("current", cmp === 0);
+    const tag = cmp === 0 ? '<span class="release-tag">Current</span>' : cmp > 0 ? '<span class="release-tag newer">Newer</span>' : "";
+    const date = Date.parse(r.date) ? new Date(r.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+    const asset = assetFor(r);
+    const verb = cmp > 0 ? "Update" : cmp < 0 ? "Roll back" : "Reinstall";
+    let actions = `<a class="btn small ghost" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Release notes</a>`;
+    if (asset) actions += `<a class="btn small${cmp > 0 ? " primary" : ""}" href="${escapeHtml(asset.url)}" target="_blank" rel="noopener" title="${escapeHtml(asset.name)}, ${formatSize(asset.size)}">${verb}</a>`;
+    else if (state.server.package === "source") actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-copy="${escapeHtml(r.tag)}">Copy ${verb.toLowerCase()} command</button>`;
+    li.innerHTML = `<span><span class="release-name">${escapeHtml(r.name)}</span>${tag}<span class="release-meta">${escapeHtml(date)}${asset ? ` · ${escapeHtml(asset.name)}` : ""}</span></span>
+      <span class="release-actions">${actions}</span>`;
+    list.appendChild(li);
+  }
+  if (!list.children.length) list.innerHTML = '<li class="hint">No releases yet.</li>';
+}
+
+async function checkForUpdates() {
+  const btn = el("updates-check");
+  btn.disabled = true;
+  setUpdateStatus("Checking GitHub…");
+  try {
+    showUpdateBadges(await fetchReleases());
+    renderUpdates();
+  } catch (err) {
+    setUpdateStatus(err.message, "bad");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// Opt-in (Settings → Updates): at most one check a day, and one message per new release.
+async function autoCheckUpdates() {
+  if (state.server.mode === "hosted") return;
+  let cache = readUpdateCache();
+  showUpdateBadges(cache);
+  if (!state.prefs.autoUpdate) return;
+  if (!cache || Date.now() - (cache.checkedAt || 0) > UPDATE_CHECK_EVERY_MS) {
+    try {
+      cache = await fetchReleases();
+    } catch {
+      return; // offline or rate-limited: try again next time
+    }
+    showUpdateBadges(cache);
+  }
+  const newer = newerRelease(cache);
+  if (!newer || cache.notified === newer.tag) return;
+  writeLocal(UPDATES_KEY, { ...cache, notified: newer.tag });
+  toast(`${newer.name} is available.`, { action: { label: "See what's new", onClick: () => openSettings("updates") }, timeout: 10000 });
+}
+
+function bindSettings() {
+  const dialog = el("settings-dialog");
+  el("settings-close").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("click", (e) => {
+    if (e.target === dialog) dialog.close(); // backdrop
+  });
+  dialog.querySelectorAll(".settings-nav [data-pane]").forEach((b) => b.addEventListener("click", () => showSettingsPane(b.dataset.pane)));
+  dialog.querySelectorAll("[data-goto]").forEach((a) =>
+    a.addEventListener("click", (e) => {
+      e.preventDefault();
+      showSettingsPane(a.dataset.goto);
+    })
+  );
+  document.querySelectorAll('input[name="zoom-speed"]').forEach((r) =>
+    r.addEventListener("change", () => {
+      state.prefs.zoomSpeed = r.value;
+      savePrefs();
+    })
+  );
+  el("settings-group").addEventListener("change", (e) => setGroupBySubnet(e.target.checked));
+  el("settings-hover").addEventListener("change", (e) => {
+    state.prefs.hoverFade = e.target.checked;
+    savePrefs();
+    state.cy?.elements(".faded").removeClass("faded");
+  });
+  el("data-backup").addEventListener("click", () => backupAll().catch(fail));
+  el("data-restore").addEventListener("click", () => el("data-restore-file").click());
+  el("data-restore-file").addEventListener("change", (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) restoreBackup(file).catch(fail);
+  });
+  el("data-clear").addEventListener("click", () => clearAllData().catch(fail));
+  el("updates-check").addEventListener("click", checkForUpdates);
+  el("updates-auto").addEventListener("change", (e) => {
+    state.prefs.autoUpdate = e.target.checked;
+    savePrefs();
+    if (e.target.checked) checkForUpdates();
+  });
+  el("release-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-copy]");
+    if (btn) copyText(installCommand(btn.dataset.copy), "Install command copied. Run it in a terminal, then restart NetSeer.");
+  });
+  el("help-tour").addEventListener("click", startTour);
+  el("help-shortcuts").addEventListener("click", () => el("help-dialog").showModal());
+
+  el("tour-next").addEventListener("click", () => (tour.i >= TOUR_STEPS.length - 1 ? endTour() : showTourStep(tour.i + 1)));
+  el("tour-back").addEventListener("click", () => showTourStep(tour.i - 1));
+  el("tour-skip").addEventListener("click", endTour);
+  window.addEventListener("resize", () => tour.active && placeTour());
+}
+
+/* ---------- Walkthrough tour ---------- */
+
+const TOUR_STEPS = [
+  {
+    title: "Welcome to NetSeer",
+    text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
+  },
+  { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map." },
+  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn." },
+  { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Hover a device to see what it connects to. Shift-drag to select several." },
+  { target: ".search", title: "Find a device", text: "Search by name, IP, MAC, SSID, maker, or notes. Press / to jump here from anywhere." },
+  {
+    target: "#inspector",
+    title: "Details",
+    text: "Select a device to see everything NetSeer found: addresses, radio, services, and routing. You can rename it and add notes here.",
+    before: selectTourDevice,
+  },
+  { target: "#btn-export", title: "Export", text: "Save the map as a draw.io or Visio diagram, or create a PDF report with just the parts you need." },
+  { target: "#btn-theme", title: "Themes", text: "Choose from four looks. Daylight works best for printing and projectors." },
+  { target: "#btn-settings", title: "Settings and help", text: "Back up your maps, check for updates, go back to an older version, and replay this tour from here." },
+];
+
+const tour = { active: false, i: 0, pickedId: null };
+
+function startTour() {
+  el("settings-dialog").close();
+  closeMenu();
+  hideToast();
+  if (!state.prefs.tourOffered) {
+    state.prefs.tourOffered = true;
+    savePrefs();
+  }
+  tour.active = true;
+  tour.pickedId = null;
+  show("tour", true);
+  showTourStep(0);
+}
+
+function endTour() {
+  tour.active = false;
+  show("tour", false);
+  if (tour.pickedId && state.selection.length === 1 && state.selection[0] === tour.pickedId) selectNodes([]);
+  tour.pickedId = null;
+  el("btn-settings").focus({ preventScroll: true });
+}
+
+// Shows the details panel filled in, using the first device on the map.
+function selectTourDevice() {
+  if (state.selection.length || !state.cy) return;
+  const node = state.cy.nodes().filter((n) => !n.isParent() && n.data("kind") !== "subnet" && n.data("kind") !== "vlan")[0];
+  if (!node) return;
+  tour.pickedId = node.id();
+  selectNodes([tour.pickedId]);
+}
+
+function showTourStep(i) {
+  tour.i = Math.max(0, Math.min(TOUR_STEPS.length - 1, i));
+  const step = TOUR_STEPS[tour.i];
+  step.before?.();
+  el("tour-step").textContent = `${tour.i + 1} of ${TOUR_STEPS.length}`;
+  el("tour-title").textContent = step.title;
+  el("tour-text").textContent = step.text;
+  el("tour-back").disabled = tour.i === 0;
+  el("tour-next").textContent = tour.i === TOUR_STEPS.length - 1 ? "Done" : "Next";
+  placeTour();
+  el("tour-next").focus({ preventScroll: true });
+}
+
+function placeTour() {
+  const step = TOUR_STEPS[tour.i];
+  const spot = el("tour-spot");
+  const card = el("tour-card");
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const m = 12;
+  const cw = card.offsetWidth;
+  const ch = card.offsetHeight;
+  const r = step.target ? document.querySelector(step.target)?.getBoundingClientRect() : null;
+  const visible = r && r.width > 0 && r.height > 0 && r.right > 0 && r.left < vw && r.bottom > 0 && r.top < vh;
+  let left = (vw - cw) / 2;
+  let top = (vh - ch) / 2;
+  spot.classList.toggle("none", !visible);
+  if (visible) {
+    const box = { left: Math.max(4, r.left - 6), top: Math.max(4, r.top - 6), right: Math.min(vw - 4, r.right + 6), bottom: Math.min(vh - 4, r.bottom + 6) };
+    Object.assign(spot.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.right - box.left}px`, height: `${box.bottom - box.top}px` });
+    const midX = (box.left + box.right) / 2 - cw / 2;
+    const midY = (box.top + box.bottom) / 2 - ch / 2;
+    const gap = 12;
+    if (box.bottom + gap + ch <= vh - m) [left, top] = [midX, box.bottom + gap];
+    else if (box.top - gap - ch >= m) [left, top] = [midX, box.top - gap - ch];
+    else if (box.right + gap + cw <= vw - m) [left, top] = [box.right + gap, midY];
+    else if (box.left - gap - cw >= m) [left, top] = [box.left - gap - cw, midY];
+    else [left, top] = [midX, box.bottom - ch - 24]; // a big target: sit inside it, near the bottom
+  }
+  card.style.left = `${Math.max(m, Math.min(left, vw - cw - m))}px`;
+  card.style.top = `${Math.max(m, Math.min(top, vh - ch - m))}px`;
+}
+
+function onTourKey(e) {
+  if (e.key === "Escape") endTour();
+  else if (e.key === "ArrowRight") el("tour-next").click();
+  else if (e.key === "ArrowLeft" && tour.i > 0) showTourStep(tour.i - 1);
+  else return;
+  e.preventDefault();
+}
+
+// First visit only: offer the tour once, without starting it unasked.
+function offerTour() {
+  if (state.prefs.tourOffered) return;
+  state.prefs.tourOffered = true;
+  savePrefs();
+  toast("New to NetSeer? Take a one-minute tour of the screen.", { action: { label: "Take the tour", onClick: startTour }, timeout: 12000 });
+}
+
 /* ---------- Wiring ---------- */
 
 function isTypingTarget(target) {
@@ -2663,19 +3233,14 @@ function bindUi() {
     ])
   );
   el("btn-theme").addEventListener("click", (e) => openThemeMenu(e.currentTarget));
-  el("btn-help").addEventListener("click", () => el("help-dialog").showModal());
+  el("btn-settings").addEventListener("click", () => openSettings());
   el("map-title").addEventListener("click", () => state.activeMapId && renameMap(state.activeMapId));
   el("btn-sidebar").addEventListener("click", () => el("sidebar").classList.toggle("open"));
   el("btn-new-map").addEventListener("click", createBlankMap);
   el("btn-restore-samples").addEventListener("click", restoreBundledSamples);
   el("btn-show-all").addEventListener("click", () => setAllLayers(true));
   el("btn-show-none").addEventListener("click", () => setAllLayers(false));
-  el("group-toggle").addEventListener("change", (e) => {
-    state.groupBySubnet = e.target.checked;
-    savePrefs();
-    renderLayerList();
-    renderMap({ fit: true });
-  });
+  el("group-toggle").addEventListener("change", (e) => setGroupBySubnet(e.target.checked));
   document.querySelectorAll(".tab").forEach((t) =>
     t.addEventListener("click", () => {
       setTab(t.dataset.tab);
@@ -2685,8 +3250,14 @@ function bindUi() {
 
   el("btn-undo").addEventListener("click", undoLast);
   el("toast-undo").addEventListener("click", () => {
-    el("toast").classList.add("hidden");
+    hideToast();
     undoLast();
+  });
+  el("toast-action").addEventListener("click", () => {
+    hideToast();
+    const run = toast.action;
+    toast.action = null;
+    run?.();
   });
   el("btn-paste").addEventListener("click", pasteClipboard);
   el("btn-relayout").addEventListener("click", tidyLayout);
@@ -2734,6 +3305,10 @@ function bindUi() {
   el("map").addEventListener("mouseleave", () => state.cy?.elements(".faded").removeClass("faded"));
 
   document.addEventListener("keydown", (e) => {
+    if (tour.active) {
+      onTourKey(e);
+      return;
+    }
     if (e.key === "Escape") {
       if (openMenuState) {
         closeMenu()?.focus();
@@ -2802,6 +3377,7 @@ async function init() {
   el("stage").addEventListener("wheel", onMapWheel, { capture: true, passive: false });
   bindUi();
   bindReportDialog();
+  bindSettings();
   loadPrefs();
   renderLayerList();
   syncZoomUi();
@@ -2817,7 +3393,12 @@ async function init() {
   const hidden = new Set(hiddenSampleIds());
   const restoredUploads = state.maps.filter((m) => String(m.sourceId || "").startsWith("upload:")).map((m) => ({ id: m.sourceId, kind: "upload", name: m.name, summary: "Your capture", graph: m.graph }));
   state.surveys = [...restoredUploads, ...state.catalog.filter((s) => !hidden.has(s.id)).map(sampleToSurvey)];
+  await openStartingMap();
+  offerTour();
+  autoCheckUpdates();
+}
 
+async function openStartingMap() {
   const active = getMap(state.activeMapId);
   if (active && (active.kind !== "survey" || mapNodeCount(active) > 0 || active.edited)) {
     showMap(active.id);

@@ -467,6 +467,18 @@ def smoke_test() -> int:
     return 0 if ok else 1
 
 
+def package_type() -> str:
+    """installer, portable, or appimage for frozen builds; source when run from Python."""
+    if os.environ.get("APPIMAGE"):
+        return "appimage"
+    if not getattr(sys, "frozen", False):
+        return "source"
+    if sys.platform == "win32":
+        # Inno Setup leaves its uninstaller next to the exe; the portable zip has none.
+        return "installer" if any(Path(sys.executable).parent.glob("unins*.exe")) else "portable"
+    return "portable"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="NetSeer", description=f"{PRODUCT_NAME} desktop app")
     parser.add_argument("--port", type=int, help=f"Port for the local server (default {DEFAULT_PORT})")
@@ -485,6 +497,9 @@ def main(argv: list[str] | None = None) -> int:
     log.info("NetSeer %s starting (%s, Python %s, %s)", __version__, "frozen" if getattr(sys, "frozen", False) else "source", sys.version.split()[0], sys.platform)
     # Program Files and AppImages aren't writable, so Unwanted dumps go to Documents/NetSeer/Unwanted.
     os.environ.setdefault("NETSEER_UNWANTED_DIR", str(documents_dir() / PRODUCT_NAME / "Unwanted"))
+    # Tells the page it is the desktop app, and which download it came from (for Settings → Updates).
+    os.environ["NETSEER_MODE"] = "desktop"
+    os.environ.setdefault("NETSEER_PACKAGE", package_type())
 
     if args.smoke_test:
         return smoke_test()

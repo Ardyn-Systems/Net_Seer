@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui4" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui5" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -26,7 +26,8 @@
         <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5M4 20h16" /></symbol>
         <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M4 20h16" /></symbol>
         <symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 3a9 9 0 0 0 0 18c1.2 0 1.8-.8 1.8-1.7 0-1.3-1.1-1.6-1.1-2.7 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5c0-3.9-4-7-9-7Z" /><circle cx="7.5" cy="11" r="1" /><circle cx="10.5" cy="7" r="1" /><circle cx="15" cy="7.5" r="1" /></symbol>
-        <symbol id="i-help" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 1 1 3.6 2.2c-.8.4-1.2 1-1.2 1.8v.4" /><path d="M12 17h.01" /></symbol>
+        <symbol id="i-cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></symbol>
+        <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></symbol>
         <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></symbol>
         <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
         <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
@@ -70,8 +71,9 @@
             <svg class="icon"><use href="#i-palette" /></svg>
           </button>
         </div>
-        <button id="btn-help" class="icon-btn" type="button" aria-label="Keyboard shortcuts" title="Keyboard shortcuts">
-          <svg class="icon"><use href="#i-help" /></svg>
+        <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" aria-haspopup="dialog" title="Settings, help, and updates">
+          <svg class="icon"><use href="#i-cog" /></svg>
+          <span id="update-dot" class="update-dot hidden" aria-hidden="true"></span>
         </button>
       </div>
       <input id="file" type="file" accept=".pcap,.pcapng,.cap,.netxml,.csv,.json" multiple hidden />
@@ -202,9 +204,10 @@
       </aside>
     </div>
 
-    <div id="toast" class="toast hidden" role="status" aria-live="polite">
+    <div id="toast" class="toast hidden" role="status" aria-live="polite" popover="manual">
       <span id="toast-msg"></span>
       <button id="toast-undo" class="btn ghost small hidden" type="button">Undo</button>
+      <button id="toast-action" class="btn ghost small hidden" type="button"></button>
     </div>
 
     <dialog id="dialog" class="dialog">
@@ -293,12 +296,142 @@
           <dt><kbd>Shift</kbd> click</dt><dd>Add to the selection</dd>
           <dt><kbd>Shift</kbd> drag</dt><dd>Box-select devices</dd>
           <dt><kbd>F</kbd></dt><dd>Fit the map to the screen</dd>
+          <dt><kbd>?</kbd></dt><dd>Show these shortcuts</dd>
           <dt><kbd>Esc</kbd></dt><dd>Clear selection and close menus</dd>
         </dl>
         <div class="row-actions end"><button class="btn primary" value="close">Done</button></div>
       </form>
     </dialog>
 
-    <script src="/static/app.js?v=ui6"></script>
+    <dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settings-title">
+      <div class="settings-head">
+        <h2 id="settings-title">Settings</h2>
+        <button id="settings-close" class="icon-btn" type="button" aria-label="Close settings"><svg class="icon"><use href="#i-x" /></svg></button>
+      </div>
+      <div class="settings-body">
+        <nav class="settings-nav" role="tablist" aria-label="Settings sections">
+          <button role="tab" type="button" data-pane="general" aria-selected="true">General</button>
+          <button role="tab" type="button" data-pane="data" aria-selected="false">Your data</button>
+          <button role="tab" type="button" data-pane="updates" aria-selected="false">Updates<span id="updates-badge" class="nav-badge hidden">New</span></button>
+          <button role="tab" type="button" data-pane="help" aria-selected="false">Help</button>
+          <button role="tab" type="button" data-pane="about" aria-selected="false">About</button>
+        </nav>
+
+        <div class="settings-panes">
+          <section class="settings-pane" data-pane="general" role="tabpanel">
+            <h3>Theme</h3>
+            <div id="settings-themes" class="theme-grid" role="radiogroup" aria-label="Theme"></div>
+
+            <h3>Scroll to zoom</h3>
+            <div class="radio-row" role="radiogroup" aria-label="Scroll zoom speed">
+              <label><input type="radio" name="zoom-speed" value="slow" /> Gentle</label>
+              <label><input type="radio" name="zoom-speed" value="normal" /> Normal</label>
+              <label><input type="radio" name="zoom-speed" value="fast" /> Quick</label>
+            </div>
+            <p class="hint">How far one notch of the mouse wheel zooms the map.</p>
+
+            <h3>Map</h3>
+            <label class="switch-row"><span>Group by subnet<small>Draw a box around each subnet's devices</small></span>
+              <input id="settings-group" type="checkbox" role="switch" /></label>
+            <label class="switch-row"><span>Fade unrelated devices on hover<small>Highlights what the device under the pointer connects to</small></span>
+              <input id="settings-hover" type="checkbox" role="switch" /></label>
+          </section>
+
+          <section class="settings-pane hidden" data-pane="data" role="tabpanel">
+            <h3>Saved in this browser</h3>
+            <p id="data-summary" class="hint">Counting&hellip;</p>
+            <p class="hint">Maps, names, notes, and edits are kept on this device only. Back them up before moving to another computer or browser, or before trying another version.</p>
+            <div class="settings-actions">
+              <button id="data-backup" class="btn" type="button"><svg class="icon"><use href="#i-download" /></svg><span>Back up all maps</span></button>
+              <button id="data-restore" class="btn" type="button"><svg class="icon"><use href="#i-upload" /></svg><span>Restore a backup&hellip;</span></button>
+              <input id="data-restore-file" type="file" accept=".json,application/json" hidden />
+            </div>
+            <h3>Start over</h3>
+            <p class="hint">Removes every map, name, note, and preference saved here. Your capture files aren't touched.</p>
+            <div class="settings-actions">
+              <button id="data-clear" class="btn danger" type="button">Clear all data&hellip;</button>
+            </div>
+          </section>
+
+          <section class="settings-pane hidden" data-pane="updates" role="tabpanel">
+            <div class="version-card">
+              <img src="/static/logo-small.svg" width="40" height="40" alt="" />
+              <div>
+                <strong>NetSeer <span class="app-version">&hellip;</span></strong>
+                <span id="updates-build" class="hint"></span>
+              </div>
+              <button id="updates-check" class="btn" type="button">Check for updates</button>
+            </div>
+            <p id="updates-status" class="update-status" role="status" aria-live="polite"></p>
+            <div id="updates-local">
+              <label class="switch-row"><span>Check when NetSeer opens<small>Asks GitHub about new releases at most once a day. Nothing about you or your maps is sent.</small></span>
+                <input id="updates-auto" type="checkbox" role="switch" /></label>
+              <h3>Versions</h3>
+              <p id="updates-how" class="hint"></p>
+              <ol id="release-list" class="release-list"><li class="hint">Click <strong>Check for updates</strong> to list the versions on GitHub.</li></ol>
+              <p class="hint">Going back to an older version works the same as installing it, and your maps stay where they are. Back them up first under <a href="#" data-goto="data">Your data</a>, just in case.</p>
+            </div>
+            <div id="updates-hosted" class="hidden">
+              <p class="hint">This online copy updates itself whenever NetSeer changes on GitHub, so it always runs the newest version. Reload the page to pick up a change made while you had it open.</p>
+            </div>
+          </section>
+
+          <section class="settings-pane hidden" data-pane="help" role="tabpanel">
+            <div class="help-cards">
+              <button id="help-tour" class="chip-btn" type="button">Take the tour<small>A one-minute walk around the screen</small></button>
+              <button id="help-shortcuts" class="chip-btn" type="button">Keyboard shortcuts<small>Press ? at any time</small></button>
+              <a class="chip-btn" data-link="guide" target="_blank" rel="noopener">User guide<small>Every feature, with screenshots</small></a>
+              <a class="chip-btn" data-link="issue" target="_blank" rel="noopener">Report a problem<small>Opens a new issue on GitHub</small></a>
+            </div>
+            <p class="hint">When you report a problem, include the version shown under <a href="#" data-goto="about">About</a>. Don't attach captures from a network you need to keep private.</p>
+          </section>
+
+          <section class="settings-pane hidden" data-pane="about" role="tabpanel">
+            <div class="about-head">
+              <img src="/static/logo.svg" width="64" height="64" alt="" />
+              <div>
+                <h3 class="about-name">NetSeer</h3>
+                <p class="about-motto">Turn traffic into terrain.</p>
+              </div>
+            </div>
+            <dl class="about-facts">
+              <dt>Version</dt><dd class="app-version">&hellip;</dd>
+              <dt>Running as</dt><dd id="about-mode">&hellip;</dd>
+              <dt>Source</dt><dd><a data-link="repo" target="_blank" rel="noopener">github.com/ardyn-systems/NetSeer</a></dd>
+              <dt>Online copy</dt><dd><a href="https://netseer.onrender.com" target="_blank" rel="noopener">netseer.onrender.com</a></dd>
+            </dl>
+            <p class="hint">NetSeer draws a network map from packet captures and Wi-Fi survey files. Captures are read by the machine running NetSeer, and your maps stay in this browser.</p>
+            <h3>Built with</h3>
+            <ul class="credits">
+              <li><span>Cytoscape.js</span><span>MIT</span></li>
+              <li><span>FastAPI</span><span>MIT</span></li>
+              <li><span>Uvicorn</span><span>BSD-3-Clause</span></li>
+              <li><span>Scapy</span><span>GPL-2.0</span></li>
+              <li><span>ReportLab</span><span>BSD</span></li>
+              <li><span>pywebview</span><span>BSD-3-Clause</span></li>
+            </ul>
+            <p class="hint">&copy; Ardyn Systems. All rights reserved.</p>
+          </section>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="tour" class="tour hidden" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <div id="tour-spot" class="tour-spot"></div>
+      <div id="tour-card" class="tour-card">
+        <span id="tour-step" class="tour-step"></span>
+        <h2 id="tour-title"></h2>
+        <p id="tour-text"></p>
+        <div class="tour-actions">
+          <button id="tour-skip" class="btn ghost small" type="button">Skip tour</button>
+          <span>
+            <button id="tour-back" class="btn small" type="button">Back</button>
+            <button id="tour-next" class="btn primary small" type="button">Next</button>
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <script src="/static/app.js?v=ui7"></script>
   </body>
 </html>
