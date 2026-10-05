@@ -18,6 +18,7 @@ NetSeer reads capture files you give it; it doesn't sniff live traffic. The desk
 - [What it reads](#what-it-reads)
 - [What you get](#what-you-get)
 - [Where your data lives](#where-your-data-lives)
+- [How much you can store](#how-much-you-can-store)
 - [Command-line options](#command-line-options)
 - [Develop](#develop)
 - [Build the desktop apps](#build-the-desktop-apps)
@@ -142,6 +143,36 @@ NetSeer never changes your capture files. Maps, names, notes, and positions are 
 | Unwanted dumps | `Documents\NetSeer\Unwanted` | `~/Documents/NetSeer/Unwanted` |
 
 Running from source and using your normal browser, maps live in that browser's site data for `127.0.0.1:47331`, and Unwanted dumps go to `Unwanted/` in the project (or `NETSEER_UNWANTED_DIR`).
+
+## How much you can store
+
+Every version of NetSeer saves maps the same way: in the **IndexedDB** storage of the window or browser showing it. A saved map holds devices, links, names, notes, and positions, not the packets. The campus sample takes about 76 KB, and a map from a full 50 MB capture is usually a few MB. The storage limits below are far more than that, so the capture limits are the ones you'll actually meet.
+
+| | Windows app | Linux app | Online copy |
+| --- | --- | --- | --- |
+| Saved by | Edge WebView2 (Chromium) | Chrome, Chromium, Edge, Brave, or Vivaldi in its own profile | Your browser |
+| Room for saved maps | Up to about 60% of the disk | Up to about 60% of the disk | Chrome and Edge: up to about 60% of the disk. Firefox: about 10% of the disk, at most 10 GB, until storage is protected. Safari: large, but see below. |
+| Largest capture | 50 MB per file | 50 MB per file | 20 MB per file |
+| Packets read per capture | 80,000 | 80,000 | 80,000 |
+
+These are the browsers' own rules and vary a little by version. The capture limit for a copy you run yourself is set with `NETSEER_MAX_UPLOAD_MB`.
+
+**Keeping maps from being cleared.** Browsers can delete a site's storage on their own when the disk is nearly full. To stop that, NetSeer asks the browser to mark its storage as *persistent*:
+- the desktop app asks when it starts
+- the browser versions ask after you open your first capture (Firefox shows a prompt; Chrome and Edge decide quietly, usually yes once you've bookmarked or often used the site)
+- you can ask again from **Settings** → **Your data** → **Protect my maps**, which also shows whether storage is protected
+
+**Back up anyway.** **Settings** → **Your data** → **Back up all maps** saves everything to one JSON file that no browser will clear, and **Restore a backup** loads it on any computer or browser.
+
+### How the online copy stores your work
+
+The online copy at [netseer.onrender.com](https://netseer.onrender.com) works like the desktop app, with the server and the browser on different machines:
+
+1. When you open a capture, your browser sends the file over HTTPS to the server.
+2. The server reads it in memory, sends back the map (devices and links), and discards the file. Nothing is written to the server's disk, and there are no accounts.
+3. Your browser saves the map in its own IndexedDB for `netseer.onrender.com`. Names, notes, edits, positions, and preferences are saved there too and never leave your browser.
+
+So your maps are tied to **that browser on that device**. Other visitors can't see them, and you won't see them from another computer, another browser, or a private window. Clearing the site's data in your browser deletes them. **Safari** may also delete a website's saved data after about 7 days without a visit, so back up often if you use it there. Packet captures can contain sensitive information: for real captures from your own network, run NetSeer on your own computer. See [docs/hosting.md](docs/hosting.md) for how the online copy is set up.
 
 ## Command-line options
 

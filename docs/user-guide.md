@@ -211,6 +211,7 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 - **Back up all maps** downloads one `NetSeer-backup-<date>.json` file with every map, name, note, edit, position, and preference.
 - **Restore a backup…** replaces what's saved here with a backup file. It asks first.
 - **Clear all data…** removes everything saved here and starts fresh. It asks first. Your capture files aren't touched.
+- The line above the buttons says whether your maps are **protected** from automatic cleanup. Browsers can delete a site's storage when the disk is nearly full; if yours isn't protected yet, click **Protect my maps**. See [How much you can store](../README.md#how-much-you-can-store).
 
 Use a backup to move your maps to another computer or browser, or before trying a different version.
 

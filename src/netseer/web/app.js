@@ -2247,6 +2247,8 @@ async function loadFile(file) {
     if (at >= 0) state.surveys.splice(at, 1, item);
     else state.surveys.unshift(item);
     applyGraph(graph, file.name, id);
+    // Their own capture is worth keeping; Firefox asks here, other browsers decide quietly.
+    requestPersistentStorage();
   } catch (err) {
     setBusy(false);
     fail(new Error(`${file.name}: ${err.message || err}`));
@@ -2734,6 +2736,7 @@ async function refreshDataSummary() {
   }
   if (!store.available) text += " This browser isn't letting NetSeer save, so these will be lost when you close it.";
   el("data-summary").textContent = text;
+  renderPersistStatus();
 }
 
 function netseerLocalKeys() {
@@ -2832,6 +2835,47 @@ async function replaceAllData({ maps = [], deviceMeta = {}, session = null, loca
     /* preferences are a convenience */
   }
   location.reload();
+}
+
+/* ---------- Settings: keeping storage ---------- */
+// Browsers may clear a site's storage when the disk is nearly full, unless the site's
+// storage is marked persistent. Chromium grants or refuses without asking; Firefox asks.
+
+async function storagePersisted() {
+  try {
+    return navigator.storage?.persisted ? await navigator.storage.persisted() : null;
+  } catch {
+    return null;
+  }
+}
+
+async function requestPersistentStorage() {
+  if (!navigator.storage?.persist) return null;
+  try {
+    if (await navigator.storage.persisted()) return true;
+    if (requestPersistentStorage.asked) return false; // once per visit is enough
+    requestPersistentStorage.asked = true;
+    return await navigator.storage.persist();
+  } catch {
+    return false;
+  }
+}
+
+async function renderPersistStatus() {
+  const persisted = await storagePersisted();
+  const text = el("data-persist");
+  show("data-persist-btn", persisted === false);
+  if (persisted === null) text.textContent = "This browser can't protect saved maps from automatic cleanup, so back them up regularly.";
+  else if (persisted) text.textContent = "Protected: this browser won't delete your maps to free up disk space.";
+  else text.textContent = "Not protected yet: this browser may delete your maps if the disk gets nearly full.";
+}
+
+async function protectStorage() {
+  requestPersistentStorage.asked = false;
+  const granted = await requestPersistentStorage();
+  await renderPersistStatus();
+  if (granted) toast("Your maps are protected from automatic cleanup.");
+  else toast("The browser didn't allow it. Chrome and Edge decide for themselves, usually once you bookmark NetSeer or use it often. Back up regularly in the meantime.", { timeout: 9000 });
 }
 
 /* ---------- Settings: updates ---------- */
@@ -3034,6 +3078,7 @@ function bindSettings() {
     if (file) restoreBackup(file).catch(fail);
   });
   el("data-clear").addEventListener("click", () => clearAllData().catch(fail));
+  el("data-persist-btn").addEventListener("click", () => protectStorage().catch(fail));
   el("updates-check").addEventListener("click", checkForUpdates);
   el("updates-auto").addEventListener("change", (e) => {
     state.prefs.autoUpdate = e.target.checked;
@@ -3394,6 +3439,8 @@ async function init() {
   const restoredUploads = state.maps.filter((m) => String(m.sourceId || "").startsWith("upload:")).map((m) => ({ id: m.sourceId, kind: "upload", name: m.name, summary: "Your capture", graph: m.graph }));
   state.surveys = [...restoredUploads, ...state.catalog.filter((s) => !hidden.has(s.id)).map(sampleToSurvey)];
   await openStartingMap();
+  // The app window is Chromium (WebView2) or a Chromium app-mode window: no prompt there.
+  if (state.server.mode === "desktop") requestPersistentStorage();
   offerTour();
   autoCheckUpdates();
 }

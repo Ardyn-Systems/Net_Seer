@@ -19,7 +19,7 @@ It uses [Render](https://render.com)'s free plan, set up by [`render.yaml`](../r
 
 **How NetSeer behaves when hosted** (`NETSEER_HOSTED=1`, already set in `render.yaml`):
 - Captures people open are sent to the server, parsed in memory to draw the map, and not kept.
-- Maps, names, and notes stay in each visitor's own browser. Visitors never see each other's maps.
+- Maps, names, and notes stay in each visitor's own browser (IndexedDB). Visitors never see each other's maps. See [How much you can store](../README.md#how-much-you-can-store) for the limits.
 - Nobody can write files to the server. **Save to files and empty** (for Unwanted) downloads the JSON files to the visitor's computer instead.
 - The app shows a short notice about this in the **Surveys** tab and on the welcome screen.
 
