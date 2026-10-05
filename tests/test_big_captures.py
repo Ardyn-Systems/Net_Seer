@@ -118,7 +118,8 @@ def test_reading_jobs_upload_progress_and_result(tmp_path, monkeypatch):
     client = TestClient(webmod.app)
     data = wifi_capture(tmp_path).read_bytes()
     started = client.post("/api/parse/jobs?name=walk.pcap", content=data, headers={"content-type": "application/octet-stream"}).json()
-    assert started["state"] == "running" and started["bytes"] == len(data)
+    # A small capture can finish before the reply is sent.
+    assert started["state"] in ("running", "done") and started["bytes"] == len(data)
     done = _wait(client, started["id"])
     assert done["state"] == "done" and done["packets"] > 0
     graph = client.get(f"/api/parse/jobs/{started['id']}/result").json()
