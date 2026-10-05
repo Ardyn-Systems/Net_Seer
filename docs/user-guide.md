@@ -217,12 +217,33 @@ Use a backup to move your maps to another computer or browser, or before trying 
 
 **Updates.** Shows your version and how NetSeer is installed. **Check for updates** asks GitHub for the list of releases. This is the only time NetSeer goes online, and nothing about you or your maps is sent.
 
-![Settings, Updates: version 0.3.0 installed, an example newer release with an Update button, and an older one with Roll back](images/settings-updates.png)
+![Settings, Updates: version 0.4.0 installed, an example newer release with an Update button, and an older one with Roll back](images/settings-updates.png)
 
 *The releases in this picture are an example.*
 
-- Each release has **Release notes** and a download that matches your install: the installer, the portable zip, the AppImage, or the Linux archive. From source, it's an install command you can copy.
-- **Update** gets a newer version. **Roll back** gets an older one, if a new release gives you trouble. Either way, you install it the same way you installed NetSeer, and your maps stay where they are.
+- **Update** gets a newer version. **Roll back** goes back to an older one, if a new release gives you trouble. Your maps stay where they are either way.
+- In the **desktop app** (version 0.4.0 or later), either button opens the update wizard, described below.
+- From **source**, the button copies a `uv tool install` command for that version instead.
+
+#### The update wizard
+
+![Update wizard: the new version's notes, a Back up my maps first switch, and Download update](images/update-wizard.png)
+
+1. **What's new.** The wizard shows the release notes and the download size. Leave **Back up my maps first** on to save a backup file before anything changes.
+2. **Download.** A progress bar shows the download from GitHub. NetSeer then checks the file's SHA-256 checksum against the one GitHub publishes for it. If they don't match, NetSeer deletes the file and installs nothing.
+3. **Restart and update.** NetSeer closes, puts the new version in place, and reopens on its own with a message saying which version you're on.
+
+![Update wizard, ready: downloaded and checked, with Restart and update](images/update-ready.png)
+
+How the new version goes in depends on how you installed NetSeer:
+
+| Install | What happens |
+| --- | --- |
+| Windows installer | The installer runs silently and reopens NetSeer. If NetSeer is installed for all users, Windows asks for permission first. |
+| Windows portable zip, Linux `.tar.gz` | The new version goes in NetSeer's folder. The version you had is kept beside it in a folder ending in `.previous` until the next update. |
+| Linux AppImage | The AppImage file is replaced where it is. |
+
+Versions before 0.4.0 can't update themselves. If you go back to one, download later versions from GitHub yourself.
 - **Check when NetSeer opens** (off by default) checks at most once a day and tells you once about each new release.
 - The [online copy](https://netseer.onrender.com) updates itself, so it shows no list.
 
@@ -266,7 +287,9 @@ To keep a copy, or to move your maps somewhere else, use **Settings** → **Your
 
 **A capture won't open.** Check that it's one of the [supported formats](#open-your-captures) and under 50 MB. Files that parse but contain no devices say "No hosts, access points, or links were found".
 
-**A new version is misbehaving.** Open **Settings** → **Updates**, click **Check for updates**, and choose **Roll back** on the version that worked. Back up your maps first.
+**A new version is misbehaving.** Open **Settings** → **Updates**, click **Check for updates**, and choose **Roll back** on the version that worked. The wizard backs up your maps first.
+
+**An update didn't finish.** Open NetSeer from the Start menu or app menu. On Windows, the installer's log is `%LOCALAPPDATA%\NetSeer\update-install.log`. For a portable copy, the version you had is still in the folder ending in `.previous`. You can always download the release from GitHub and install it the usual way.
 
 **Something else looks wrong.** The log (see the table above) has the details. Run `NetSeer --smoke-test` (or `NetSeer.exe --smoke-test`) to check the installation; exit code 0 means it's working.
 

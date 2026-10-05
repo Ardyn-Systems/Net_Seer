@@ -244,6 +244,8 @@ def open_window(url: str) -> None:
     """pywebview window (WebView2 on Windows, WebKitGTK on Linux). Blocks until it closes; raises if unavailable."""
     import webview
 
+    from netseer import updater
+
     webview.settings["ALLOW_DOWNLOADS"] = True  # exports are browser downloads
     webview.settings["OPEN_EXTERNAL_LINKS_IN_BROWSER"] = True
     webview.create_window(
@@ -255,6 +257,8 @@ def open_window(url: str) -> None:
         background_color="#15140f",
         text_select=True,
     )
+    # An in-app update closes the window so the new version can be put in place.
+    updater.on_quit(lambda: [w.destroy() for w in list(webview.windows)])
     storage = data_dir() / "webview"
     storage.mkdir(parents=True, exist_ok=True)
     webview.start(private_mode=False, storage_path=str(storage))
@@ -284,11 +288,14 @@ def app_mode_profile(browser: str) -> Path:
 
 def wait_for_page_close(first_visit: float = PAGE_FIRST_VISIT_SECONDS, idle: float = PAGE_IDLE_SECONDS) -> None:
     """Block until the NetSeer page stops checking in (POST /api/heartbeat)."""
-    from netseer import web
+    from netseer import updater, web
 
     started = time.monotonic()
     while True:
         time.sleep(2)
+        if updater.QUIT.is_set():
+            log.info("Closing for an update")
+            return
         now = time.monotonic()
         last, bye = web.PRESENCE["last"], web.PRESENCE["bye"]
         if last is None:
@@ -326,7 +333,12 @@ def open_app_mode(url: str) -> bool:
     except OSError:
         log.exception("Couldn't start %s", browser)
         return False
+    from netseer import updater
+
+    updater.on_quit(proc.terminate)
     proc.wait()
+    if updater.QUIT.is_set():
+        return True
     # A quick exit means the window was handed to an already-running browser
     # (or the browser bailed); fall back to watching the page itself.
     if time.monotonic() - started < 5:

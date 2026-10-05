@@ -37,12 +37,15 @@ jobs:
         run: bash packaging/linux/build-appimage.sh "${{ steps.version.outputs.version }}"
       - name: Smoke test the AppImage
         run: APPIMAGE_EXTRACT_AND_RUN=1 "dist/NetSeer-${{ steps.version.outputs.version }}-x86_64.AppImage" --smoke-test
+      - name: Checksums
+        run: (cd dist && sha256sum *.AppImage *.tar.gz | tee SHA256SUMS-linux.txt)
       - uses: actions/upload-artifact@v4
         with:
           name: NetSeer-linux-${{ steps.version.outputs.version }}
           path: |
             dist/*.AppImage
             dist/*.tar.gz
+            dist/SHA256SUMS-linux.txt
       - name: Attach to release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
@@ -50,3 +53,4 @@ jobs:
           files: |
             dist/*.AppImage
             dist/*.tar.gz
+            dist/SHA256SUMS-linux.txt

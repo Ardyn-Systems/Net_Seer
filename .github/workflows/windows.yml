@@ -100,12 +100,20 @@ jobs:
             "$f : $($sig.Status) ($($sig.SignerCertificate.Subject))"
             if ($sig.Status -ne 'Valid') { exit 1 }
           }
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-FileHash dist\*.zip, dist\NetSeer-Setup-*.exe -Algorithm SHA256 |
+            ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content -Encoding ascii dist\SHA256SUMS-windows.txt
+          Get-Content dist\SHA256SUMS-windows.txt
       - uses: actions/upload-artifact@v4
         with:
           name: NetSeer-windows-${{ steps.version.outputs.version }}
           path: |
             dist/*.zip
             dist/NetSeer-Setup-*.exe
+            dist/SHA256SUMS-windows.txt
       - name: Attach to release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
@@ -113,3 +121,4 @@ jobs:
           files: |
             dist/*.zip
             dist/NetSeer-Setup-*.exe
+            dist/SHA256SUMS-windows.txt

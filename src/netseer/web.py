@@ -12,7 +12,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from netseer import __version__
+from netseer import __version__, updater
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError
 from netseer.exporters import (
@@ -58,7 +58,7 @@ def max_body_bytes() -> int:
     return max_upload_bytes() + 1024 * 1024
 
 
-REPO = "ardyn-systems/NetSeer"
+REPO = updater.REPO
 
 
 def run_mode() -> str:
@@ -126,7 +126,59 @@ def health() -> dict:
         # installer / portable / appimage for desktop builds, "source" otherwise.
         "package": os.environ.get("NETSEER_PACKAGE") or "source",
         "repo": REPO,
+        # The desktop app can download and install releases itself (Settings → Updates).
+        "updater": updater.unsupported_reason() is None,
     }
+
+
+# In-app updates. These download and run programs, so they answer only the desktop app's
+# own page: the custom header makes other web pages fail CORS preflight, and the Host
+# check stops a DNS-rebinding site from posing as 127.0.0.1.
+UPDATE_HEADER = "x-netseer-update"
+LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
+
+
+def _guard_update(request: Request) -> None:
+    reason = updater.unsupported_reason()
+    if reason:
+        raise HTTPException(status_code=403, detail=reason)
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].lower()
+    origin = request.headers.get("origin")
+    if request.headers.get(UPDATE_HEADER) != "1" or host not in LOCAL_HOSTS:
+        raise HTTPException(status_code=403, detail="Updates can only be started from NetSeer's own window.")
+    if origin and origin.rstrip("/") != f"http://{request.headers.get('host')}":
+        raise HTTPException(status_code=403, detail="Updates can only be started from NetSeer's own window.")
+
+
+@app.get("/api/update/status")
+def update_status(request: Request) -> dict:
+    if updater.unsupported_reason() is None:
+        _guard_update(request)
+    return updater.status()
+
+
+@app.post("/api/update/start")
+def update_start(request: Request, body: dict) -> dict:
+    _guard_update(request)
+    try:
+        return updater.start(str(body.get("tag", "")))
+    except updater.UpdateError as exc:
+        raise _http_error(exc, 409) from exc
+
+
+@app.post("/api/update/cancel")
+def update_cancel(request: Request) -> dict:
+    _guard_update(request)
+    return updater.cancel()
+
+
+@app.post("/api/update/install")
+def update_install(request: Request) -> dict:
+    _guard_update(request)
+    try:
+        return updater.install()
+    except updater.UpdateError as exc:
+        raise _http_error(exc, 409) from exc
 
 
 @app.get("/api/samples")
