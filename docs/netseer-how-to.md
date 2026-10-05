@@ -46,7 +46,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 | --- | --- |
 | **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Fade unrelated devices on hover** |
 | **Your data** | Count of saved maps and devices; whether storage is protected from automatic cleanup, with **Protect my maps** if not; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
-| **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); every release with **Release notes** and a download for your install type, labelled **Update**, **Reinstall**, or **Roll back**. From source, it copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
+| **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); every release with **Release notes** and **Update**, **Reinstall**, or **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
 | **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
 | **About** | Version, how NetSeer is running, links, and component licenses |
 

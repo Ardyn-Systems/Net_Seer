@@ -1,5 +1,5 @@
 ; Inno Setup script for NetSeer-Setup-<version>.exe
-;   iscc /DAppVersion=0.3.1 packaging\windows\netseer.iss
+;   iscc /DAppVersion=0.4.0 packaging\windows\netseer.iss
 ; Expects the PyInstaller output in dist\NetSeer (see netseer.spec).
 
 #ifndef AppVersion
@@ -48,8 +48,15 @@ Name: "{autodesktop}\NetSeer"; Filename: "{app}\NetSeer.exe"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\NetSeer.exe"; Description: "{cm:LaunchProgram,NetSeer}"; Flags: nowait postinstall skipifsilent
+; In-app updates run setup silently with /RELAUNCH=1: reopen NetSeer when it's done.
+Filename: "{app}\NetSeer.exe"; Flags: nowait runasoriginaluser; Check: RelaunchRequested
 
 [Code]
+function RelaunchRequested(): Boolean;
+begin
+  Result := ExpandConstant('{param:RELAUNCH|0}') = '1';
+end;
+
 function WebView2Installed(): Boolean;
 var
   Version: String;

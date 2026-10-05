@@ -10,7 +10,7 @@ NetSeer turns packet captures and wireless surveys into an interactive network m
 
 **Try it now at [netseer.onrender.com](https://netseer.onrender.com)**, no install needed. Or get the desktop app for Windows or Linux.
 
-NetSeer reads capture files you give it; it doesn't sniff live traffic. The desktop app and source installs run entirely on your machine. The only network request they make is to GitHub's public release list, and only when you check for updates in **Settings**.
+NetSeer reads capture files you give it; it doesn't sniff live traffic. The desktop app and source installs run entirely on your machine. They only go online to GitHub, and only for updates: to read the public release list when you check, and to download a release when you choose to install it.
 
 ## Contents
 
@@ -128,7 +128,7 @@ From the frames and survey rows, NetSeer extracts:
   - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it
   - per-device **PDF, CSV, XML, or text**
 - **Four themes:** Terrain (default), Midnight, Daylight (good for printing), and Blueprint.
-- **Settings** (the cog): scroll-zoom speed, back up and restore all your maps, check for updates or roll back to an earlier release, a one-minute guided tour, and an About page.
+- **Settings** (the cog): scroll-zoom speed, back up and restore all your maps, one-click updates (or roll back to an earlier release) in the desktop app, a one-minute guided tour, and an About page.
 
 The [user guide](docs/user-guide.md) walks through all of it with screenshots; the [How to](docs/netseer-how-to.md) lists every control and keyboard shortcut.
 
@@ -244,7 +244,7 @@ The logo lives in `packaging/brand/` as SVG. After editing it, regenerate every 
 GitHub Actions builds both platforms. On every pull request it checks the build and uploads the files as workflow artifacts. Pushing a version tag also attaches them to a GitHub release:
 
 ```bash
-git tag v0.3.1 && git push origin v0.3.1
+git tag v0.4.0 && git push origin v0.4.0
 ```
 
 Keep the tag in step with `version` in `pyproject.toml` and `__version__` in `src/netseer/__init__.py`.
@@ -255,7 +255,7 @@ Keep the tag in step with `version` in `pyproject.toml` and `__version__` in `sr
 python -m pip install . "pywebview>=5.3" "pyinstaller>=6.10"
 pyinstaller packaging/windows/netseer.spec --noconfirm --clean
 dist\NetSeer\NetSeer.exe --smoke-test
-iscc /DAppVersion=0.3.1 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
+iscc /DAppVersion=0.4.0 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
 ```
 
 Code signing switches on once the Azure Artifact Signing secrets exist; see [packaging/windows/SIGNING.md](packaging/windows/SIGNING.md).
@@ -266,7 +266,7 @@ Code signing switches on once the Azure Artifact Signing secrets exist; see [pac
 python -m pip install . "pyinstaller>=6.10"
 pyinstaller packaging/linux/netseer.spec --noconfirm --clean
 dist/NetSeer/NetSeer --smoke-test
-bash packaging/linux/build-appimage.sh 0.3.1   # AppImage and .tar.gz in dist/
+bash packaging/linux/build-appimage.sh 0.4.0   # AppImage and .tar.gz in dist/
 ```
 
 ## Update and uninstall
@@ -275,7 +275,13 @@ bash packaging/linux/build-appimage.sh 0.3.1   # AppImage and .tar.gz in dist/
 - **AppImage:** replace the file (run `--install` again if you added it to the menu). To remove it, run `--uninstall`, then delete the file.
 - **From source:** `uv tool upgrade netseer` (or `git pull` in a clone, then `uv sync`). Remove with `uv tool uninstall netseer`.
 
-In the app, **Settings** → **Updates** lists every release with the right download for your install, so you can update, or roll back if a new version gives you trouble.
+**From 0.4.0, the desktop app updates itself.** Open **Settings** → **Updates** → **Check for updates**, then click **Update** (or **Roll back** on an older version):
+
+1. A short wizard shows what's new and can back up your maps first.
+2. NetSeer downloads the right file for your install from GitHub and checks its SHA-256 against the checksum GitHub publishes. A file that doesn't match is deleted.
+3. **Restart and update:** NetSeer closes, installs the new version, and reopens. The Windows installer runs silently; a portable copy keeps the version you had in a `.previous` folder; an AppImage is replaced in place.
+
+Turn on **Check when NetSeer opens** to be told about new releases (at most once a day). The only requests NetSeer makes for this are to `api.github.com` and to the release download on `github.com`. Updates are only allowed from the desktop app's own window, so another website can't start one.
 
 Your saved maps stay in the folders listed under [Where your data lives](#where-your-data-lives) until you delete them. To copy them to another computer or browser, use **Settings** → **Your data** → **Back up all maps**, then **Restore a backup** on the other one.
 
