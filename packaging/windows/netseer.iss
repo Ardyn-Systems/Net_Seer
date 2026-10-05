@@ -1,5 +1,5 @@
 ; Inno Setup script for NetSeer-Setup-<version>.exe
-;   iscc /DAppVersion=0.4.5 packaging\windows\netseer.iss
+;   iscc /DAppVersion=0.4.6 packaging\windows\netseer.iss
 ; Expects the PyInstaller output in dist\NetSeer (see netseer.spec).
 
 #ifndef AppVersion
