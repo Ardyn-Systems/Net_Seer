@@ -6323,10 +6323,7 @@ function runEggCommand(raw) {
   else if (name === "unplug") forgetTheme("matrix", { nothing: "Nothing to unplug from.", done: "Unplugged" });
   else if (script("order66")) executeOrder66();
   else if (name === "rescindorder66") forgetTheme("darkside", { nothing: "There's no order to rescind.", done: "Order rescinded" });
-  else if (name === "help" || name === "get-help")
-    eggPrint(
-      `whoami         who made this\nredpill        see the network for what it really is\nunplug         leave the Matrix and forget it was there\nping [device]  ping a device on the map (the selected one, or the gateway)\n${eggWindows() ? "tracert" : "traceroute"} [device]\n               follow a route across the map to a device\nclear          clear the screen\nexit           close this window`
-    );
+  else if (name === "help" || name === "get-help") eggPrint(eggHelp());
   else if (name === "clear" || name === "cls") el("egg-out").textContent = "";
   else if (name === "exit") closeEggTerminal();
   else {
@@ -6338,6 +6335,36 @@ function runEggCommand(raw) {
       "egg-error"
     );
   }
+}
+
+// Every command, spelled the way this shell spells it.
+function eggHelp() {
+  const win = eggWindows();
+  const run = (s) => (win ? `.\\${s}` : `./${s}`);
+  const trace = win ? "tracert" : "traceroute";
+  const rows = [
+    ["On the map", [
+      [`ping [device]`, "ping a device: the selected one, or the gateway"],
+      [`${trace} [device]`, "follow a route across the map to a device"],
+      [run("wardrive"), "take a drive and log the networks you pass"],
+    ]],
+    ["Themes", [
+      ["redpill", "see the network for what it really is"],
+      ["unplug", "leave the Matrix and forget it was there"],
+      ["hacktheplanet", "dial in to the neon side"],
+      ["jackout", "log off and forget Neon"],
+      [run("order66"), "carry out the order"],
+      ["rescindorder66", "stand down and forget the Dark Side"],
+    ]],
+    ["Everything else", [
+      ["whoami", "who made this"],
+      [win ? "cls, clear" : "clear", "clear the screen"],
+      ["exit", "close this window"],
+      ["Ctrl+C", "stop a command that's running"],
+    ]],
+  ];
+  const width = Math.max(...rows.flatMap(([, list]) => list.map(([cmd]) => cmd.length))) + 3;
+  return rows.map(([title, list]) => `${title}\n${list.map(([cmd, what]) => `  ${cmd.padEnd(width)}${what}`).join("\n")}`).join("\n\n");
 }
 
 // Plays a few lines, then switches to a secret theme and lists it in Themes.
