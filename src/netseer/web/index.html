@@ -77,7 +77,7 @@
           <span id="update-dot" class="update-dot hidden" aria-hidden="true"></span>
         </button>
       </div>
-      <input id="file" type="file" accept=".pcap,.pcapng,.cap,.netxml,.csv,.json" multiple hidden />
+      <input id="file" type="file" accept=".pcap,.pcapng,.cap,.kismet,.netxml,.csv,.json" multiple hidden />
     </header>
 
     <div class="shell">
@@ -100,7 +100,7 @@
           <label class="drop" id="dropzone">
             <svg class="icon"><use href="#i-upload" /></svg>
             <span><strong>Drop captures here</strong> or click to browse</span>
-            <small>pcap, pcapng, Kismet netxml/csv, airodump csv, Unwanted JSON</small>
+            <small>pcap, pcapng, Kismet .kismet/netxml/csv, airodump csv, Unwanted JSON</small>
           </label>
           <p id="hosted-note" class="hosted-note hidden">This is a public copy of NetSeer. Files you open are sent to this server only to draw the map and aren't kept. Your maps and notes stay in this browser.</p>
           <ul id="survey-list" class="list"></ul>
@@ -490,6 +490,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui12"></script>
+    <script src="/static/app.js?v=ui13"></script>
   </body>
 </html>

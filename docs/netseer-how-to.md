@@ -58,7 +58,7 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 ## Open surveys
 
-- **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump.
+- **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS).
 - Each capture becomes its own map and joins the **Surveys** tab.
 - **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
 - First visit: the bundled campus survey opens automatically. An empty map shows a welcome card with **Open survey** and **Try the campus sample**.
@@ -173,7 +173,7 @@ NetSeer lays the map out the same way every time:
 
 Zoom with the wheel, the **−** / **+** buttons, or **Fit to screen** (`F`). Hovering a device fades everything that isn't connected to it.
 
-Access points show their SSID as a second line (`HQ-Secure`, or `HQ-Secure +2` for several). A caption you type replaces it; **Settings** → **General** → **Show SSIDs under access points** turns it off. Diagram exports use the same labels.
+Access points show their SSID as a second line (`HQ-Secure`, `HQ-Secure +2` for several, or `Hidden SSID` when the survey says the name is hidden). A caption you type replaces it; **Settings** → **General** → **Show SSIDs under access points** turns it off. Diagram exports use the same labels.
 
 ---
 

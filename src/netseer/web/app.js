@@ -726,11 +726,12 @@ function nodeLabel(node) {
 }
 
 // Access points show the network they broadcast under their name, so they're quick to
-// tell apart: "HQ-Secure", or "HQ-Secure +2" for several. A caption you type wins.
+// tell apart: "HQ-Secure", or "HQ-Secure +2" for several, or "Hidden SSID" when a
+// survey (such as a Kismet log) says the network name is hidden. A caption you type wins.
 function autoCaption(node) {
   if (!state.prefs.apSsid || !node || nodeRole(node) !== "ap") return "";
   const ssids = (Array.isArray(node.ssids) ? node.ssids : []).map((s) => String(s ?? "").replace(/\0/g, "").trim()).filter(Boolean);
-  if (!ssids.length) return "";
+  if (!ssids.length) return node.extra?.hidden_ssid ? "Hidden SSID" : "";
   return ssids.length > 1 ? `${ssids[0]} +${ssids.length - 1}` : ssids[0];
 }
 
@@ -3756,7 +3757,7 @@ const TOUR_STEPS = [
     title: "Welcome to NetSeer",
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
-  { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map." },
+  { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map." },
   { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn." },
   {
     target: "#sidebar",

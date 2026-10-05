@@ -463,6 +463,12 @@ def smoke_test() -> int:
         checks.append(("visio", post("/api/export/vsdx", graph)[:2] == b"PK", ""))
         checks.append(("pdf report", post("/api/export/report.pdf", graph)[:4] == b"%PDF", ""))
         checks.append(("heartbeat", post("/api/heartbeat", {}) is not None, ""))
+        # Kismet logs are SQLite databases; the bundle needs the sqlite3 module and its DLL/.so.
+        import sqlite3
+
+        con = sqlite3.connect(":memory:")
+        checks.append(("sqlite (Kismet logs)", con.execute("select sqlite_version()").fetchone()[0] != "", sqlite3.sqlite_version))
+        con.close()
         checks.append(("scapy layers", not scapy_errors, "; ".join(scapy_errors[:3])))
     except Exception as exc:  # report everything; this is a diagnostic
         log.exception("Smoke test failed")

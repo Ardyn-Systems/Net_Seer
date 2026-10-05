@@ -101,9 +101,11 @@ ssh -L 47331:127.0.0.1:47331 you@sensor   # then browse to http://127.0.0.1:4733
 | --- | --- |
 | Wireshark / tshark | `.pcap`, `.pcapng` |
 | tcpdump | `.pcap` |
-| Kismet | `.pcap`, `.pcapng`, `.netxml`, `.csv` |
+| Kismet | `.kismet` (its native log), `.pcap`, `.pcapng`, `.netxml`, `.csv` |
 | airodump-ng | `.csv`, `.cap` |
 | NetSeer | `Unwanted-*.json` dumps (reload devices you set aside) |
+
+**Kismet logs (`.kismet`)** are read directly; there's no need to convert them first. NetSeer decodes the packets Kismet logged, then adds Kismet's own summary of each device: SSIDs (including networks that hide their name), channels, encryption, maker, signal, location when Kismet had GPS, the networks clients probed for, and which clients joined which access points. Bluetooth and other non-Wi-Fi devices in the log are left out.
 
 Captures up to 50 MB each, and up to 80,000 packets per capture. Bundled campus samples let you try it without any files of your own.
 
