@@ -44,7 +44,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 
 | Section | What's there |
 | --- | --- |
-| **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Show SSIDs under access points**; **Fade unrelated devices on hover** |
+| **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Show SSIDs under access points**; **Fade unrelated devices on hover** (off by default) |
 | **Your data** | Count of saved maps and devices; whether storage is protected from automatic cleanup, with **Protect my maps** if not; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
 | **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); every release with **Release notes** and **Update**, **Reinstall**, or **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
 | **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
@@ -170,6 +170,8 @@ Links and memberships you add from outside information (a port label, a diagram,
 | Connect two devices | Right-click one → **Connect to…** → click the other (Esc cancels), or select two → **Connect**. Choose **Wired**, **Wi-Fi** (one end must be an access point), or **Other**; add a map label and a note |
 | Put a device in a subnet or VLAN | Right-click → **Add to subnet or VLAN…**: pick one on the map, or type a new subnet (`10.20.0.0/24`) or VLAN (1–4094) |
 | Edit or remove one | Click the link: change its label or note, or **Remove this link**. Right-click it for the same |
+| Disconnect two devices | Right-click one → **Disconnect from…** → click the other, or select two connected devices → **Disconnect**. Untick any link to keep. Works on links from the capture too; devices stay where they are, and Undo brings the links back |
+| Remove any single link | Click it → **Remove this link**, or right-click it. Devices stay put |
 | Hide them | **Layers** → **Added by you** |
 
 On the map they keep their type's colour with a dash-dot line and a ✎ before the label. A Wi-Fi link you add puts the client with its access point; a subnet you add a device to takes it into that subnet's box. Exports keep the mark (draw.io and Visio: dash-dot and ✎; PDF: "added by you" with the note). Adding and removing can be undone.
@@ -187,7 +189,7 @@ NetSeer lays the map out the same way every time:
 
 **Drag** any device (or a whole subnet box) to rearrange. Positions are saved per map. **Tidy layout** (grid button by the zoom controls, or right-click on empty space) discards dragged positions; you can undo it.
 
-Zoom with the wheel, the **−** / **+** buttons, or **Fit to screen** (`F`). Hovering a device fades everything that isn't connected to it.
+Zoom with the wheel, the **−** / **+** buttons, or **Fit to screen** (`F`). Selected devices get a bright outline, a glow, and a bold label, and their links are drawn on top. **Fade unrelated devices on hover** (Settings → General, off by default) fades everything not connected to the device under the pointer.
 
 Access points show their SSID as a second line (`HQ-Secure`, `HQ-Secure +2` for several, or `Hidden SSID` when the survey says the name is hidden). A caption you type replaces it; **Settings** → **General** → **Show SSIDs under access points** turns it off. Diagram exports use the same labels.
 

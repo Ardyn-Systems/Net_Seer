@@ -71,7 +71,7 @@ The **Surveys** tab lists your captures and the bundled samples. Click one to op
 - **Shapes and colours show the device type.** Access points are hexagons; routers and gateways have cut corners; servers, hosts, and wireless clients are rounded boxes in their own colours. VLANs are tag shapes. The legend is at the bottom of the **Layers** tab.
 - **Lines are links.** Solid lines are wired neighbours, dashed lines are IP traffic, arrows run from a client to the service it used, and dotted pink lines with diamonds are bridges. Labels such as `http tcp/80` name the service.
 - **Access points sit with their clients**, so you can see who is on which Wi-Fi network. Each access point shows its **SSID** (network name) under its name, such as `HQ-Secure`, or `HQ-Secure +2` when it broadcasts several. **Hidden SSID** means the survey shows the network hides its name. A caption you type replaces it, and you can turn SSIDs off in **Settings**.
-- **Hover a device** to fade everything that isn't connected to it.
+- **Click a device** to select it: it gets a bright outline and glow, and its links are drawn on top. To fade everything that isn't connected to the device under the pointer, turn on **Fade unrelated devices on hover** in **Settings** (it's off by default).
 
 Move around with the mouse: drag the background to pan and scroll to zoom (about 10% per notch). **Fit to screen** (or press `F`) frames everything.
 
@@ -100,7 +100,7 @@ Open **All extracted fields** for every value the parser found. Change any of th
 
 ## Inspect a link
 
-Click a line to see what it represents: the two ends, how many frames were seen, VLANs, and the services involved. For web traffic NetSeer also shows the HTTP host name it saw.
+Click a line to see what it represents: the two ends, how many frames were seen, VLANs, and the services involved. For web traffic NetSeer also shows the HTTP host name it saw. **Remove this link** (in the details, or by right-clicking the line) takes it off the map without moving either device; you can undo it.
 
 ![Details for an HTTP link from a host to a server, with the HTTP host intranet.hq.local](images/link-details.png)
 
@@ -163,6 +163,10 @@ Add a short **label** for the map (such as `Port 14`) and a note on **where this
 **How they look.** Links you add keep their type's colour, with a dash-dot line and a ✎ pencil mark before the label. Click one to see when you added it, change its label or note, or **Remove this link**; right-click it for the same. The **Added by you** switch in **Layers** shows or hides them all.
 
 ![A link added by you, labelled "✎ Port 14", with its details: added by you, the label, the note, and Remove this link](images/manual-link.png)
+
+**Disconnect two devices.** The opposite of connecting: right-click a device, choose **Disconnect from…**, and click the other device. Or select two connected devices and click **Disconnect**. A short list shows every link between them (wired, IP traffic, Wi-Fi, ones you added), all ticked; untick any you want to keep. Nothing is deleted except those links, and every device stays exactly where it is on the map. Undo brings the links back.
+
+![Disconnect dialog listing the Wi-Fi link between an access point and its client, with its frame count](images/disconnect-dialog.png)
 
 Everything you add is saved with the map, included in backups, and can be undone. Exports carry the mark too: draw.io and Visio use the dash-dot line and ✎ label, and the PDF report marks each one as "added by you" with your note.
 

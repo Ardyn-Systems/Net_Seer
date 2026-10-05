@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui11" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui12" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -169,6 +169,7 @@
           </div>
           <button type="button" class="btn ghost small" data-sel="unwanted">Set aside</button>
           <button type="button" class="btn ghost small hidden" data-sel="connect" id="sel-connect" title="Connect the two selected devices">Connect</button>
+          <button type="button" class="btn ghost small hidden" data-sel="disconnect" id="sel-disconnect" title="Remove the links between the two selected devices">Disconnect</button>
           <button type="button" class="btn ghost small danger" data-sel="delete" title="Delete">Delete</button>
         </div>
 
@@ -260,6 +261,18 @@
         <div class="row-actions end">
           <button type="button" class="btn ghost" id="connect-cancel">Cancel</button>
           <button type="submit" class="btn primary" id="connect-ok">Connect</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="disconnect-dialog" class="dialog connect-dialog" aria-labelledby="disconnect-title">
+      <form method="dialog" id="disconnect-form">
+        <h2 id="disconnect-title">Disconnect devices</h2>
+        <p class="hint">Removes the links between them from this map. Both devices stay where they are, and you can undo it.</p>
+        <fieldset class="connect-types" id="disconnect-list"></fieldset>
+        <div class="row-actions end">
+          <button type="button" class="btn ghost" id="disconnect-cancel">Cancel</button>
+          <button type="submit" class="btn primary danger-fill" id="disconnect-ok">Disconnect</button>
         </div>
       </form>
     </dialog>
@@ -403,7 +416,7 @@
               <input id="settings-group" type="checkbox" role="switch" /></label>
             <label class="switch-row"><span>Show SSIDs under access points<small>A second line with the network name, unless you've written a caption</small></span>
               <input id="settings-ssid" type="checkbox" role="switch" /></label>
-            <label class="switch-row"><span>Fade unrelated devices on hover<small>Highlights what the device under the pointer connects to</small></span>
+            <label class="switch-row"><span>Fade unrelated devices on hover<small>Fades everything not connected to the device under the pointer (off by default)</small></span>
               <input id="settings-hover" type="checkbox" role="switch" /></label>
           </section>
 
@@ -551,6 +564,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui18"></script>
+    <script src="/static/app.js?v=ui20"></script>
   </body>
 </html>
