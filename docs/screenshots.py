@@ -32,7 +32,7 @@ EXAMPLE_RELEASES = [
     {"tag_name": tag, "name": f"NetSeer {tag[1:]}", "draft": False, "prerelease": False, "published_at": date,
      "html_url": f"https://github.com/ardyn-systems/NetSeer/releases/tag/{tag}",
      "assets": [{"name": f"NetSeer-Setup-{tag[1:]}.exe", "browser_download_url": f"https://github.com/ardyn-systems/NetSeer/releases/download/{tag}/NetSeer-Setup-{tag[1:]}.exe", "size": size}]}
-    for tag, date, size in (("v0.3.0", "2026-11-02T12:00:00Z", 26_900_000), ("v0.2.0", "2026-10-04T22:41:46Z", 26_360_573), ("v0.1.0", "2026-09-12T12:00:00Z", 25_100_000))
+    for tag, date, size in (("v0.4.0", "2026-12-01T12:00:00Z", 27_400_000), ("v0.3.0", "2026-10-05T12:00:00Z", 26_900_000), ("v0.2.0", "2026-10-04T22:41:46Z", 26_360_573))
 ]
 
 CALLOUT_CSS = """

@@ -216,7 +216,7 @@ Use a backup to move your maps to another computer or browser, or before trying 
 
 **Updates.** Shows your version and how NetSeer is installed. **Check for updates** asks GitHub for the list of releases. This is the only time NetSeer goes online, and nothing about you or your maps is sent.
 
-![Settings, Updates: version 0.2.0 installed, an example newer release with an Update button, and an older one with Roll back](images/settings-updates.png)
+![Settings, Updates: version 0.3.0 installed, an example newer release with an Update button, and an older one with Roll back](images/settings-updates.png)
 
 *The releases in this picture are an example.*
 
