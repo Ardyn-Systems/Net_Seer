@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import io
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 from netseer.graph import GraphBuilder
 from netseer.models import GpsFix
@@ -47,67 +48,83 @@ def _find(parent: ET.Element, name: str) -> ET.Element | None:
     return parent.find(f".//{name}")
 
 
-def parse_kismet_netxml(builder: GraphBuilder, data: bytes, filename: str) -> None:
+def parse_kismet_netxml(builder: GraphBuilder, data: bytes | Path, filename: str) -> None:
+    """Kismet netxml, read network by network so a long wardrive needn't fit in memory."""
+    stream = open(data, "rb") if isinstance(data, Path) else io.BytesIO(data)
+    builder.packet_count += 1
     try:
-        root = ET.fromstring(data)
+        depth = 0
+        for event, el in ET.iterparse(stream, events=("start", "end")):
+            if el.tag != "wireless-network":
+                continue
+            if event == "start":
+                depth += 1
+                continue
+            depth -= 1
+            if depth == 0:  # a top-level network, clients and all
+                _netxml_network(builder, el)
+                el.clear()
     except ET.ParseError as exc:
         raise ValueError(f"Invalid Kismet netxml ({filename}): {exc}") from exc
-    builder.packet_count += 1
-    for net in root.iter("wireless-network"):
-        bssid = _text(_find(net, "BSSID"))
-        ssid_el = _find(net, "SSID")
-        essid = None
-        encs: list[str] = []
-        if ssid_el is not None:
-            essid_el = ssid_el.find("essid")
-            essid = _text(essid_el) or _text(ssid_el.find("essid"))
-            for enc in ssid_el.findall("encryption"):
-                if enc.text:
-                    encs.append(enc.text.strip())
-        channel = _int(_find(net, "channel"))
-        freq = _float(_find(net, "freqmhz"))
-        snr = _find(net, "snr-info")
-        signal = _float(snr.find("last_signal_dbm") if snr is not None else None)
-        gps_el = _find(net, "gps-info")
-        gps = None
-        if gps_el is not None:
-            lat = _first(_float(gps_el.find("avg-lat")), _float(gps_el.find("peak-lat")))
-            lon = _first(_float(gps_el.find("avg-lon")), _float(gps_el.find("peak-lon")))
-            alt = _first(_float(gps_el.find("avg-alt")), _float(gps_el.find("peak-alt")))
+    finally:
+        stream.close()
+
+
+def _netxml_network(builder: GraphBuilder, net: ET.Element) -> None:
+    bssid = _text(_find(net, "BSSID"))
+    ssid_el = _find(net, "SSID")
+    essid = None
+    encs: list[str] = []
+    if ssid_el is not None:
+        essid_el = ssid_el.find("essid")
+        essid = _text(essid_el) or _text(ssid_el.find("essid"))
+        for enc in ssid_el.findall("encryption"):
+            if enc.text:
+                encs.append(enc.text.strip())
+    channel = _int(_find(net, "channel"))
+    freq = _float(_find(net, "freqmhz"))
+    snr = _find(net, "snr-info")
+    signal = _float(snr.find("last_signal_dbm") if snr is not None else None)
+    gps_el = _find(net, "gps-info")
+    gps = None
+    if gps_el is not None:
+        lat = _first(_float(gps_el.find("avg-lat")), _float(gps_el.find("peak-lat")))
+        lon = _first(_float(gps_el.find("avg-lon")), _float(gps_el.find("peak-lon")))
+        alt = _first(_float(gps_el.find("avg-alt")), _float(gps_el.find("peak-alt")))
+        if lat is not None and lon is not None:
+            gps = GpsFix(lat=lat, lon=lon, alt=alt)
+    vendor = _text(_find(net, "manuf"))
+    node_id = builder.add_ap(
+        bssid,
+        ssid=essid,
+        channel=channel,
+        frequency_mhz=freq,
+        encryption="+".join(encs) if encs else None,
+        signal_dbm=signal,
+        gps=gps,
+        vendor=vendor,
+    )
+    carrier = _text(_find(net, "carrier"))
+    if node_id and carrier:
+        builder._device(node_id)["extra"]["carrier"] = carrier
+    for client in net.findall("wireless-client"):
+        c_mac = _text(_find(client, "client-mac"))
+        c_manuf = _text(_find(client, "client-manuf"))
+        c_snr = _find(client, "snr-info")
+        c_sig = _float(c_snr.find("last_signal_dbm") if c_snr is not None else None)
+        c_gps_el = _find(client, "gps-info")
+        c_gps = None
+        if c_gps_el is not None:
+            lat = _float(c_gps_el.find("avg-lat"))
+            lon = _float(c_gps_el.find("avg-lon"))
             if lat is not None and lon is not None:
-                gps = GpsFix(lat=lat, lon=lon, alt=alt)
-        vendor = _text(_find(net, "manuf"))
-        node_id = builder.add_ap(
-            bssid,
-            ssid=essid,
-            channel=channel,
-            frequency_mhz=freq,
-            encryption="+".join(encs) if encs else None,
-            signal_dbm=signal,
-            gps=gps,
-            vendor=vendor,
-        )
-        carrier = _text(_find(net, "carrier"))
-        if node_id and carrier:
-            builder._device(node_id)["extra"]["carrier"] = carrier
-        for client in net.findall("wireless-client"):
-            c_mac = _text(_find(client, "client-mac"))
-            c_manuf = _text(_find(client, "client-manuf"))
-            c_snr = _find(client, "snr-info")
-            c_sig = _float(c_snr.find("last_signal_dbm") if c_snr is not None else None)
-            c_gps_el = _find(client, "gps-info")
-            c_gps = None
-            if c_gps_el is not None:
-                lat = _float(c_gps_el.find("avg-lat"))
-                lon = _float(c_gps_el.find("avg-lon"))
-                if lat is not None and lon is not None:
-                    c_gps = GpsFix(lat=lat, lon=lon, alt=_float(c_gps_el.find("avg-alt")))
-            sta_id = builder.observe_mac(c_mac, wireless=True, vendor=c_manuf)
-            if sta_id:
-                builder.add_role(sta_id, "station")
-                builder.observe_signal(sta_id, c_sig)
-                builder.observe_rf(sta_id, ssid=essid, channel=channel, gps=c_gps)
-            builder.add_wireless_link(c_mac, bssid, ssid=essid, associated=True)
+                c_gps = GpsFix(lat=lat, lon=lon, alt=_float(c_gps_el.find("avg-alt")))
+        sta_id = builder.observe_mac(c_mac, wireless=True, vendor=c_manuf)
+        if sta_id:
+            builder.add_role(sta_id, "station")
+            builder.observe_signal(sta_id, c_sig)
+            builder.observe_rf(sta_id, ssid=essid, channel=channel, gps=c_gps)
+        builder.add_wireless_link(c_mac, bssid, ssid=essid, associated=True)
 
 
 def parse_kismet_csv(builder: GraphBuilder, data: bytes, filename: str) -> None:

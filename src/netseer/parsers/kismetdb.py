@@ -17,12 +17,14 @@ import re
 import sqlite3
 import tempfile
 from collections import Counter
-from typing import Any
+from pathlib import Path
+from typing import Any, Callable
 
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError
 from netseer.graph import GraphBuilder
 from netseer.models import GpsFix
-from netseer.parsers.pcap import MAX_PACKETS, feed_packets
+from netseer.parsers.fastwifi import feed_raw
+from netseer.parsers.pcap import _handle_packet, decode_frame, max_packets
 
 SQLITE_MAGIC = b"SQLite format 3\x00"
 # Link types the packet decoder understands (Ethernet, 802.11, Prism, radiotap, AVS).
@@ -34,8 +36,10 @@ def is_sqlite(data: bytes) -> bool:
     return data[:16] == SQLITE_MAGIC
 
 
-def _open(data: bytes) -> tuple[sqlite3.Connection, str | None]:
-    """An in-memory copy of the database (or a temporary file on older SQLite builds)."""
+def _open(data: bytes | Path) -> tuple[sqlite3.Connection, str | None]:
+    """The log read in place from disk, or an in-memory copy of bytes (a temporary file on older SQLite builds)."""
+    if isinstance(data, Path):
+        return sqlite3.connect(f"{data.resolve().as_uri()}?mode=ro&immutable=1", uri=True), None
     con = sqlite3.connect(":memory:")
     try:
         con.deserialize(data)
@@ -106,22 +110,15 @@ def _gps(lat: Any, lon: Any) -> GpsFix | None:
     return GpsFix(lat=lat, lon=lon, alt=None)
 
 
-def _packets(con: sqlite3.Connection, counts: Counter) -> Any:
-    from scapy.config import conf  # type: ignore[import-untyped]
-
-    rows = con.execute("SELECT ts_sec, ts_usec, dlt, packet FROM packets ORDER BY ts_sec, ts_usec LIMIT ?", (MAX_PACKETS + 1,))
-    for ts_sec, ts_usec, dlt, blob in rows:
-        cls = conf.l2types.get(dlt) if dlt in PACKET_DLTS else None
-        if cls is None or not blob:
+def _frames(con: sqlite3.Connection, counts: Counter, limit: int | None) -> Any:
+    """(link type, bytes) for each logged packet the decoder understands."""
+    query = "SELECT dlt, packet FROM packets ORDER BY ts_sec, ts_usec"
+    rows = con.execute(query + " LIMIT ?", (limit + 1,)) if limit else con.execute(query)
+    for dlt, blob in rows:
+        if dlt not in PACKET_DLTS or not blob:
             counts["other_packets"] += 1
             continue
-        try:
-            pkt = cls(bytes(blob))
-        except Exception:
-            counts["bad_packets"] += 1
-            continue
-        pkt.time = (ts_sec or 0) + (ts_usec or 0) / 1_000_000
-        yield pkt
+        yield dlt, bytes(blob)
 
 
 def _apply_device(builder: GraphBuilder, row: tuple, counts: Counter) -> None:
@@ -191,7 +188,14 @@ def _apply_device(builder: GraphBuilder, row: tuple, counts: Counter) -> None:
         counts["other_wifi"] += 1
 
 
-def parse_kismetdb(builder: GraphBuilder, data: bytes, filename: str) -> None:
+def parse_kismetdb(
+    builder: GraphBuilder,
+    data: bytes | Path,
+    filename: str,
+    *,
+    progress: Callable[[int, float], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
+) -> None:
     con, temp_path = _open(data)
     try:
         try:
@@ -206,7 +210,10 @@ def parse_kismetdb(builder: GraphBuilder, data: bytes, filename: str) -> None:
             raise EmptySurveyError("This Kismet log has no devices or packets in it. Kismet may have stopped before it heard anything.")
         counts: Counter = Counter()
         if "packets" in tables:
-            feed_packets(builder, _packets(con, counts), filename)
+            limit = max_packets()
+            total = min(n_packets, limit) if limit else n_packets
+            report = (lambda seen: progress(seen, seen / total if total else 1.0)) if progress else None
+            feed_raw(builder, _frames(con, counts, limit), filename, decode_frame, _handle_packet, max_packets=limit, progress=report, should_stop=should_stop)
         for row in con.execute("SELECT phyname, devmac, avg_lat, avg_lon, type, device FROM devices"):
             _apply_device(builder, row, counts)
         if not builder.packet_count:

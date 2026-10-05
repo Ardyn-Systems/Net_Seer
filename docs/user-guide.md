@@ -51,7 +51,7 @@ Click **Open survey**, or drag capture files anywhere onto the NetSeer window. E
 
 A Kismet `.kismet` log needs no converting: NetSeer reads its packets and Kismet's device list, including SSIDs, encryption, makers, the networks clients probed for, and access points that hide their network name (shown as **Hidden SSID**).
 
-Captures can be up to 50 MB, and NetSeer reads up to 80,000 packets from each. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
+Installed copies open captures of any size, including long wardrives. A big file shows a progress bar with how much has been read and how many packets and devices so far. **Stop and show map** draws what's been read so far; **Cancel** discards it. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB and says so when a file is bigger; install NetSeer for those. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
 
 The **Surveys** tab lists your captures and the bundled samples. Click one to open it. Right-click a survey (or use its **⋯** button) for more:
 
@@ -322,7 +322,7 @@ To keep a copy, or to move your maps somewhere else, use **Settings** → **Your
 
 **NetSeer opened in my web browser instead of a window.** On Windows, install [Microsoft Edge WebView2](https://go.microsoft.com/fwlink/p/?LinkId=2124703). On Linux, install Chrome, Chromium, Edge, Brave, or Vivaldi for a separate app window. In the browser, NetSeer quits by itself a couple of minutes after you close its tab.
 
-**A capture won't open.** Check that it's one of the [supported formats](#open-your-captures) and under 50 MB. Files that parse but contain no devices say "No hosts, access points, or links were found".
+**A capture won't open.** Check that it's one of the [supported formats](#open-your-captures). In the online copy, it must be under 20 MB; installed copies have no limit. Files that parse but contain no devices say "No hosts, access points, or links were found".
 
 **A new version is misbehaving.** Open **Settings** → **Updates**, click **Check for updates**, and choose **Roll back** on the version that worked. The wizard backs up your maps first.
 

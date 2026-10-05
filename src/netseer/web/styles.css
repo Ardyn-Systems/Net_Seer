@@ -1253,3 +1253,12 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
   font-weight: 600;
 }
 .layer-row .line-sample.dashdot { border-top-style: dashed; border-image: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 11px, var(--c) 11px 13px, transparent 13px 16px) 1; }
+
+/* ---------- Reading big captures ---------- */
+
+.overlay.interactive { pointer-events: auto; }
+.loading-card { min-width: min(420px, calc(100vw - 3rem)); }
+.loading-card .progress { margin: 0.6rem 0 0.3rem; }
+.loading-card #loading-detail { margin: 0.2rem 0 0; font-variant-numeric: tabular-nums; }
+.loading-card .row-actions { margin-top: 0.8rem; }
+.hosted-note a { color: var(--accent); }

@@ -177,6 +177,9 @@ class GraphBuilder:
         self.sources: list[str] = []
         self.packet_count = 0
         self.warnings: list[str] = []
+        # When set, link and signal updates are noted here so repeated frames can
+        # replay them without decoding again (see parsers/fastwifi.py).
+        self.recorder: list | None = None
 
     def note_source(self, name: str) -> None:
         if name not in self.sources:
@@ -429,6 +432,8 @@ class GraphBuilder:
         return rec["id"]
 
     def observe_signal(self, node_id: str, dbm: float | None) -> None:
+        if self.recorder is not None:
+            self.recorder.append(("signal", node_id))
         if dbm is None:
             return
         rec = self._device(node_id)
@@ -551,6 +556,8 @@ class GraphBuilder:
             }
             self.links[link_id] = rec
         rec["extra"]["count"] = int(rec["extra"].get("count") or 0) + 1
+        if self.recorder is not None:
+            self.recorder.append(("link", link_id))
         extra = dict(extra or {})
         incoming_ports = extra.pop("ports", None) or []
         incoming_services = extra.pop("services", None) or []

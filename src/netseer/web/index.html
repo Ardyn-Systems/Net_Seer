@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui10" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui11" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -102,7 +102,8 @@
             <span><strong>Drop captures here</strong> or click to browse</span>
             <small>pcap, pcapng, Kismet .kismet/netxml/csv, airodump csv, Unwanted JSON</small>
           </label>
-          <p id="hosted-note" class="hosted-note hidden">This is a public copy of NetSeer. Files you open are sent to this server only to draw the map and aren't kept. Your maps and notes stay in this browser.</p>
+          <p id="hosted-note" class="hosted-note hidden">This is a public copy of NetSeer. Files you open are sent to this server only to draw the map and aren't kept. Your maps and notes stay in this browser.
+            <strong>Captures up to <span class="hosted-limit">20 MB</span>.</strong> For bigger ones, such as long wardrives, <a class="install-link" target="_blank" rel="noopener">install NetSeer</a>: it has no size limit.</p>
           <ul id="survey-list" class="list"></ul>
           <p id="survey-empty" class="hint hidden">No surveys yet. Drop a capture above.</p>
           <button id="btn-restore-samples" class="btn ghost full hidden" type="button">Restore bundled samples</button>
@@ -187,7 +188,7 @@
           <div class="welcome">
             <img src="/static/logo.svg" width="56" height="56" alt="" />
             <h2 id="empty-title">Map your network</h2>
-            <p id="empty-hosted" class="hosted-note hidden">Public copy: files you open are processed on this server and not kept.</p>
+            <p id="empty-hosted" class="hosted-note hidden">Public copy: files you open are processed on this server and not kept, up to <span class="hosted-limit">20 MB</span> each. <a class="install-link" target="_blank" rel="noopener">Install NetSeer</a> for bigger captures.</p>
             <p id="empty-body">Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page, or explore the bundled campus survey.</p>
             <div class="row-actions center">
               <button id="empty-open" class="btn primary" type="button"><svg class="icon"><use href="#i-upload" /></svg><span>Open survey</span></button>
@@ -196,9 +197,15 @@
           </div>
         </div>
         <div id="loading" class="overlay hidden">
-          <div class="welcome">
+          <div class="welcome loading-card">
             <div class="spinner" aria-hidden="true"></div>
             <p id="loading-msg">Reading frames…</p>
+            <div id="loading-progress" class="progress hidden" role="progressbar" aria-labelledby="loading-msg" aria-valuemin="0" aria-valuemax="100"><div id="loading-bar"></div></div>
+            <p id="loading-detail" class="hint hidden"></p>
+            <div id="loading-actions" class="row-actions center hidden">
+              <button id="loading-stop" class="btn" type="button" title="Stop reading and show the map of what's been read so far">Stop and show map</button>
+              <button id="loading-cancel" class="btn ghost" type="button">Cancel</button>
+            </div>
           </div>
         </div>
         <div id="drop-overlay" class="drop-overlay hidden">
@@ -544,6 +551,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui16"></script>
+    <script src="/static/app.js?v=ui18"></script>
   </body>
 </html>
