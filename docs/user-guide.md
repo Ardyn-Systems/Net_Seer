@@ -172,11 +172,19 @@ Everything you add is saved with the map, included in backups, and can be undone
 
 ## Show and hide layers
 
-The **Layers** tab controls what's drawn.
+The **Layers** tab controls what's drawn, and how devices are arranged.
 
-![Layers tab: Group by subnet switch, link layer checkboxes, and the device legend](images/layers-tab.png)
+![Layers tab: Arrange devices by subnet or by connection, Group by subnet, link layer checkboxes, and the device legend](images/layers-tab.png)
 
-- **Group by subnet** draws subnets as boxes. Turn it off to show subnets as separate nodes with membership links instead.
+- **Arrange devices** picks the layout:
+  - **By subnet** (the default) puts each device in its subnet's box, with access points beside their clients.
+  - **By connection** puts devices that are linked next to each other. Each group of linked devices is its own cluster, biggest first. The busiest device (a gateway, switch, or access point) is in the middle, with what it connects to in rings around it, so lines stay short and rarely cross. Devices with no links follow in a grid, then the subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn in this view; each device's details still show its subnet and VLANs.
+
+  Each arrangement keeps its own dragged positions, so switching back and forth never scrambles either one.
+
+![The campus sample arranged by connection: the router in the middle of its cluster, access points with their clients, and unconnected devices below](images/arrange-by-connection.png)
+
+- **Group by subnet** draws subnets as boxes (in the subnet arrangement). Turn it off to show subnets as separate nodes with membership links instead.
 - **Links** switches each kind of link on or off: wired, IP traffic, ports and services, wireless, VLAN membership, subnet membership, and bridges. Devices always stay visible.
 - **Devices** is the legend for shapes and colours.
 

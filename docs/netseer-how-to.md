@@ -180,7 +180,16 @@ On the map they keep their type's colour with a dash-dot line and a ✎ before t
 
 ## Layout
 
-NetSeer lays the map out the same way every time:
+NetSeer lays the map out the same way every time. **Layers** → **Arrange devices** picks one of two arrangements:
+
+| Arrangement | What it does |
+| --- | --- |
+| **By subnet** (default) | Subnet boxes, access points with their clients, groups packed to fit the window (details below) |
+| **By connection** | Linked devices together: each connected group is a cluster, biggest first, with its busiest device in the middle and the rest in rings around it. Unconnected devices follow in a grid, then subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn (they're in Details) |
+
+Each arrangement keeps its own dragged positions.
+
+In the subnet arrangement:
 
 - **Subnets are boxes** around their devices (turn this off with **Group by subnet** in **Layers**).
 - **Access points** sit with their wireless clients: a row under the AP for a few clients, a ring for more, a grid for crowds.

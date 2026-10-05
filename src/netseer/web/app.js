@@ -51,7 +51,7 @@ const state = {
   suppressSelect: false,
   server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
-  prefs: { zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
+  prefs: { layout: "subnet", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
 };
 
 /* ---------- Small helpers ---------- */
@@ -449,6 +449,8 @@ function serializeMap(map) {
     edited: Boolean(map.edited),
     graph: map.graph,
     positions: map.positions || {},
+    positionsMode: map.positionsMode || "subnet",
+    layoutPositions: map.layoutPositions || {},
   };
 }
 
@@ -549,6 +551,8 @@ function normalizeMap(m) {
     edited: Boolean(m.edited),
     graph: m.graph && Array.isArray(m.graph.nodes) ? m.graph : emptyGraph(m.name),
     positions: m.positions && typeof m.positions === "object" ? m.positions : {},
+    positionsMode: m.positionsMode === "connection" ? "connection" : "subnet",
+    layoutPositions: isPlainObject(m.layoutPositions) ? m.layoutPositions : {},
   };
 }
 
@@ -1049,6 +1053,189 @@ function apBlock(apId, clients) {
   return { items, w: cols * CELL_W, h: CELL_H * 1.5 + rows * CELL_H };
 }
 
+/* ---------- Layout: by connection ---------- */
+// Devices that are linked sit together. Each group of linked devices is a cluster, biggest
+// first; inside it the busiest device (a gateway, switch, or access point) is in the middle
+// and what it connects to is arranged in rings around it, each branch in its own slice, so
+// lines stay short and rarely cross. Unconnected devices follow in a grid, then the subnet
+// and VLAN labels. Deterministic, like the subnet layout: the same map lays out the same way.
+
+const CONNECTION_KINDS = new Set(["l2", "l3", "client-server", "wireless", "bridge", "manual"]);
+// Which link to follow first when two devices could be reached several ways.
+const KIND_PRIORITY = { wireless: 0, l2: 1, bridge: 2, manual: 3, "client-server": 4, l3: 5 };
+const RING_STEP = 210;
+const NODE_ARC = 150; // room each device needs along a ring
+const FAN_LIMIT = 12; // more leaves than this under one device: stagger them on two rings
+const FAN_OFFSET = 150; // the second ring's distance outside the first
+
+function connectionLayout(graph) {
+  const nodes = graph.nodes || [];
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const isDevice = (n) => n && n.kind !== "subnet" && n.kind !== "vlan";
+  const label = (id) => String(byId.get(id)?.inferred_type || byId.get(id)?.label || id);
+  const order = (a, b) => typeRank(byId.get(a)) - typeRank(byId.get(b)) || label(a).localeCompare(label(b)) || a.localeCompare(b);
+
+  const adj = new Map();
+  for (const l of graph.links || []) {
+    if (!CONNECTION_KINDS.has(l.kind) || l.source === l.target) continue;
+    if (!isDevice(byId.get(l.source)) || !isDevice(byId.get(l.target))) continue;
+    for (const [a, b] of [[l.source, l.target], [l.target, l.source]]) {
+      if (!adj.has(a)) adj.set(a, new Map());
+      const prev = adj.get(a).get(b);
+      const pr = KIND_PRIORITY[l.kind] ?? 9;
+      if (prev === undefined || pr < prev) adj.get(a).set(b, pr);
+    }
+  }
+
+  // Connected groups.
+  const seen = new Set();
+  const components = [];
+  for (const n of [...nodes].sort((a, b) => order(a.id, b.id))) {
+    if (!isDevice(n) || seen.has(n.id) || !adj.has(n.id)) continue;
+    const members = [];
+    const stack = [n.id];
+    seen.add(n.id);
+    while (stack.length) {
+      const id = stack.pop();
+      members.push(id);
+      for (const nb of adj.get(id)?.keys() || []) if (!seen.has(nb)) (seen.add(nb), stack.push(nb));
+    }
+    components.push(members);
+  }
+
+  const blocks = components.map((members) => radialBlock(members, adj, byId, order));
+  blocks.sort((a, b) => b.size - a.size || a.key.localeCompare(b.key));
+
+  // Unconnected devices, then subnet and VLAN labels, as grids.
+  const grid = (ids, key) => {
+    if (!ids.length) return null;
+    const sorted = [...ids].sort(order);
+    const cols = Math.max(1, Math.ceil(Math.sqrt(sorted.length * 1.6)));
+    const items = sorted.map((id, i) => [id, (i % cols) * CELL_W + CELL_W / 2, Math.floor(i / cols) * CELL_H + CELL_H / 2]);
+    return { key, items, w: Math.min(cols, sorted.length) * CELL_W, h: Math.ceil(sorted.length / cols) * CELL_H, size: 0 };
+  };
+  const loose = grid(nodes.filter((n) => isDevice(n) && !seen.has(n.id)).map((n) => n.id), "~loose");
+  const nets = grid(nodes.filter((n) => !isDevice(n)).map((n) => n.id), "~networks");
+  const all = [...blocks, loose, nets].filter(Boolean);
+
+  const box = el("map").getBoundingClientRect();
+  const aspect = box.width > 0 && box.height > 0 ? Math.min(3, Math.max(0.8, box.width / box.height)) : 1.5;
+  const total = all.reduce((s, c) => s + (c.w + CLUSTER_GAP) * (c.h + CLUSTER_GAP), 0);
+  packRows(all, Math.max(...all.map((c) => c.w), Math.sqrt(total * aspect)), CLUSTER_GAP);
+  const positions = new Map();
+  for (const c of all) for (const [id, dx, dy] of c.items) positions.set(id, { x: c.x + dx, y: c.y + dy });
+  return { positions, parents: new Map() };
+}
+
+function radialBlock(members, adj, byId, order) {
+  // The middle: most connections, then gateways before servers before access points.
+  const degree = (id) => adj.get(id)?.size || 0;
+  const root = [...members].sort((a, b) => degree(b) - degree(a) || order(a, b))[0];
+  // Spanning tree, breadth first, following the strongest kind of link first.
+  const children = new Map(members.map((id) => [id, []]));
+  const depth = new Map([[root, 0]]);
+  const queue = [root];
+  for (let qi = 0; qi < queue.length; qi += 1) {
+    const id = queue[qi];
+    const next = [...(adj.get(id) || [])].filter(([nb]) => !depth.has(nb)).sort((x, y) => x[1] - y[1] || order(x[0], y[0]));
+    for (const [nb] of next) {
+      if (depth.has(nb)) continue;
+      depth.set(nb, depth.get(id) + 1);
+      children.get(id).push(nb);
+      queue.push(nb);
+    }
+  }
+  // Each branch gets a slice of the circle in proportion to how many devices it ends in.
+  const leaves = new Map();
+  const countLeaves = (id) => {
+    const kids = children.get(id);
+    const n = kids.length ? kids.reduce((s, k) => s + countLeaves(k), 0) : 1;
+    leaves.set(id, n);
+    return n;
+  };
+  countLeaves(root);
+  // Each ring is big enough that its narrowest slice still has room for a device. Leaves
+  // fanned out on two staggered rings need about half the room.
+  const fanParents = new Set([...children].filter(([, kids]) => kids.filter((k) => !children.get(k).length).length > FAN_LIMIT).map(([id]) => id));
+  const parentOf = new Map();
+  for (const [id, kids] of children) for (const k of kids) parentOf.set(k, id);
+  const need = new Map();
+  for (const [id, d] of depth) {
+    if (d === 0) continue;
+    const slice = (2 * Math.PI * leaves.get(id)) / leaves.get(root);
+    const fanned = !children.get(id).length && fanParents.has(parentOf.get(id));
+    need.set(d, Math.max(need.get(d) || 0, (NODE_ARC / slice) * (fanned ? 0.55 : 1)));
+  }
+  const radius = [0];
+  for (let d = 1; need.has(d); d += 1) radius[d] = Math.max(radius[d - 1] + RING_STEP, need.get(d));
+  const pos = new Map([[root, [0, 0]]]);
+  const place = (id, start, end) => {
+    const kids = children.get(id);
+    if (!kids.length) return;
+    const fan = fanParents.has(id);
+    let a = start;
+    kids.forEach((k, i) => {
+      const span = ((end - start) * leaves.get(k)) / leaves.get(id);
+      const mid = a + span / 2;
+      // Lots of leaves under one device: alternate two rings so they don't crowd.
+      // The second ring sits a device's width further out, so neighbours clear each other
+      // at the sides of the circle as well as at the top and bottom.
+      const r = radius[depth.get(k)] + (fan && !children.get(k).length && i % 2 ? FAN_OFFSET : 0);
+      pos.set(k, [r * Math.cos(mid), r * Math.sin(mid)]);
+      place(k, a, a + span);
+      a += span;
+    });
+  };
+  // Around a full circle the first and last devices meet. With an odd number staggered on
+  // two rings they'd land side by side on the same ring, so leave one slice empty there.
+  const oddFan = fanParents.has(root) && children.get(root).length % 2 === 1;
+  place(root, -Math.PI / 2, (3 * Math.PI) / 2 - (oddFan ? (2 * Math.PI) / (leaves.get(root) + 1) : 0));
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  for (const [x, y] of pos.values()) {
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  const items = [...pos].map(([id, [x, y]]) => [id, x - minX + CELL_W / 2, y - minY + CELL_H / 2]);
+  return { key: root, items, w: maxX - minX + CELL_W, h: maxY - minY + CELL_H, size: members.length };
+}
+
+const layoutMode = () => (state.prefs.layout === "connection" ? "connection" : "subnet");
+
+// Each arrangement keeps its own dragged positions, so switching never scrambles either.
+function usePositionsFor(map, mode) {
+  if (!map) return;
+  const current = map.positionsMode || "subnet";
+  if (current === mode) return;
+  map.layoutPositions = { ...(map.layoutPositions || {}), [current]: map.positions || {} };
+  map.positions = map.layoutPositions[mode] || {};
+  map.positionsMode = mode;
+  markMapDirty(map.id);
+}
+
+function setLayoutMode(mode) {
+  if (layoutMode() === mode) return;
+  state.prefs.layout = mode;
+  savePrefs();
+  syncLayoutUi();
+  renderLayerList();
+  renderMap({ fit: true });
+}
+
+function syncLayoutUi() {
+  const mode = layoutMode();
+  document.querySelectorAll("#layout-choice [data-layout]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.layout === mode)));
+  el("layout-hint").textContent =
+    mode === "connection" ? "Linked devices sit together, busiest in the middle. Unconnected devices follow in a grid." : "Devices sit in their subnet's box; access points with their clients.";
+  const toggle = el("group-toggle");
+  toggle.disabled = mode !== "subnet";
+  el("group-row").classList.toggle("is-disabled", mode !== "subnet");
+}
+
 function computeLayout(graph, grouped) {
   const nodes = graph.nodes || [];
   const links = graph.links || [];
@@ -1265,7 +1452,8 @@ function cyStyle(c) {
 }
 
 function toElements(graph) {
-  const { positions, parents } = computeLayout(graph, state.groupBySubnet);
+  usePositionsFor(getMap(state.activeMapId), layoutMode());
+  const { positions, parents } = layoutMode() === "connection" ? connectionLayout(graph) : computeLayout(graph, state.groupBySubnet);
   const saved = getMap(state.activeMapId)?.positions || {};
   const nodeIds = new Set(graph.nodes.map((n) => n.id));
   const nodes = graph.nodes.map((raw) => {
@@ -1980,7 +2168,7 @@ const connectState = { from: null };
 function linkIsShown(l) {
   if (isManualLink(l) && state.filters.manual === false) return false;
   if (!isManualLink(l) && state.filters[l.kind] === false) return false;
-  return !(state.groupBySubnet && l.kind === "subnet");
+  return !membershipHidden(l.kind);
 }
 
 function isDeviceNode(n) {
@@ -3273,6 +3461,7 @@ function loadPrefs() {
   if (typeof prefs.groupBySubnet === "boolean") state.groupBySubnet = prefs.groupBySubnet;
   if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
+  if (prefs.layout === "connection" || prefs.layout === "subnet") state.prefs.layout = prefs.layout;
   for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
   // Version 2 turned hover fading off by default; earlier copies saved it as on without asking.
   if (!(prefs.prefsVersion >= 2)) state.prefs.hoverFade = false;
@@ -3290,10 +3479,11 @@ function renderLayerList() {
   for (const layer of LAYERS) {
     const row = document.createElement("label");
     row.className = "layer-row";
-    const covered = layer.kind === "subnet" && state.groupBySubnet;
+    const covered = membershipHidden(layer.kind);
+    const why = layoutMode() === "connection" ? "Hidden while arranging by connection" : "Shown as boxes while grouping";
     row.innerHTML = `<input type="checkbox" ${state.filters[layer.kind] ? "checked" : ""} ${covered ? "disabled" : ""} />
       <i class="line-sample ${layer.line}" style="--c: var(${layer.color})"></i>
-      <span>${escapeHtml(layer.name)}${covered ? "<small>Shown as boxes while grouping</small>" : ""}</span>`;
+      <span>${escapeHtml(layer.name)}${covered ? `<small>${why}</small>` : ""}</span>`;
     row.querySelector("input").addEventListener("change", (e) => {
       state.filters[layer.kind] = e.target.checked;
       savePrefs();
@@ -3302,6 +3492,16 @@ function renderLayerList() {
     list.appendChild(row);
   }
   el("group-toggle").checked = state.groupBySubnet;
+  syncLayoutUi();
+}
+
+// Membership lines tie every device to its subnet or VLAN, so they're not drawn when they'd
+// only clutter: subnets as boxes while grouping, and both left out of the connection
+// arrangement, which is about who talks to whom (membership stays in each device's Details).
+function membershipHidden(kind) {
+  if (kind === "subnet") return layoutMode() === "connection" || state.groupBySubnet;
+  if (kind === "vlan") return layoutMode() === "connection";
+  return false;
 }
 
 function setAllLayers(on) {
@@ -4388,7 +4588,7 @@ const TOUR_STEPS = [
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
   { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map, and big ones (long wardrives) show their progress as they read." },
-  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn." },
+  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and arranges devices by subnet or by connection." },
   {
     target: "#sidebar",
     title: "Organize the sidebar",
@@ -4573,6 +4773,7 @@ function bindUi() {
   el("btn-show-all").addEventListener("click", () => setAllLayers(true));
   el("btn-show-none").addEventListener("click", () => setAllLayers(false));
   el("group-toggle").addEventListener("change", (e) => setGroupBySubnet(e.target.checked));
+  document.querySelectorAll("#layout-choice [data-layout]").forEach((b) => b.addEventListener("click", () => setLayoutMode(b.dataset.layout)));
   document.querySelectorAll(".tab").forEach((t) =>
     t.addEventListener("click", () => {
       setTab(t.dataset.tab);

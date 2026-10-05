@@ -264,6 +264,12 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.reset()
         page.click(".tab[data-tab=layers]")
         shots.save("layers-tab", selectors=[".tabs", ".tab-panel:not(.hidden)"], pad=12)
+        page.click('#layout-choice [data-layout="connection"]')
+        page.wait_for_timeout(800)
+        page.mouse.move(5, 5)
+        shots.save("arrange-by-connection", full=True)
+        page.click('#layout-choice [data-layout="subnet"]')
+        page.wait_for_timeout(800)
         page.click(".tab[data-tab=maps]")
 
         # 7. Exports and the report dialog.
