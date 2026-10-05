@@ -322,6 +322,16 @@ def _infer_packet_service(pkt: Any, sport: int | None, dport: int | None) -> tup
     return service_for_port(dport) or service_for_port(sport), meta
 
 
+def frame_time(meta: Any, nano: bool = False) -> float | None:
+    """A frame's capture time in Unix seconds, from pcap or pcapng metadata."""
+    try:
+        if hasattr(meta, "tshigh"):  # pcapng
+            return ((meta.tshigh << 32) | meta.tslow) / float(meta.tsresol or 1_000_000)
+        return meta.sec + meta.usec / (1e9 if nano else 1e6)
+    except (AttributeError, TypeError, ZeroDivisionError):
+        return None
+
+
 def decode_frame(linktype: int, data: bytes) -> Any:
     """A scapy packet for one frame of the given link type, as PcapReader would make."""
     cls = conf.l2types.num2layer.get(linktype, conf.raw_layer)
@@ -349,10 +359,11 @@ def parse_pcap(
     except Exception as exc:
         raise ValueError(f"Could not open capture {filename}: {exc}") from exc
     file_linktype = getattr(reader, "linktype", None)
+    nano = bool(getattr(reader, "nano", False))
 
     def frames():
         for data, meta in reader:
-            yield getattr(meta, "linktype", file_linktype), data
+            yield getattr(meta, "linktype", file_linktype), data, frame_time(meta, nano)
 
     def report(count: int) -> None:
         if progress is not None:
@@ -382,9 +393,14 @@ def feed_packets(builder: GraphBuilder, packets: Any, filename: str) -> None:
         seen += 1
         builder.packet_count += 1
         try:
+            builder.now = float(pkt.time)
+        except (AttributeError, TypeError, ValueError):
+            builder.now = None
+        try:
             _handle_packet(builder, pkt)
         except Exception:
             failed += 1
+    builder.now = None
     if failed:
         builder.warnings.append(f"{filename}: skipped {failed} packets that could not be decoded.")
 

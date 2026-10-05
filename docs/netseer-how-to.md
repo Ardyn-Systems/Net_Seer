@@ -44,7 +44,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 
 | Section | What's there |
 | --- | --- |
-| **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Show SSIDs under access points**; **Fade unrelated devices on hover** (off by default) |
+| **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Show SSIDs under access points**; **Fade unrelated devices on hover** (off by default); **Time**: time zone (this computer, UTC, or any) and 12- or 24-hour clock |
 | **Your data** | Count of saved maps and devices; whether storage is protected from automatic cleanup, with **Protect my maps** if not; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
 | **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); every release with **Release notes** and **Update**, **Reinstall**, or **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
 | **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
@@ -52,7 +52,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 
 Checking for updates is the only time NetSeer goes online: it reads the public release list from `api.github.com`. Nothing about you or your maps is sent.
 
-**The tour** is offered once on the first visit, and from **Help** → **Take the tour** any time after. Ten steps; **Next**/**Back** or the arrow keys, and **Skip tour** or Esc to stop.
+**The tour** is offered once on the first visit, and from **Help** → **Take the tour** any time after. Eleven steps; **Next**/**Back** or the arrow keys, and **Skip tour** or Esc to stop.
 
 ---
 
@@ -132,6 +132,24 @@ Links travel with a selection only when **both** ends are selected.
 ### Access points bring their clients
 
 Copying, cutting, moving, or setting aside an **access point** also takes its associated **wireless clients**, plus **other APs bridged to it** (WDS, STP, attachment) and their clients. A **wireless client** on its own moves alone.
+
+---
+
+## Timeline
+
+Shown under the map when a capture records times (pcap, pcapng, Kismet logs).
+
+| Part | What it does |
+| --- | --- |
+| Start and end | When the capture began and ended, in the time zone from **Settings** → **General** → **Time** |
+| Chart | How many devices were active in each slice of the capture |
+| Two handles | Pick a window: only devices and links heard during it stay on the map; nothing moves |
+| **New map from this window** | A separate map of just that time: devices and links heard in it (plus ones you added), activity trimmed to the window, names and notes carried over, fresh layout. Undoable; the original is unchanged |
+| **Show all** / **×** | Whole capture again / hide the timeline (the clock button by the zoom controls reopens it) |
+
+- Sightings within a minute of each other are one stretch of activity. Details show **First seen**, **Last seen**, and **Active**.
+- Exports and the PDF report include only what's in the window; the report states the window.
+- Devices without times (NetXML, CSV, ones you add) always show.
 
 ---
 

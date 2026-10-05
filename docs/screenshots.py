@@ -266,6 +266,9 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("layers-tab", selectors=[".tabs", ".tab-panel:not(.hidden)"], pad=12)
         page.click('#layout-choice [data-layout="connection"]')
         page.wait_for_timeout(800)
+        # Close enough that the labels are readable: centred on the router's cluster.
+        page.evaluate("() => { const r = state.cy.nodes().filter(n => n.data('role') === 'gateway')[0]; state.cy.zoom(0.85); state.cy.center(r); }")
+        page.wait_for_timeout(300)
         page.mouse.move(5, 5)
         shots.save("arrange-by-connection", full=True)
         page.click('#layout-choice [data-layout="subnet"]')
@@ -315,6 +318,14 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.evaluate("() => el('disconnect-dialog').close()")
         shots.reset()
 
+        # 7d. The timeline with a window picked.
+        page.evaluate("() => { el('tl-from').value = '250'; el('tl-to').value = '600'; setTimeWindowFromSliders('to'); }")
+        page.wait_for_timeout(600)
+        page.mouse.move(5, 5)
+        shots.save("timeline", selectors=["#timeline"], pad=10)
+        page.evaluate("() => resetTimeWindow()")
+        page.wait_for_timeout(300)
+
         # 8. Themes.
         page.click("#btn-theme")
         page.wait_for_selector("body > .menu")
@@ -359,7 +370,7 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("settings-about", selectors=["#settings-dialog"], pad=0)
         page.click('.settings-nav [data-pane="help"]')
         page.click("#help-tour")
-        for _ in range(6):
+        for _ in range(7):
             page.keyboard.press("ArrowRight")
         page.wait_for_timeout(400)
         shots.save("tour", full=True)

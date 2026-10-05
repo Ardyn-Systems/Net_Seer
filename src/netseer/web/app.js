@@ -51,7 +51,7 @@ const state = {
   suppressSelect: false,
   server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
-  prefs: { layout: "subnet", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
+  prefs: { layout: "subnet", timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
 };
 
 /* ---------- Small helpers ---------- */
@@ -870,7 +870,10 @@ function applyMapsSnapshot(entry) {
   restoreMetaSnapshot(ids, entry.meta);
   markSessionDirty();
   // Show the map that changed: the one you were on if it's among them, else the first.
-  const target = [entry.activeMapId, ...ids].find((id) => ids.includes(id) && getMap(id)) || (getMap(state.activeMapId) ? state.activeMapId : state.maps[0]?.id);
+  // If the map you were on went away (say, undoing a new map), go back to where you were before.
+  const target =
+    [entry.activeMapId, ...ids].find((id) => ids.includes(id) && getMap(id)) ||
+    (getMap(state.activeMapId) ? state.activeMapId : getMap(entry.activeMapId) ? entry.activeMapId : state.maps[0]?.id);
   showMap(target, { fit: target !== state.activeMapId });
 }
 
@@ -1051,6 +1054,352 @@ function apBlock(apId, clients) {
   const items = [[apId, (cols * CELL_W) / 2, CELL_H / 2]];
   clients.forEach((id, i) => items.push([id, (i % cols) * CELL_W + CELL_W / 2, CELL_H * 1.5 + Math.floor(i / cols) * CELL_H + CELL_H / 2]));
   return { items, w: cols * CELL_W, h: CELL_H * 1.5 + rows * CELL_H };
+}
+
+/* ---------- Time: display settings ---------- */
+// Captures record exact moments (UTC). Settings → General → Time chooses how they're shown.
+
+const timeFormats = new Map();
+
+function timeZoneSetting() {
+  return state.prefs.timeZone || undefined; // undefined: this computer's zone
+}
+
+function formatTime(ts, { date = false, seconds = true } = {}) {
+  if (ts == null || !Number.isFinite(ts)) return "";
+  const key = `${state.prefs.timeZone}|${state.prefs.clock}|${date}|${seconds}`;
+  if (!timeFormats.has(key)) {
+    const opts = { hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}) };
+    if (date) Object.assign(opts, { year: "numeric", month: "short", day: "numeric" });
+    if (state.prefs.clock === "12") opts.hour12 = true;
+    else if (state.prefs.clock === "24") opts.hourCycle = "h23";
+    try {
+      timeFormats.set(key, new Intl.DateTimeFormat(undefined, { ...opts, timeZone: timeZoneSetting() }));
+    } catch {
+      timeFormats.set(key, new Intl.DateTimeFormat(undefined, opts)); // an unknown zone: fall back to local
+    }
+  }
+  return timeFormats.get(key).format(new Date(ts * 1000));
+}
+
+function timeZoneLabel() {
+  const zone = state.prefs.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone;
+  try {
+    const part = new Intl.DateTimeFormat(undefined, { timeZone: zone, timeZoneName: "short" }).formatToParts(new Date()).find((p) => p.type === "timeZoneName");
+    const name = zone.replace(/_/g, " ");
+    return part && part.value !== zone ? `${name} (${part.value})` : name;
+  } catch {
+    return zone;
+  }
+}
+
+function formatDuration(seconds) {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ""}`;
+  const h = Math.floor(s / 3600);
+  const m = Math.round((s % 3600) / 60);
+  return `${h} h${m ? ` ${m} min` : ""}`;
+}
+
+function fillTimeSettings() {
+  const select = el("settings-tz");
+  if (!select.options.length) {
+    const here = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    let zones = [];
+    try {
+      zones = Intl.supportedValuesOf("timeZone");
+    } catch {
+      zones = [here, "UTC"];
+    }
+    select.innerHTML =
+      `<option value="">This computer (${escapeHtml(here.replace(/_/g, " "))})</option><option value="UTC">UTC</option>` +
+      zones.filter((z) => z !== "UTC").map((z) => `<option value="${escapeHtml(z)}">${escapeHtml(z.replace(/_/g, " "))}</option>`).join("");
+  }
+  select.value = state.prefs.timeZone || "";
+  document.querySelectorAll('input[name="clock"]').forEach((r) => (r.checked = r.value === (state.prefs.clock || "auto")));
+  el("settings-time-sample").textContent = `Now: ${formatTime(Date.now() / 1000, { date: true })} · ${timeZoneLabel()}`;
+}
+
+function onTimeSettingsChanged() {
+  timeFormats.clear();
+  savePrefs();
+  fillTimeSettings();
+  renderTimeline();
+  renderInspector();
+}
+
+/* ---------- Timeline ---------- */
+// Devices and links remember when they were heard ([[start, end], ...] in Unix seconds).
+// The timeline under the map picks a window; devices and links not heard in it are hidden,
+// and nothing moves. Devices without times (NetXML, CSV, devices you add) always show.
+
+const TL_STEPS = 1000;
+const TL_BARS = 160;
+const TL_MIN_SECONDS = 5;
+const timeline = { cacheVersion: -1, data: null, raf: 0 };
+
+const hasSeen = (item) => Array.isArray(item?.seen) && item.seen.length > 0;
+const seenIn = (item, [a, b]) => item.seen.some(([s, e]) => s <= b && e >= a);
+
+function timeData() {
+  if (timeline.cacheVersion === state.graphVersion) return timeline.data;
+  timeline.cacheVersion = state.graphVersion;
+  const nodes = (state.graph?.nodes || []).filter((n) => isDeviceNode(n));
+  let start = Infinity;
+  let end = -Infinity;
+  for (const item of [...nodes, ...(state.graph?.links || [])]) {
+    for (const [s, e] of item.seen || []) {
+      if (s < start) start = s;
+      if (e > end) end = e;
+    }
+  }
+  // A capture only seconds long has no window worth choosing.
+  if (!Number.isFinite(start) || end - start < TL_MIN_SECONDS) {
+    timeline.data = null;
+    return null;
+  }
+  // How many devices were active in each slice of the capture, for the chart.
+  const bars = new Array(TL_BARS).fill(0);
+  const span = end - start;
+  for (const n of nodes) {
+    const hit = new Set();
+    for (const [s, e] of n.seen || []) {
+      const i0 = Math.max(0, Math.floor(((s - start) / span) * TL_BARS));
+      const i1 = Math.min(TL_BARS - 1, Math.floor(((e - start) / span) * TL_BARS));
+      for (let i = i0; i <= i1; i += 1) hit.add(i);
+    }
+    hit.forEach((i) => (bars[i] += 1));
+  }
+  const timed = nodes.filter(hasSeen).length;
+  timeline.data = { start, end, bars, timed, untimed: nodes.length - timed };
+  return timeline.data;
+}
+
+function currentWindow() {
+  const map = getMap(state.activeMapId);
+  return map?.timeWindow || null;
+}
+
+function sliderToTime(v, data) {
+  return data.start + ((data.end - data.start) * v) / TL_STEPS;
+}
+
+// Shows or hides devices and links for the time window. Called after every render.
+function applyTimeWindow() {
+  const cy = state.cy;
+  const win = currentWindow();
+  if (!cy) return;
+  cy.batch(() => {
+    cy.elements(".time-out").removeClass("time-out");
+    if (!win) return;
+    cy.nodes().forEach((n) => {
+      if (n.isParent()) return;
+      const raw = state.nodeIndex.get(n.id());
+      if (raw && isDeviceNode(raw) && hasSeen(raw) && !seenIn(raw, win)) n.addClass("time-out");
+    });
+    for (const l of state.graph?.links || []) {
+      if (hasSeen(l) && !seenIn(l, win)) cy.getElementById(l.id).addClass("time-out");
+    }
+    // A subnet box with nothing left in it goes too.
+    cy.nodes(":parent").forEach((p) => {
+      if (p.children().not(".time-out").length === 0) p.addClass("time-out");
+    });
+  });
+}
+
+function devicesInWindow() {
+  const win = currentWindow();
+  const devices = (state.graph?.nodes || []).filter((n) => isDeviceNode(n));
+  if (!win) return { shown: devices.length, total: devices.length };
+  return { shown: devices.filter((n) => !hasSeen(n) || seenIn(n, win)).length, total: devices.length };
+}
+
+function renderTimeline() {
+  const data = timeData();
+  const map = getMap(state.activeMapId);
+  document.querySelectorAll(".tl-only").forEach((n) => n.classList.toggle("hidden", !data));
+  const open = Boolean(data) && map?.timelineOpen !== false;
+  show("timeline", open);
+  el("tl-toggle").setAttribute("aria-pressed", String(open));
+  el("stage").classList.toggle("has-timeline", open);
+  if (!open) return;
+  el("stage").style.setProperty("--tl-h", `${el("timeline").offsetHeight + 8}px`);
+  const win = currentWindow();
+  const from = win ? Math.round(((win[0] - data.start) / (data.end - data.start)) * TL_STEPS) : 0;
+  const to = win ? Math.round(((win[1] - data.start) / (data.end - data.start)) * TL_STEPS) : TL_STEPS;
+  el("tl-from").value = String(from);
+  el("tl-to").value = String(to);
+  const sameDay = formatTime(data.start, { date: true }).split(",")[0] === formatTime(data.end, { date: true }).split(",")[0];
+  el("tl-start").textContent = formatTime(data.start, { date: true });
+  el("tl-end").textContent = sameDay ? formatTime(data.end) : formatTime(data.end, { date: true });
+  el("tl-note").textContent = `${timeZoneLabel()}${data.untimed ? ` · ${plural(data.untimed, "device")} without times always shown` : ""}`;
+  const a = win ? win[0] : data.start;
+  const b = win ? win[1] : data.end;
+  el("tl-window").textContent = win ? `${formatTime(a)} – ${formatTime(b)} (${formatDuration(b - a)})` : `Whole capture (${formatDuration(data.end - data.start)})`;
+  const { shown, total } = devicesInWindow();
+  el("tl-count").textContent = win ? `${shown.toLocaleString()} of ${plural(total, "device")}` : plural(total, "device");
+  el("tl-reset").disabled = !win;
+  show("tl-newmap", Boolean(win));
+  const sel = el("tl-sel");
+  sel.style.left = `${(from / TL_STEPS) * 100}%`;
+  sel.style.width = `${((to - from) / TL_STEPS) * 100}%`;
+  drawTimelineChart(data);
+}
+
+function drawTimelineChart(data) {
+  const canvas = el("tl-chart");
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  if (!w || !h) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  const max = Math.max(1, ...data.bars);
+  const css = getComputedStyle(document.documentElement);
+  ctx.fillStyle = css.getPropertyValue("--accent").trim() || "#e0a84a";
+  ctx.globalAlpha = 0.55;
+  const bw = w / data.bars.length;
+  data.bars.forEach((v, i) => {
+    if (!v) return;
+    const bh = Math.max(2, (v / max) * (h - 6));
+    ctx.fillRect(i * bw + 0.5, h - bh, Math.max(1, bw - 1), bh);
+  });
+}
+
+function setTimeWindowFromSliders(moved) {
+  const data = timeData();
+  const map = getMap(state.activeMapId);
+  if (!data || !map) return;
+  let from = Number(el("tl-from").value);
+  let to = Number(el("tl-to").value);
+  if (from > to) {
+    // The handles can't cross: the one being dragged stops at the other.
+    if (moved === "from") from = to;
+    else to = from;
+    el("tl-from").value = String(from);
+    el("tl-to").value = String(to);
+  }
+  map.timeWindow = from <= 0 && to >= TL_STEPS ? null : [sliderToTime(from, data), sliderToTime(to, data)];
+  cancelAnimationFrame(timeline.raf);
+  timeline.raf = requestAnimationFrame(() => {
+    applyTimeWindow();
+    renderTimeline();
+    updateStatusTime();
+  });
+}
+
+function resetTimeWindow() {
+  const map = getMap(state.activeMapId);
+  if (map) map.timeWindow = null;
+  applyTimeWindow();
+  renderTimeline();
+  updateStatusTime();
+}
+
+function updateStatusTime() {
+  const win = currentWindow();
+  const status = el("status");
+  status.querySelector(".status-time")?.remove();
+  if (!win) return;
+  const { shown, total } = devicesInWindow();
+  const tag = document.createElement("span");
+  tag.className = "status-time";
+  tag.textContent = ` · ${shown.toLocaleString()} in time window`;
+  status.appendChild(tag);
+}
+
+function seenFacts(item) {
+  if (!hasSeen(item)) return "";
+  const first = item.seen[0][0];
+  const last = item.seen[item.seen.length - 1][1];
+  const active = item.seen.reduce((s, [a, b]) => s + (b - a), 0);
+  const periods = item.seen.length > 1 ? ` in ${item.seen.length} periods` : "";
+  return `${factRow("First seen", formatTime(first, { date: true }))}${factRow("Last seen", formatTime(last, { date: true }))}${factRow("Active", `${formatDuration(active)}${periods}`)}`;
+}
+
+// A separate map with only what was heard in the window: devices and links active in it
+// (plus anything without times, such as devices you added), their activity trimmed to the
+// window, with names, notes, and edits carried over. It lays out fresh.
+function mapFromTimeWindow() {
+  const win = currentWindow();
+  const src = getMap(state.activeMapId);
+  if (!win || !src || !state.graph) return;
+  const [a, b] = win;
+  const clip = (item) => {
+    const copy = cloneData(item);
+    if (hasSeen(copy)) copy.seen = copy.seen.map(([s, e]) => [Math.max(s, a), Math.min(e, b)]).filter(([s, e]) => s <= e);
+    return copy;
+  };
+  const devices = state.graph.nodes.filter((n) => isDeviceNode(n) && (!hasSeen(n) || seenIn(n, win)));
+  const kept = new Set(devices.map((n) => n.id));
+  const nets = state.graph.nodes.filter((n) => !isDeviceNode(n));
+  const linkOk = (l) => (!hasSeen(l) || seenIn(l, win)) && (kept.has(l.source) || kept.has(l.target));
+  // A subnet or VLAN stays if any of its devices does.
+  const keptNets = nets.filter((n) => (n.extra?.members || []).some((m) => kept.has(m)) || state.graph.links.some((l) => linkOk(l) && (l.source === n.id || l.target === n.id)));
+  keptNets.forEach((n) => kept.add(n.id));
+  const nodes = [...devices, ...keptNets].map(clip);
+  for (const n of nodes) if (Array.isArray(n.extra?.members)) n.extra.members = n.extra.members.filter((m) => kept.has(m));
+  const links = state.graph.links.filter((l) => linkOk(l) && kept.has(l.source) && kept.has(l.target)).map(clip);
+  if (!devices.length) {
+    toast("Nothing was heard in this window, so there's nothing to put on a new map.", { timeout: 3500 });
+    return;
+  }
+  const name = `${src.name} · ${formatTime(a, { seconds: true })}–${formatTime(b, { seconds: true })}`;
+  const id = `map:window-${Date.now().toString(36)}`;
+  const label = `${formatTime(a, { date: true })} – ${formatTime(b, { date: true })} (${timeZoneLabel()})`;
+  snapshotUndo("new map from time window", [id]);
+  upsertMap({
+    id,
+    name,
+    kind: "window",
+    sourceId: null,
+    captures: src.captures || [],
+    graph: { ...state.graph, title: name, nodes, links, meta: { ...(state.graph.meta || {}), time_start: a, time_end: b, time_window: label, from_map: src.name } },
+  });
+  // Names, captions, notes, and field edits come too.
+  for (const n of nodes) {
+    const meta = getDeviceMeta(n.id);
+    if (meta && Object.keys(meta).length) metaCache[metaKey(id, n.id)] = cloneData(meta);
+  }
+  markMetaDirty();
+  markSessionDirty();
+  showMap(id);
+  toast(`Made “${name}” with ${plural(devices.length, "device")} from the time window.`, { undo: true, timeout: 5000 });
+}
+
+function bindTimeline() {
+  el("tl-from").addEventListener("input", () => setTimeWindowFromSliders("from"));
+  el("tl-to").addEventListener("input", () => setTimeWindowFromSliders("to"));
+  el("tl-reset").addEventListener("click", resetTimeWindow);
+  el("tl-newmap").addEventListener("click", mapFromTimeWindow);
+  const toggle = (open) => {
+    const map = getMap(state.activeMapId);
+    if (!map) return;
+    map.timelineOpen = open;
+    if (!open) map.timeWindow = null; // hiding the timeline shows everything again
+    applyTimeWindow();
+    renderTimeline();
+    updateStatusTime();
+  };
+  el("tl-close").addEventListener("click", () => toggle(false));
+  el("tl-toggle").addEventListener("click", () => toggle(el("tl-toggle").getAttribute("aria-pressed") !== "true"));
+  el("settings-tz").addEventListener("change", (e) => {
+    state.prefs.timeZone = e.target.value;
+    onTimeSettingsChanged();
+  });
+  document.querySelectorAll('input[name="clock"]').forEach((r) =>
+    r.addEventListener("change", () => {
+      state.prefs.clock = r.value;
+      onTimeSettingsChanged();
+    })
+  );
+  window.addEventListener("resize", () => {
+    if (!el("timeline").classList.contains("hidden")) renderTimeline();
+  });
 }
 
 /* ---------- Layout: by connection ---------- */
@@ -1448,6 +1797,7 @@ function cyStyle(c) {
     { selector: ":parent:selected", style: { "border-color": c.select, "background-opacity": 0.12 } },
     { selector: "edge:selected", style: { width: 3, "line-color": c.select, "target-arrow-color": c.select, "source-arrow-color": c.select, opacity: 1 } },
     { selector: ".faded", style: { opacity: 0.16 } },
+    { selector: ".time-out", style: { display: "none" } },
   ];
 }
 
@@ -1475,6 +1825,9 @@ function renderMap({ fit = true } = {}) {
     state.cy.destroy();
     state.cy = null;
   }
+  // The timeline (when this map has times) takes the bottom of the stage; settle it before
+  // the map measures itself and fits.
+  renderTimeline();
   if (!state.graph?.nodes?.length) {
     syncZoomUi();
     return;
@@ -1579,6 +1932,8 @@ function renderMap({ fit = true } = {}) {
   });
   cy.on("zoom", syncZoomUi);
   syncZoomUi();
+  applyTimeWindow();
+  renderTimeline();
 }
 
 // The map can be created while its pane has no size (hidden tab, narrow layout
@@ -1721,13 +2076,14 @@ function updateHeader() {
   for (const n of g?.nodes || []) (n.services || []).forEach((s) => services.add(s));
   const warnings = g?.meta?.warnings?.length ? ` · ${plural(g.meta.warnings.length, "warning")}` : "";
   el("status").textContent = devices ? `${plural(devices, "device")} · ${plural(links, "link")} · ${plural(services.size, "service")}${warnings}` : "Empty map";
+  updateStatusTime();
   if (g?.meta?.warnings?.length) el("status").title = g.meta.warnings.join("\n");
   else el("status").removeAttribute("title");
   el("btn-export").disabled = !g?.nodes?.length;
 }
 
 function mapKindLabel(map) {
-  return map.kind === "unwanted" ? "Holding area" : map.kind === "blank" ? "Blank map" : "Survey";
+  return map.kind === "unwanted" ? "Holding area" : map.kind === "blank" ? "Blank map" : map.kind === "window" ? "Time window" : "Survey";
 }
 
 function updateEmptyState() {
@@ -1846,6 +2202,7 @@ function devicePanel(raw) {
         ${factRow("RA MAC", n.mac_ra, { mono: true })}
         ${factRow("Maker", n.vendor)}
         ${factRow("VLANs", n.vlans)}
+        ${seenFacts(raw)}
         ${members != null ? factRow("Members", plural(members, "device")) : ""}
       </dl>
     </div>
@@ -2013,6 +2370,7 @@ function linkPanel(link) {
       ${factRow(link.kind === "client-server" ? "Client" : "From", nodeName(link.source))}
       ${factRow(link.kind === "client-server" ? "Server" : "To", nodeName(link.target))}
       ${factRow("Frames", extra.count)}
+      ${seenFacts(link)}
       ${factRow("VLANs", link.vlans)}
       ${link.kind === "bridge" ? factRow("Bridge type", extra.bridge_kind) : ""}
       ${factRow("Via", (extra.vias || []).map(nodeName))}
@@ -3219,8 +3577,20 @@ function layoutHints() {
 }
 
 function graphWithUserFields() {
-  const nodes = (state.graph?.nodes || []).map((n) => overlayNode(n));
-  return { ...state.graph, title: state.title, nodes, ...layoutHints() };
+  const win = currentWindow();
+  const inWindow = (item) => !win || !hasSeen(item) || seenIn(item, win);
+  let raw = state.graph?.nodes || [];
+  let links = state.graph?.links || [];
+  let meta = state.graph?.meta || {};
+  if (win) {
+    // Exports follow the time window, like the map: what you see is what you get.
+    raw = raw.filter((n) => !isDeviceNode(n) || inWindow(n));
+    const kept = new Set(raw.map((n) => n.id));
+    links = links.filter((l) => inWindow(l) && kept.has(l.source) && kept.has(l.target));
+    meta = { ...meta, time_window: `${formatTime(win[0], { date: true })} – ${formatTime(win[1], { date: true })} (${timeZoneLabel()})` };
+  }
+  const nodes = raw.map((n) => overlayNode(n));
+  return { ...state.graph, meta, links, title: state.title, nodes, ...layoutHints() };
 }
 
 async function download(res, filename) {
@@ -3462,6 +3832,8 @@ function loadPrefs() {
   if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
   if (prefs.layout === "connection" || prefs.layout === "subnet") state.prefs.layout = prefs.layout;
+  if (typeof prefs.timeZone === "string") state.prefs.timeZone = prefs.timeZone;
+  if (["auto", "12", "24"].includes(prefs.clock)) state.prefs.clock = prefs.clock;
   for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
   // Version 2 turned hover fading off by default; earlier copies saved it as on without asking.
   if (!(prefs.prefsVersion >= 2)) state.prefs.hoverFade = false;
@@ -3595,7 +3967,8 @@ function renderSearch() {
     li.setAttribute("role", "option");
     if (i === 0) li.classList.add("active");
     const where = hit.field === "name" ? [hit.n.ips?.[0], hit.n.macs?.[0], hit.n.ssids?.[0]].filter(Boolean).join(" · ") : `${hit.field}: ${hit.value}`;
-    li.innerHTML = `<span>${escapeHtml(displayName(hit.raw))}</span><small>${escapeHtml(where || hit.n.inferred_type || "")}</small>`;
+    const outside = currentWindow() && hasSeen(hit.raw) && !seenIn(hit.raw, currentWindow());
+    li.innerHTML = `<span>${escapeHtml(displayName(hit.raw))}</span><small>${escapeHtml(where || hit.n.inferred_type || "")}${outside ? " · outside the time window" : ""}</small>`;
     li.addEventListener("mousedown", (e) => {
       e.preventDefault();
       pickSearchResult(hit.raw.id);
@@ -3613,6 +3986,11 @@ function renderSearch() {
 }
 
 function pickSearchResult(id) {
+  const raw = nodeById(id);
+  if (currentWindow() && raw && hasSeen(raw) && !seenIn(raw, currentWindow())) {
+    resetTimeWindow(); // it isn't on the map in this window: show the whole capture
+    toast(`${displayName(raw)} wasn't heard in the time window, so the timeline now shows the whole capture.`, { timeout: 5000 });
+  }
   el("search").value = "";
   el("search-results").classList.add("hidden");
   el("search").blur();
@@ -3677,6 +4055,7 @@ function renderSettings() {
   el("settings-group").checked = state.groupBySubnet;
   el("settings-hover").checked = state.prefs.hoverFade;
   el("settings-ssid").checked = state.prefs.apSsid;
+  fillTimeSettings();
   el("updates-auto").checked = state.prefs.autoUpdate;
   const version = state.server.version || "unknown";
   document.querySelectorAll(".app-version").forEach((n) => (n.textContent = version));
@@ -4595,6 +4974,11 @@ const TOUR_STEPS = [
     text: "Right-click a map or survey to rename, merge, remove, or delete it. Drag rows to reorder them, or drop one onto a map to merge it. Drag the sidebar's edge to make it wider.",
   },
   { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Access points show their Wi-Fi network (SSID) under their name. Click a device to highlight it and its links." },
+  {
+    target: "#timeline",
+    title: "Timeline",
+    text: "When a capture records times, drag the handles to see only the devices heard in that window, or make a new map of just that time. Times use the time zone in Settings.",
+  },
   { target: ".search", title: "Find a device", text: "Search by name, IP, MAC, SSID, maker, or notes. Press / to jump here from anywhere. The arrows beside it undo and redo changes to your maps." },
   {
     target: "#inspector",
@@ -4920,6 +5304,7 @@ async function init() {
   bindSidebarResize();
   bindManualDialogs();
   bindDisconnectDialog();
+  bindTimeline();
   el("loading-stop").addEventListener("click", stopReading);
   el("loading-cancel").addEventListener("click", cancelReading);
   bindListDrag();

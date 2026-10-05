@@ -593,7 +593,8 @@ def map_report_pdf(graph: SurveyGraph, title: str = DEFAULT_REPORT_TITLE, option
     story: list = [_p(title, styles["title"])]
     sources = ", ".join(meta.get("sources") or []) or "none recorded"
     scope = "all devices" if opts.node_ids is None and len(opts.categories) == len(DEVICE_CATEGORIES) else f"{len(nodes)} selected devices"
-    story.append(_p(f"Generated {generated} · Sources: {sources} · Covers {scope}", styles["subtitle"]))
+    window = f" · Time window: {meta['time_window']}" if meta.get("time_window") else ""
+    story.append(_p(f"Generated {generated} · Sources: {sources} · Covers {scope}{window}", styles["subtitle"]))
 
     if "summary" in opts.sections:
         devices = [n for n in nodes if device_category(n) != "network"]

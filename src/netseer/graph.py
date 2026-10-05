@@ -84,6 +84,21 @@ def _link_service_label(rec: dict[str, Any], fallback: str) -> str:
     return fallback
 
 
+# Sightings closer together than this count as one stretch of activity.
+SEEN_GAP_SECONDS = 60.0
+
+
+def merge_seen(intervals: list[list[float]], gap: float = SEEN_GAP_SECONDS) -> list[list[float]]:
+    """Sort [start, end] pairs and join any that overlap or are less than `gap` apart."""
+    out: list[list[float]] = []
+    for start, end in sorted((float(a), float(b)) for a, b in intervals if a is not None and b is not None):
+        if out and start <= out[-1][1] + gap:
+            out[-1][1] = max(out[-1][1], end)
+        else:
+            out.append([start, end])
+    return [[round(a, 3), round(b, 3)] for a, b in out]
+
+
 def _undirected_id(kind: str, a: str, b: str) -> str:
     lo, hi = sorted((a, b))
     return f"{kind}:{lo}:{hi}"
@@ -92,6 +107,7 @@ def _undirected_id(kind: str, a: str, b: str) -> str:
 def _merge_link_records(dst: dict[str, Any], src: dict[str, Any]) -> None:
     """Fold a duplicate link (same id after a node merge) into `dst`."""
     dst["extra"]["count"] = int(dst["extra"].get("count") or 0) + int(src["extra"].get("count") or 0)
+    dst["seen"] = merge_seen((dst.get("seen") or []) + (src.get("seen") or []))
     dst["ports"] = _merge_port_records(dst.get("ports") or [], src.get("ports") or [])
     dst["extra"]["ports"] = dst["ports"]
     _merge_unique(dst["services"], src.get("services") or [])
@@ -103,6 +119,12 @@ def _merge_link_records(dst: dict[str, Any], src: dict[str, Any]) -> None:
     for key, value in src["extra"].items():
         dst["extra"].setdefault(key, value)
     dst["label"] = _link_service_label(dst, dst["label"] or src["label"] or dst["kind"])
+
+
+def _time_span(nodes, links) -> dict[str, float]:
+    starts = [iv[0] for item in (*nodes, *links) for iv in (item.seen or [])]
+    ends = [iv[1] for item in (*nodes, *links) for iv in (item.seen or [])]
+    return {"time_start": min(starts), "time_end": max(ends)} if starts else {}
 
 
 # Higher rank wins when two records for the same device are merged.
@@ -180,6 +202,9 @@ class GraphBuilder:
         # When set, link and signal updates are noted here so repeated frames can
         # replay them without decoding again (see parsers/fastwifi.py).
         self.recorder: list | None = None
+        # The current packet's time (Unix seconds), while parsers feed packets in.
+        # Devices and links touched while it's set are marked active then.
+        self.now: float | None = None
 
     def note_source(self, name: str) -> None:
         if name not in self.sources:
@@ -214,9 +239,35 @@ class GraphBuilder:
                 "ports": [],
                 "routing": {},
                 "extra": {},
+                "seen": [],
             }
             self.devices[node_id] = rec
+        if self.now is not None:
+            self.touch(rec)
+            if self.recorder is not None:
+                self.recorder.append(("dev", node_id))
         return rec
+
+    def touch(self, rec: dict[str, Any], when: float | None = None) -> None:
+        """Mark a device or link record active at `when` (default: the current packet)."""
+        now = self.now if when is None else when
+        if now is None:
+            return
+        seen = rec.setdefault("seen", [])
+        if seen and seen[-1][0] - SEEN_GAP_SECONDS <= now <= seen[-1][1] + SEEN_GAP_SECONDS:
+            last = seen[-1]
+            if now < last[0]:
+                last[0] = now
+            elif now > last[1]:
+                last[1] = now
+        else:
+            seen.append([now, now])
+
+    def add_seen(self, node_id: str, start: float | None, end: float | None) -> None:
+        """A device's active period from a survey's own records (Kismet's first/last seen)."""
+        if not start or not end or start <= 0 or end < start:
+            return
+        self._device(node_id).setdefault("seen", []).append([float(start), float(end)])
 
     def add_role(self, node_id: str, role: str) -> None:
         rec = self._device(node_id)
@@ -335,6 +386,7 @@ class GraphBuilder:
             rec["signal_max_dbm"] = max(highs) if highs else None
         if rec["macs"]:
             rec["vendor"] = manufacturers_for_macs(rec["macs"])
+        rec["seen"] = merge_seen((rec.get("seen") or []) + (src.get("seen") or []))
 
         for key, value in list(self.ip_to_device.items()):
             if value == src_id:
@@ -553,9 +605,11 @@ class GraphBuilder:
                 "ports": [],
                 "extra": {"count": 0},
                 "directed": directed,
+                "seen": [],
             }
             self.links[link_id] = rec
         rec["extra"]["count"] = int(rec["extra"].get("count") or 0) + 1
+        self.touch(rec)
         if self.recorder is not None:
             self.recorder.append(("link", link_id))
         extra = dict(extra or {})
@@ -890,6 +944,7 @@ class GraphBuilder:
                     routing=rec["routing"],
                     extra=rec["extra"],
                     inferred_type=inferred,
+                    seen=merge_seen(rec.get("seen") or []),
                 )
             )
         for net, rec in self.subnets.items():
@@ -929,6 +984,7 @@ class GraphBuilder:
                 services=rec.get("services") or rec["extra"].get("services") or [],
                 ports=rec.get("ports") or rec["extra"].get("ports") or [],
                 extra=rec["extra"],
+                seen=merge_seen(rec.get("seen") or []),
             )
             for rec in self.links.values()
             if rec["source"] in node_ids and rec["target"] in node_ids
@@ -939,6 +995,7 @@ class GraphBuilder:
             meta={
                 "sources": self.sources,
                 "packet_count": self.packet_count,
+                **_time_span(nodes, links),
                 "node_count": len(nodes),
                 "link_count": len(links),
                 "warnings": self.warnings,

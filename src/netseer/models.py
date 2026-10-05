@@ -51,6 +51,8 @@ class Node:
     inferred_type: str = "Host"
     caption: str = ""
     notes: str = ""
+    # When it was heard: [[start, end], ...] in Unix seconds (UTC). Empty when the survey has no times.
+    seen: list[list[float]] = field(default_factory=list)
 
 
 @dataclass
@@ -65,6 +67,7 @@ class Link:
     services: list[str] = field(default_factory=list)
     ports: list[dict[str, Any]] = field(default_factory=list)
     extra: dict[str, Any] = field(default_factory=dict)
+    seen: list[list[float]] = field(default_factory=list)
 
 
 @dataclass

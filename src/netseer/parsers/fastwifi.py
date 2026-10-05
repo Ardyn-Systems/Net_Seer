@@ -116,7 +116,7 @@ def signature(frame: bytes, freq: float | None) -> tuple | None:
 
 def feed_raw(
     builder: GraphBuilder,
-    frames: Iterable[tuple[int, bytes]],
+    frames: Iterable[tuple[int, bytes, float | None]],
     filename: str,
     decode: Callable[[int, bytes], Any],
     handle: Callable[[GraphBuilder, Any], None],
@@ -125,10 +125,18 @@ def feed_raw(
     progress: Callable[[int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
 ) -> None:
-    """Run raw (link type, bytes) frames into the builder, decoding only what's new."""
+    """Run raw (link type, bytes, time) frames into the builder, decoding only what's new."""
     cache: dict[tuple, list] = {}
+    try:
+        _feed(builder, frames, filename, decode, handle, cache, max_packets, progress, should_stop)
+    finally:
+        builder.now = None  # later updates (finalizing, survey records) aren't packet sightings
+
+
+def _feed(builder, frames, filename, decode, handle, cache, max_packets, progress, should_stop) -> None:
     seen = failed = 0
-    for linktype, data in frames:
+    for linktype, data, when in frames:
+        builder.now = when
         if max_packets is not None and seen >= max_packets:
             builder.warnings.append(f"{filename}: stopped after {max_packets:,} packets.")
             break
@@ -161,6 +169,11 @@ def feed_raw(
                         rec = builder.links.get(key)
                         if rec is not None:
                             rec["extra"]["count"] = int(rec["extra"].get("count") or 0) + 1
+                            builder.touch(rec)
+                    elif what == "dev":
+                        rec = builder.devices.get(key)
+                        if rec is not None:
+                            builder.touch(rec)
                     elif signal is not None and key in builder.devices:
                         builder.observe_signal(key, signal)
                 continue
@@ -177,7 +190,7 @@ def feed_raw(
                     builder.recorder = None
                 if len(cache) >= CACHE_LIMIT:
                     cache.clear()
-                cache[sig] = recorded
+                cache[sig] = list(dict.fromkeys(recorded))  # each device or link once
         except Exception:
             failed += 1
     if progress is not None:

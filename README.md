@@ -128,6 +128,7 @@ From the frames and survey rows, NetSeer extracts:
 - **Find a device** by name, IP, MAC, SSID, or notes (press `/`).
 - **Layers** to show or hide wired, IP, service, wireless, VLAN, subnet, and bridge links.
 - **Add what the capture didn't show, or take away what you don't need.** Connect devices or put them in a subnet or VLAN from outside information (a port label, a diagram), with a note on where it came from; these stay marked as added by you, on the map and in every export. **Disconnect** removes links between two devices without moving or deleting anything.
+- **A timeline** under the map: pick a time window with two handles and see only the devices heard then, or make a new map of just that window. Times show in your time zone, or any you choose.
 - **Search that finds everything**: every match for a name, SSID, address, or maker, with what matched and **Select all**. Every drag can be undone.
 - **Exports:**
   - **draw.io** and **Visio** (`.vsdx`, `.vdx`), laid out like the map on screen, with subnets as containers
