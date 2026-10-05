@@ -57,8 +57,8 @@ The **Surveys** tab lists your captures and the bundled samples. Click one to op
 ![Right-click menu on a survey: Open, Merge into, Remove from list, and Delete survey and its map](images/survey-menu.png)
 
 - **Merge into…** copies the survey's devices into a map you pick.
-- **Remove from list** hides the survey and keeps its map under **Maps**. You can undo it.
-- **Delete survey and its map…** removes both after asking. You can undo it.
+- **Remove from list** hides the survey and keeps its map under **Maps**. Click **Bring back** in the message to restore it.
+- **Delete survey and its map…** removes both after asking. **Undo** brings the map back; **Bring back** in the message restores the survey to the list.
 
 **Restore bundled samples** brings back any samples you removed. Drag surveys up or down to put them in the order you like.
 
@@ -127,7 +127,7 @@ To copy instead, choose **Copy**, open the other map, and **Paste** (the button 
 
 **An access point brings its network.** Copying, cutting, or moving an access point also takes its associated wireless clients and any access points bridged to it. A wireless client on its own moves alone.
 
-**Undo** (the arrow at the top of the map, the **Undo** button in the message, or Ctrl+Z) reverses the last 30 changes.
+**Undo** (the left arrow at the top of the map, the **Undo** button in the message, or Ctrl+Z) reverses the last 30 changes. **Redo** (the right arrow, **Redo** in the message, or Ctrl+Y or Ctrl+Shift+Z) puts them back. Undo and Redo only change maps: devices, links, names, notes, and positions. They don't touch the clipboard, the Surveys list, the order of your maps, or settings.
 
 ## Work with several maps
 
@@ -202,6 +202,7 @@ Press `?`, or open **Settings** → **Help** → **Keyboard shortcuts**, to see 
 | `/` | Find a device |
 | Ctrl/Cmd + C, X, V | Copy, cut, paste devices |
 | Ctrl/Cmd + Z | Undo |
+| Ctrl/Cmd + Y, or Ctrl/Cmd + Shift + Z | Redo |
 | Delete or Backspace | Delete the selected devices |
 | Shift + click, Shift + drag | Add to the selection, box-select |
 | `F` | Fit the map to the screen |

@@ -29,6 +29,7 @@
         <symbol id="i-cog" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" /></symbol>
         <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></symbol>
         <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5" /><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" /></symbol>
+        <symbol id="i-redo" viewBox="0 0 24 24"><path d="m15 14 5-5-5-5" /><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" /></symbol>
         <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></symbol>
         <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" /></symbol>
         <symbol id="i-fit" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></symbol>
@@ -144,6 +145,9 @@
           </div>
           <button id="btn-undo" class="icon-btn floating" type="button" aria-label="Undo" title="Undo (Ctrl+Z)" disabled>
             <svg class="icon"><use href="#i-undo" /></svg>
+          </button>
+          <button id="btn-redo" class="icon-btn floating" type="button" aria-label="Redo" title="Redo (Ctrl+Y)" disabled>
+            <svg class="icon"><use href="#i-redo" /></svg>
           </button>
           <button id="btn-paste" class="btn floating hidden" type="button" title="Paste (Ctrl+V)">
             <svg class="icon"><use href="#i-paste" /></svg><span id="paste-label">Paste</span>
@@ -292,7 +296,8 @@
           <dt><kbd>Ctrl</kbd> <kbd>C</kbd></dt><dd>Copy selected devices (an access point brings its clients)</dd>
           <dt><kbd>Ctrl</kbd> <kbd>X</kbd></dt><dd>Cut selected devices</dd>
           <dt><kbd>Ctrl</kbd> <kbd>V</kbd></dt><dd>Paste onto the current map</dd>
-          <dt><kbd>Ctrl</kbd> <kbd>Z</kbd></dt><dd>Undo the last change</dd>
+          <dt><kbd>Ctrl</kbd> <kbd>Z</kbd></dt><dd>Undo the last change to a map</dd>
+          <dt><kbd>Ctrl</kbd> <kbd>Y</kbd></dt><dd>Redo (or <kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>Z</kbd>)</dd>
           <dt><kbd>Del</kbd></dt><dd>Delete selected devices</dd>
           <dt><kbd>Shift</kbd> click</dt><dd>Add to the selection</dd>
           <dt><kbd>Shift</kbd> drag</dt><dd>Box-select devices</dd>
@@ -485,6 +490,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui12"></script>
+    <script src="/static/app.js?v=ui13"></script>
   </body>
 </html>

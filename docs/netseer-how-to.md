@@ -16,7 +16,7 @@ Maps, names, notes, field edits, dragged positions, and the clipboard are saved 
 | --- | --- |
 | Top bar | Logo, the **current map's name** (click to rename), **Open survey**, **Export**, the **theme** button, and **Settings** (cog) |
 | Left sidebar | Three tabs: **Maps**, **Surveys**, **Layers** |
-| Map | The network drawing, with **Find a device** and **Undo** at the top, zoom controls at the bottom right, and a toolbar at the bottom whenever something is selected |
+| Map | The network drawing, with **Find a device**, **Undo**, and **Redo** at the top, zoom controls at the bottom right, and a toolbar at the bottom whenever something is selected |
 | Right panel | **Details** for whatever you selected |
 
 Below about 1180 px wide the details panel slides in from the right when you select something (close it with **×** or Esc). Below about 760 px the sidebar hides behind the **menu** button.
@@ -60,7 +60,7 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 - **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS).
 - Each capture becomes its own map and joins the **Surveys** tab.
-- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**; both removals can be undone. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
+- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
 - First visit: the bundled campus survey opens automatically. An empty map shows a welcome card with **Open survey** and **Try the campus sample**.
 - Problems (unsupported file, empty capture, decode warnings) show up as a message at the top of the window.
 
@@ -122,6 +122,9 @@ When something is selected, a toolbar appears at the bottom of the map: **Copy**
 | Move | **Move to** → pick a map, or **New map…** to create one on the spot |
 | Delete | Toolbar, right-click, or Delete / Backspace |
 | Undo | The **undo** arrow at the top of the map, **Undo** in the message, or Ctrl+Z / Cmd+Z. Up to 30 steps: cut, paste, move, delete, merge, delete map, empty Unwanted, tidy layout |
+| Redo | The **redo** arrow beside it, **Redo** in the message after an undo, or Ctrl+Y / Ctrl+Shift+Z. A new change clears what's left to redo |
+
+Undo and Redo only change maps (devices, links, names, notes, positions), never the clipboard, the Surveys list, the order of the Maps list, or settings.
 
 Links travel with a selection only when **both** ends are selected.
 
@@ -230,6 +233,7 @@ NetSeer remembers your choices for next time (the selection itself isn't remembe
 | `/` | Find a device |
 | Ctrl/Cmd + C, X, V | Copy, cut, paste |
 | Ctrl/Cmd + Z | Undo |
+| Ctrl/Cmd + Y, Ctrl/Cmd + Shift + Z | Redo |
 | Delete / Backspace | Delete selected devices |
 | `F` | Fit to screen |
 | `?` | Show shortcuts |

@@ -39,6 +39,7 @@ const state = {
   activeMapId: null,
   clipboard: null,
   undo: [],
+  redo: [],
   filters: Object.fromEntries(LAYERS.map((l) => [l.kind, true])),
   groupBySubnet: true,
   selection: [],
@@ -817,66 +818,92 @@ function upsertMap(partial) {
   return map;
 }
 
-/* ---------- Undo ---------- */
-// Each entry holds only the maps an action touched, not the whole session.
+/* ---------- Undo and redo ---------- */
+// Each entry holds only the maps an action touched, not the whole session. Undo and redo
+// change map contents only (devices, links, names, notes, positions): never the
+// clipboard, the Surveys list, or the order you've put the Maps list in.
 
-function snapshotUndo(label, mapIds, { surveys = false } = {}) {
-  const ids = [...new Set(mapIds.filter(Boolean))];
-  state.undo.push({
-    surveys: surveys ? { list: [...state.surveys], hidden: hiddenSampleIds() } : null,
+function captureMaps(label, ids) {
+  return {
     label,
     activeMapId: state.activeMapId,
     order: state.maps.map((m) => m.id),
     maps: ids.map((id) => [id, getMap(id) ? cloneData(serializeMap(getMap(id))) : null]),
     meta: metaSnapshot(ids),
-    clipboard: cloneData(state.clipboard),
-  });
+  };
+}
+
+function snapshotUndo(label, mapIds) {
+  const ids = [...new Set(mapIds.filter(Boolean))];
+  state.undo.push(captureMaps(label, ids));
   if (state.undo.length > UNDO_LIMIT) state.undo.shift();
+  state.redo = []; // a new change starts a new branch of history
   syncUndoUi();
 }
 
-function undoLast() {
-  const entry = state.undo.pop();
-  syncUndoUi();
-  if (!entry) {
-    toast("Nothing to undo.", { timeout: 1800 });
-    return;
-  }
+// Put the touched maps back the way an entry recorded them.
+function applyMapsSnapshot(entry) {
   const ids = entry.maps.map(([id]) => id);
   for (const [id, snap] of entry.maps) {
     const existing = getMap(id);
     if (snap) {
       if (existing) Object.assign(existing, normalizeMap(snap));
-      else state.maps.push(normalizeMap(snap));
+      else {
+        // A map coming back goes where it was, before the next map that still exists.
+        const later = entry.order.slice(entry.order.indexOf(id) + 1).find((other) => getMap(other));
+        const at = later ? state.maps.findIndex((m) => m.id === later) : state.maps.findIndex((m) => m.kind === "unwanted");
+        state.maps.splice(at < 0 ? state.maps.length : at, 0, normalizeMap(snap));
+      }
     } else if (existing) {
       state.maps = state.maps.filter((m) => m.id !== id);
       store.deletedMaps.add(id);
     }
     markMapDirty(id);
   }
-  state.maps.sort((a, b) => {
-    const ia = entry.order.indexOf(a.id);
-    const ib = entry.order.indexOf(b.id);
-    return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
-  });
   restoreMetaSnapshot(ids, entry.meta);
-  if (entry.surveys) {
-    state.surveys = entry.surveys.list;
-    writeLocal(HIDDEN_SAMPLES_KEY, entry.surveys.hidden);
-    renderSurveyList();
-  }
-  state.clipboard = entry.clipboard;
   markSessionDirty();
-  const target = getMap(entry.activeMapId) ? entry.activeMapId : state.maps[0]?.id;
+  // Show the map that changed: the one you were on if it's among them, else the first.
+  const target = [entry.activeMapId, ...ids].find((id) => ids.includes(id) && getMap(id)) || (getMap(state.activeMapId) ? state.activeMapId : state.maps[0]?.id);
   showMap(target, { fit: target !== state.activeMapId });
-  toast(`Undid ${entry.label}.`, { timeout: 2500 });
+}
+
+function undoLast() {
+  const entry = state.undo.pop();
+  if (!entry) {
+    syncUndoUi();
+    toast("Nothing to undo.", { timeout: 1800 });
+    return;
+  }
+  state.redo.push(captureMaps(entry.label, entry.maps.map(([id]) => id)));
+  if (state.redo.length > UNDO_LIMIT) state.redo.shift();
+  applyMapsSnapshot(entry);
+  syncUndoUi();
+  toast(`Undid ${entry.label}.`, { timeout: 4000, action: { label: "Redo", onClick: redoLast } });
+}
+
+function redoLast() {
+  const entry = state.redo.pop();
+  if (!entry) {
+    syncUndoUi();
+    toast("Nothing to redo.", { timeout: 1800 });
+    return;
+  }
+  state.undo.push(captureMaps(entry.label, entry.maps.map(([id]) => id)));
+  if (state.undo.length > UNDO_LIMIT) state.undo.shift();
+  applyMapsSnapshot(entry);
+  syncUndoUi();
+  toast(`Redid ${entry.label}.`, { undo: true, timeout: 4000 });
 }
 
 function syncUndoUi() {
-  const btn = el("btn-undo");
+  const undo = el("btn-undo");
+  const redo = el("btn-redo");
   const last = state.undo[state.undo.length - 1];
-  btn.disabled = !last;
-  btn.title = last ? `Undo ${last.label} (Ctrl+Z)` : "Nothing to undo";
+  const next = state.redo[state.redo.length - 1];
+  undo.disabled = !last;
+  undo.title = last ? `Undo ${last.label} (Ctrl+Z)` : "Nothing to undo";
+  redo.disabled = !next;
+  redo.title = next ? `Redo ${next.label} (Ctrl+Y)` : "Nothing to redo";
 }
 
 /* ---------- Layout ---------- */
@@ -2243,10 +2270,18 @@ async function selectSurvey(id) {
 function removeSurvey(id) {
   const item = state.surveys.find((s) => s.id === id);
   if (!item) return;
-  snapshotUndo("remove from list", [], { surveys: true });
+  const at = state.surveys.indexOf(item);
   hideSurvey(item);
   renderSurveyList();
-  toast(`Removed ${item.name} from the list. Its map stays under Maps.`, { undo: true, timeout: 4500 });
+  // The list isn't a map, so this isn't in Undo; the message offers its own way back.
+  toast(`Removed ${item.name} from the list. Its map stays under Maps.`, { timeout: 6000, action: { label: "Bring back", onClick: () => bringBackSurvey(item, at) } });
+}
+
+function bringBackSurvey(item, at) {
+  if (state.surveys.some((s) => s.id === item.id)) return;
+  state.surveys.splice(Math.min(at, state.surveys.length), 0, item);
+  unhideSurvey(item.id);
+  renderSurveyList();
 }
 
 // Hidden surveys stay hidden after a reload: samples and your own captures alike.
@@ -2286,7 +2321,7 @@ async function deleteSurvey(id) {
     danger: true,
   });
   if (!ok) return;
-  snapshotUndo("delete survey", [mapId], { surveys: true });
+  if (map) snapshotUndo("delete map", [mapId]); // Undo brings the map back; the list is separate
   hideSurvey(item);
   if (map) {
     state.maps = state.maps.filter((m) => m.id !== mapId);
@@ -2298,7 +2333,7 @@ async function deleteSurvey(id) {
   if (state.activeMapId === mapId) showMap((state.maps.find((m) => m.kind !== "unwanted") || getMap(UNWANTED_ID)).id);
   else renderMapList();
   renderSurveyList();
-  toast(`Deleted ${item.name}.`, { undo: true });
+  toast(map ? `Deleted ${item.name} and its map.` : `Removed ${item.name}.`, { undo: Boolean(map), action: { label: "Bring back", onClick: () => bringBackSurvey(item, 0) }, timeout: 6000 });
 }
 
 // A survey's own map when it has one (with your edits), otherwise its graph as loaded.
@@ -3730,7 +3765,7 @@ const TOUR_STEPS = [
     text: "Right-click a map or survey to rename, merge, remove, or delete it. Drag rows to reorder them, or drop one onto a map to merge it. Drag the sidebar's edge to make it wider.",
   },
   { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Access points show their Wi-Fi network (SSID) under their name. Hover a device to see what it connects to." },
-  { target: ".search", title: "Find a device", text: "Search by name, IP, MAC, SSID, maker, or notes. Press / to jump here from anywhere." },
+  { target: ".search", title: "Find a device", text: "Search by name, IP, MAC, SSID, maker, or notes. Press / to jump here from anywhere. The arrows beside it undo and redo changes to your maps." },
   {
     target: "#inspector",
     title: "Details",
@@ -3916,6 +3951,7 @@ function bindUi() {
   );
 
   el("btn-undo").addEventListener("click", undoLast);
+  el("btn-redo").addEventListener("click", redoLast);
   el("toast-undo").addEventListener("click", () => {
     hideToast();
     undoLast();
@@ -4002,6 +4038,9 @@ function bindUi() {
     } else if (cmd && key === "v") {
       e.preventDefault();
       pasteClipboard();
+    } else if ((cmd && key === "y") || (cmd && e.shiftKey && key === "z")) {
+      e.preventDefault();
+      redoLast();
     } else if (cmd && key === "z") {
       e.preventDefault();
       undoLast();
