@@ -47,6 +47,7 @@ const state = {
   graphVersion: 0,
   propsCache: new Map(),
   suppressSelect: false,
+  server: { hosted: false, maxUploadMb: 50 },
 };
 
 /* ---------- Small helpers ---------- */
@@ -2013,10 +2014,13 @@ async function emptyUnwanted() {
     toast("Unwanted is already empty.", { timeout: 2000 });
     return;
   }
+  const hosted = state.server.hosted;
   const ok = await openDialog({
     title: `Save ${plural(graph.nodes.length, "device")} and empty Unwanted?`,
-    body: "NetSeer writes one JSON file per original capture into the Unwanted folder of the project. Drop a file back onto NetSeer to reload it.",
-    okLabel: "Save and empty",
+    body: hosted
+      ? "NetSeer downloads one JSON file per original capture. Drop a file back onto NetSeer to reload it."
+      : "NetSeer writes one JSON file per original capture into the Unwanted folder of the project. Drop a file back onto NetSeer to reload it.",
+    okLabel: hosted ? "Download and empty" : "Save and empty",
   });
   if (!ok) return;
   const groups = {};
@@ -2031,14 +2035,34 @@ async function emptyUnwanted() {
     group.links = graph.links.filter((l) => ids.has(l.source) && ids.has(l.target));
   }
   try {
-    const payload = await parseResponse(
-      await fetch("/api/unwanted/dump", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groups: Object.values(groups) }) })
-    );
+    let files;
+    if (hosted) {
+      // Same file format the server writes (see web.dump_unwanted), built in the browser.
+      files = Object.values(groups).map((group) => {
+        const stem = (String(group.capture).split(/[\\/]/).pop().replace(/\.[^.]+$/, "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[.-]+|[.-]+$/g, "") || "unknown").slice(0, 60);
+        const name = `Unwanted-${stem}.json`;
+        downloadJson(name, {
+          netseer: "unwanted-v1",
+          original_capture: group.capture,
+          title: `Unwanted ${stem}`,
+          nodes: group.nodes,
+          links: group.links,
+          meta: { sources: [group.capture], node_count: group.nodes.length, link_count: group.links.length },
+          device_meta: group.device_meta,
+        });
+        return name;
+      });
+    } else {
+      const payload = await parseResponse(
+        await fetch("/api/unwanted/dump", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ groups: Object.values(groups) }) })
+      );
+      files = payload.files || [];
+    }
     snapshotUndo("empty Unwanted", [UNWANTED_ID]);
     removeNodes(map, graph.nodes.map((n) => n.id));
     markMapEdited(UNWANTED_ID);
     refreshAll();
-    toast(`Saved ${(payload.files || []).join(", ")} and emptied Unwanted.`);
+    toast(`${hosted ? "Downloaded" : "Saved"} ${files.join(", ")} and emptied Unwanted.`);
   } catch (err) {
     fail(err);
   }
@@ -2050,6 +2074,35 @@ async function createBlankMap() {
   if (!name) return;
   const map = upsertMap({ id: `map:blank-${Date.now()}`, name: name.trim(), kind: "blank", graph: emptyGraph(name.trim()) });
   showMap(map.id);
+}
+
+/* ---------- Server mode ---------- */
+// A public deployment (NETSEER_HOSTED=1) can't write files to its disk, and may take
+// smaller uploads; the page adapts.
+
+async function loadServerInfo() {
+  try {
+    const info = await parseResponse(await fetch("/api/health"));
+    state.server = { hosted: Boolean(info.hosted), maxUploadMb: Number(info.max_upload_mb) || 50 };
+  } catch {
+    /* keep defaults */
+  }
+  const hosted = state.server.hosted;
+  show("hosted-note", hosted);
+  show("empty-hosted", hosted);
+  if (hosted) el("maps-hint").textContent = "Unwanted holds devices you set aside. Empty it to download them as JSON files you can reopen later.";
+}
+
+function downloadJson(filename, data) {
+  const blob = new Blob([JSON.stringify(data, null, 2) + "\n"], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /* ---------- Surveys ---------- */
@@ -2150,6 +2203,10 @@ function applyGraph(graph, title, surveyId) {
 }
 
 async function loadFile(file) {
+  if (file.size > state.server.maxUploadMb * 1024 * 1024) {
+    fail(new Error(`${file.name} is larger than this server's ${state.server.maxUploadMb} MB limit.`));
+    return;
+  }
   setBusy(true, `Reading ${file.name}…`);
   const body = new FormData();
   body.append("file", file);
@@ -2750,6 +2807,7 @@ async function init() {
   syncZoomUi();
   await loadStore();
   ensureUnwanted();
+  await loadServerInfo();
   try {
     state.catalog = await parseResponse(await fetch("/api/samples"));
   } catch (err) {

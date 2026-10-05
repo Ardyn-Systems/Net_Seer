@@ -1,0 +1,18 @@
+# Public NetSeer on Render's free plan. Setup: docs/hosting.md
+# Render redeploys automatically on every push to the default branch.
+services:
+  - type: web
+    name: netseer
+    runtime: python
+    plan: free
+    buildCommand: pip install .
+    startCommand: netseer --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      # Public mode: visitors can't write files to the server; Unwanted downloads instead.
+      - key: NETSEER_HOSTED
+        value: "1"
+      # The free instance has 512 MB of memory; keep captures modest.
+      - key: NETSEER_MAX_UPLOAD_MB
+        value: "20"
