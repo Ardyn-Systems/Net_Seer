@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from netseer import __version__, updater
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
+from netseer.compare import compare_graphs
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError
 from netseer.exporters import (
     device_csv,
@@ -443,6 +444,23 @@ def _node_from_body(body: dict):
     if node is None:
         raise HTTPException(status_code=404, detail="Unknown device on this map.")
     return graph, node, title
+
+
+@app.post("/api/compare")
+def compare_api(body: dict):
+    """A map of what changed between a baseline survey and a later one."""
+    baseline, later = body.get("baseline"), body.get("later")
+    if not isinstance(baseline, dict) or not isinstance(later, dict):
+        raise HTTPException(status_code=400, detail="Send a baseline map and a later map to compare.")
+    try:
+        return compare_graphs(
+            baseline,
+            later,
+            baseline_name=str(body.get("baseline_name") or "Baseline"),
+            later_name=str(body.get("later_name") or "Later survey"),
+        )
+    except UnsupportedSurveyError as exc:
+        raise _http_error(exc) from exc
 
 
 @app.post("/api/device/properties")

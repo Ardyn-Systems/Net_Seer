@@ -1440,3 +1440,36 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 .egg-term:not(.ps) .egg-line span { color: #8ae234; font-weight: 700; }
 .egg-line input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: inherit; font: inherit; padding: 0; caret-color: currentColor; }
 .egg-line input:focus, .egg-line input:focus-visible { outline: 0; box-shadow: none; border: 0; }
+
+/* ---------- Compare surveys ---------- */
+
+.compare-dialog { width: min(560px, calc(100% - 2rem)); }
+.compare-key { list-style: none; margin: 0 0 0.9rem; padding: 0; display: grid; gap: 0.3rem; font-size: 13px; color: var(--muted); }
+.compare-key li, .change-counts li { display: flex; align-items: center; gap: 0.5rem; }
+.change-swatch { flex: none; width: 14px; height: 14px; border-radius: 4px; border: 3px solid var(--c); background: transparent; }
+.change-swatch.same { --c: var(--faint); opacity: 0.6; }
+.compare-rows { display: grid; gap: 0.6rem; margin-bottom: 0.6rem; }
+.compare-row { margin: 0; padding: 0.65rem 0.75rem 0.7rem; border: 1px solid var(--line); border-radius: 10px; background: var(--raised); min-width: 0; }
+.compare-row legend { padding: 0 0.3rem; color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.compare-pick { display: flex; gap: 0.4rem; align-items: center; }
+.compare-pick select { flex: 1; min-width: 0; }
+.compare-time { margin-top: 0.55rem; display: grid; gap: 0.25rem; }
+.compare-time-head { display: flex; justify-content: space-between; gap: 0.5rem; align-items: baseline; font-size: 12.5px; }
+.compare-time-label { color: var(--text); }
+.compare-slider { display: grid; grid-template-columns: 2.6rem 1fr; align-items: center; gap: 0.4rem; font-size: 12px; color: var(--muted); }
+.compare-slider input { width: 100%; accent-color: var(--accent); }
+.compare-note { margin: 0.45rem 0 0; }
+.compare-dialog #compare-add { margin-bottom: 0.4rem; }
+
+.change-legend { margin-bottom: 0.75rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--line); }
+.change-from { margin: 0 0 0.5rem; color: var(--muted); font-size: 12.5px; overflow-wrap: anywhere; }
+.change-counts { list-style: none; margin: 0 0 0.4rem; padding: 0 0.5rem; display: grid; gap: 0.35rem; font-size: 13px; }
+.change-counts span { flex: 1; }
+.change-counts b { font-variant-numeric: tabular-nums; }
+.change-line-sample { flex: none; width: 18px; height: 0; border-top: 3px solid; }
+.change-line-sample.removed { border-color: #e5484d; border-top-style: dashed; }
+.change-line-sample.added { border-color: #30a46c; }
+.change-list { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.3rem; font-size: 13px; }
+.change-list li::marker { color: var(--c); }
+.change-list, .change-line { border-left: 3px solid var(--c); padding-left: 1.4rem; }
+.change-line { margin: 0; font-size: 13px; padding-left: 0.6rem; }

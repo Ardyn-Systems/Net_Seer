@@ -56,6 +56,20 @@ SAMPLES: list[dict[str, Any]] = [
         "files": ["airodump-ng.csv"],
     },
     {
+        "id": "branch-baseline",
+        "name": "Branch Wi-Fi: baseline (pcapng)",
+        "kind": "pcapng",
+        "summary": "A branch office's Wi-Fi. Compare it with the survey from a week later.",
+        "files": ["branch-baseline.pcapng"],
+    },
+    {
+        "id": "branch-later",
+        "name": "Branch Wi-Fi: a week later (pcapng)",
+        "kind": "pcapng",
+        "summary": "The same branch a week on: devices joined, left, moved, and one rotated its MAC.",
+        "files": ["branch-later.pcapng"],
+    },
+    {
         "id": "empty-capture",
         "name": "Empty capture (pcap)",
         "kind": "pcap",

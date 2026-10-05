@@ -15,15 +15,16 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 7. [Find a device](#find-a-device)
 8. [Select, copy, and move devices](#select-copy-and-move-devices)
 9. [Work with several maps](#work-with-several-maps)
-10. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
-11. [Show and hide layers](#show-and-hide-layers)
-12. [Export diagrams and files](#export-diagrams-and-files)
-13. [Create a PDF report](#create-a-pdf-report)
-14. [Change the theme](#change-the-theme)
-15. [Keyboard shortcuts](#keyboard-shortcuts)
-16. [Settings, updates, and the tour](#settings-updates-and-the-tour)
-17. [Where your work is saved](#where-your-work-is-saved)
-18. [Troubleshooting](#troubleshooting)
+10. [Compare surveys for changes](#compare-surveys-for-changes)
+11. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
+12. [Show and hide layers](#show-and-hide-layers)
+13. [Export diagrams and files](#export-diagrams-and-files)
+14. [Create a PDF report](#create-a-pdf-report)
+15. [Change the theme](#change-the-theme)
+16. [Keyboard shortcuts](#keyboard-shortcuts)
+17. [Settings, updates, and the tour](#settings-updates-and-the-tour)
+18. [Where your work is saved](#where-your-work-is-saved)
+19. [Troubleshooting](#troubleshooting)
 
 ## A tour of the screen
 
@@ -56,9 +57,10 @@ Installed copies open captures of any size, including long wardrives. A big file
 
 The **Surveys** tab lists your captures and the bundled samples. Click one to open it. Right-click a survey (or use its **⋯** button) for more:
 
-![Right-click menu on a survey: Open, Merge into, Remove from list, and Delete survey and its map](images/survey-menu.png)
+![Right-click menu on a survey: Open, Merge into, Compare with a baseline, Remove from list, and Delete survey and its map](images/survey-menu.png)
 
 - **Merge into…** copies the survey's devices into a map you pick.
+- **Compare with a baseline…** opens **Compare surveys** with this survey ready to check against an earlier one. See [Compare surveys for changes](#compare-surveys-for-changes).
 - **Remove from list** hides the survey and keeps its map under **Maps**. Click **Bring back** in the message to restore it.
 - **Delete survey and its map…** removes both after asking. **Undo** brings the map back; **Bring back** in the message restores the survey to the list.
 
@@ -113,6 +115,7 @@ When a capture records times (pcap, pcapng, and Kismet logs do), a **timeline** 
 
 - **Drag the two handles** to pick a window. Only devices and links heard during it stay on the map; the rest disappear, and nothing moves. The bar shows the window, its length, and how many devices are in it.
 - **New map from this window** makes a separate map of just that time: the devices and links heard in it (and any you added), with their activity trimmed to the window and your names, captions, and notes carried over. It's named after the window, lays out fresh, and its own timeline covers only that period. The original map is unchanged; Undo removes the new one.
+- **Compare…** checks this window against a baseline survey, or against another window of the same capture. See [Compare surveys for changes](#compare-surveys-for-changes).
 - **Show all** goes back to the whole capture. The **×** hides the timeline (and shows everything); the **clock** button by the zoom controls brings it back.
 - A device's **Details** show when it was first and last seen, and how long it was active. Links show the same.
 - **Exports follow the window:** draw.io, Visio, and the PDF report include only what's on the map, and the report notes the window.
@@ -150,9 +153,9 @@ To copy instead, choose **Copy**, open the other map, and **Paste** (the button 
 
 ## Work with several maps
 
-The **Maps** tab lists every map. Click one to switch. Right-click a map, or use its **⋯** menu, to rename it, merge it into another map, or delete it.
+The **Maps** tab lists every map. Click one to switch. Right-click a map, or use its **⋯** menu, to rename it, merge it into another map, compare it with a baseline, or delete it.
 
-![Maps tab with the campus survey's menu open: Rename, Merge into, and Delete map](images/maps-tab.png)
+![Maps tab with the campus survey's menu open: Rename, Merge into, Compare with a baseline, and Delete map](images/maps-tab.png)
 
 - **New blank map** starts an empty map to paste devices into, for example to draw just one site or one problem.
 - **Merge into…** copies all of this map's devices into another map. The original map stays as it is.
@@ -161,6 +164,34 @@ The **Maps** tab lists every map. Click one to switch. Right-click a map, or use
 - **Unwanted** is a holding area for devices you set aside. Its **Save to files and empty** option writes them to JSON files (one per original capture) and clears it. Drop one of those files back onto NetSeer to reload it.
 
 ![A blank map called "Lab bench" with a prompt to paste devices or open a survey](images/blank-map.png)
+
+## Compare surveys for changes
+
+Survey a site once as a **baseline**, survey it again later, and NetSeer shows what changed. Click **Compare surveys…** in the **Maps** tab (or **Compare with a baseline…** on a map or survey, or **Compare…** on the timeline).
+
+![Compare surveys: a baseline and a survey to compare with, each with From and To sliders for its time window](images/compare-dialog.png)
+
+1. **Baseline:** pick the earlier survey or map. Surveys you haven't opened yet are listed too.
+2. **Compare with:** pick the later survey. **Add another survey** compares more than one against the same baseline; each gets its own map.
+3. **Time windows:** drag **From** and **To** to compare only part of a capture, such as the first hour of one walk against the last hour of another. Two windows of the same capture work too. **Whole capture** resets them.
+4. Click **Compare**. A new **Comparison** map opens, and **Layers** shows what changed.
+
+![A comparison map: a client that left its Wi-Fi network ringed in red, a new client ringed in green, a laptop that moved networks and a possible rogue access point ringed in blue, and the unchanged devices faded](images/compare-map.png)
+
+| Colour | Meaning |
+| --- | --- |
+| **Red** | Left a Wi-Fi network, access point, subnet, or VLAN it was on, or is no longer seen at all (dashed) |
+| **Green** | Joined a network it wasn't on, or is new since the baseline |
+| **Blue** | Something else changed: moved from one network to another, roamed to another access point, a randomized MAC that rotated, a new access point using a known network's name (a possible rogue), an access point's name, security, or channel, an address, a type, or its services |
+| Faded | Nothing NetSeer can see changed |
+
+Each changed device also says what happened under its name (**+ Joined Branch-Staff**, **− No longer seen**, **Δ MAC changed**), so the map reads without the colours too. Links that are gone are red and dashed; new links are green. Click a device to see every change in **Details**.
+
+- **Randomized MACs:** phones change their MAC address. When one random MAC disappears and another appears that probes the same networks, uses the same access point, or has the same address, NetSeer treats them as one device and says why.
+- **Show unchanged devices** in **Layers** hides the faded ones, leaving only what changed.
+- Your names, captions, and notes come along from the surveys you compared. Undo removes the new maps.
+
+To try it, compare the bundled **Branch Wi-Fi: baseline** with **Branch Wi-Fi: a week later**.
 
 ## Add what the capture didn't show
 
@@ -176,7 +207,7 @@ Add a short **label** for the map (such as `Port 14`) and a note on **where this
 
 ![Connect dialog: Wired, Wi-Fi, and Other, with a label and a note on where it came from](images/connect-dialog.png)
 
-**Add a device to a subnet or VLAN.** Right-click it and choose **Add to subnet or VLAN…**. Pick one already on the map, or type a new one (`10.20.0.0/24`, or a VLAN number). With **Group by subnet** on, the device moves into that subnet's box.
+**Add a device to a subnet or VLAN.** Right-click it and choose **Add to subnet or VLAN…**. Pick one already on the map, or type a new one (`10.20.0.0/24`, or a VLAN number). Arranged by subnet, the device moves into that subnet's box.
 
 **How they look.** Links you add keep their type's colour, with a dash-dot line and a ✎ pencil mark before the label. Click one to see when you added it, change its label or note, or **Remove this link**; right-click it for the same. The **Added by you** switch in **Layers** shows or hides them all.
 
@@ -192,7 +223,7 @@ Everything you add is saved with the map, included in backups, and can be undone
 
 The **Layers** tab controls what's drawn, and how devices are arranged.
 
-![Layers tab: the Arrange devices list, Group by subnet, link layer checkboxes, and the device legend](images/layers-tab.png)
+![Layers tab: the Arrange devices list, link layer checkboxes, and the device legend](images/layers-tab.png)
 
 - **Arrange devices** picks the layout:
   - **By network name** (the default) makes a box per Wi-Fi network (SSID) with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once. Wired devices share a **Not on Wi-Fi** box.
@@ -212,8 +243,7 @@ The **Layers** tab controls what's drawn, and how devices are arranged.
 
 ![The campus sample arranged by channel: a box per Wi-Fi channel with its access points and clients, then the wired devices](images/arrange-by-channel.png)
 
-- **Group by subnet** draws subnets as boxes (in the subnet arrangement). Turn it off to show subnets as separate nodes with membership links instead.
-- **Links** switches each kind of link on or off: wired, IP traffic, ports and services, wireless, VLAN membership, subnet membership, and bridges. Devices always stay visible.
+- **Links** switches each kind of link on or off: wired, IP traffic, ports and services, wireless, VLAN membership, bridges, and links added by you. Subnets are the boxes when arranged by subnet. Devices always stay visible.
 - **Devices** is the legend for shapes and colours.
 
 Your layer choices are remembered.
@@ -277,7 +307,7 @@ Press `?`, or open **Settings** → **Help** → **Keyboard shortcuts**, to see 
 
 Click the **cog** at the right of the top bar. A dot on the cog means a newer version is out.
 
-![Settings, General: theme, scroll-to-zoom speed, Group by subnet, and hover fading](images/settings-general.png)
+![Settings, General: theme, scroll-to-zoom speed, SSIDs under access points, and hover fading](images/settings-general.png)
 
 **General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes, SSIDs under access points, and hover fading on or off. **Time** sets the time zone and 12- or 24-hour clock used for capture times on the timeline and in Details.
 

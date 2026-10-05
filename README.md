@@ -107,7 +107,7 @@ ssh -L 47331:127.0.0.1:47331 you@sensor   # then browse to http://127.0.0.1:4733
 
 **Kismet logs (`.kismet`)** are read directly; there's no need to convert them first. NetSeer decodes the packets Kismet logged, then adds Kismet's own summary of each device: SSIDs (including networks that hide their name), channels, encryption, maker, signal, location when Kismet had GPS, the networks clients probed for, and which clients joined which access points. Bluetooth and other non-Wi-Fi devices in the log are left out.
 
-Installed copies open captures of any size, such as long wardrives, reading them straight from disk with a progress bar. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB. Bundled campus samples let you try it without any files of your own.
+Installed copies open captures of any size, such as long wardrives, reading them straight from disk with a progress bar. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB. Bundled samples let you try it without any files of your own, including a branch office surveyed twice a week apart, for trying **Compare surveys**.
 
 From the frames and survey rows, NetSeer extracts:
 
@@ -122,6 +122,7 @@ From the frames and survey rows, NetSeer extracts:
 
 - **A map that lays itself out**, eight ways: **by network name** (the default: a box per SSID with its access points and their clients), **by subnet**, **by connection**, **by location** (survey GPS), **by channel**, **top-down hierarchy**, **by signal strength**, or **by maker**. Drag anything to rearrange; positions are saved for each arrangement. **Tidy layout** resets them.
 - **Details for every device.** Click one to see what NetSeer found, rename it, add a caption and notes, copy any value, or edit any field. Edits are marked and can be reset.
+- **Compare surveys for changes.** Pick a baseline and one or more later surveys (whole, or just part of their timeline) and NetSeer maps what changed: devices that left a network or disappeared in red, ones that joined or are new in green, and other changes in blue, such as moving networks, a randomized MAC that rotated, or a possible rogue access point.
 - **Several maps at once.** Each capture becomes a map. Copy, cut, paste, and move devices between maps (an access point brings its clients), merge maps, and set devices aside in **Unwanted**. Undo and Redo go 30 steps either way, and only ever change your maps.
 - **An organized sidebar.** Drag maps and surveys to reorder them, or drop one onto a map to merge it. Right-click for rename, merge, remove, and delete. Drag the sidebar's edge to make it wider.
 - **Access points labelled with their SSID**, so Wi-Fi networks are easy to pick out at a glance.
