@@ -2,7 +2,7 @@
 
 This puts a public copy of NetSeer on the internet at a free `https://netseer-….onrender.com` address that anyone can open. It updates itself every time the GitHub repo's `main` branch changes.
 
-It uses [Render](https://render.com)'s free plan, set up by [`render.yaml`](../render.yaml) in this repo.
+It uses [Render](https://render.com)'s free plan, set up by [`render.yaml`](../render.yaml) in this repo. NetSeer's own public copy, **[netseer.onrender.com](https://netseer.onrender.com)**, was deployed exactly this way.
 
 ## Before you start
 

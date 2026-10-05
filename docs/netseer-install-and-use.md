@@ -4,6 +4,8 @@
 
 Walkthrough for cloning NetSeer from GitHub, installing it from source on Debian/Ubuntu, and using the browser map.
 
+**Just want to try it?** Open [netseer.onrender.com](https://netseer.onrender.com) in a browser; nothing to install.
+
 **Just want the desktop app?** Download the AppImage from [Releases](https://github.com/ardyn-systems/NetSeer/releases), `chmod +x` it, and run it; see the [README](../README.md#linux-desktop-appimage). This guide is for running from source: servers, Kali, Raspberry Pi, or development.
 
 ## What it is
