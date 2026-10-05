@@ -1,6 +1,6 @@
 [project]
 name = "netseer"
-version = "0.4.7"
+version = "0.4.8"
 description = "NetSeer — turn traffic into terrain. Map Layer 2/3 surveys to interactive maps and draw.io / Visio exports."
 readme = "README.md"
 authors = [
