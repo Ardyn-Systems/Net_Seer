@@ -40,6 +40,7 @@
   --edge-vlan: #b8a0c8;
   --edge-subnet: #6f6857;
   --edge-bridge: #e07a8a;
+  --edge-manual: #d98ae8;
   --select: #f5d38a;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
@@ -82,6 +83,7 @@
   --edge-vlan: #c4b5fd;
   --edge-subnet: #4b5b75;
   --edge-bridge: #f472b6;
+  --edge-manual: #e879f9;
   --select: #99f6e4;
   --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
 }
@@ -124,6 +126,7 @@
   --edge-vlan: #8b5cf6;
   --edge-subnet: #a3adbb;
   --edge-bridge: #db2777;
+  --edge-manual: #a21caf;
   --select: #2563eb;
   --shadow: 0 10px 30px rgba(24, 33, 47, 0.14);
 }
@@ -170,6 +173,7 @@
   --edge-vlan: #c6b8ff;
   --edge-subnet: #5f86b5;
   --edge-bridge: #ffa3c2;
+  --edge-manual: #f5b8ff;
   --select: #ffd479;
   --shadow: 0 10px 30px rgba(3, 14, 30, 0.5);
 }
@@ -580,7 +584,27 @@ input[role="switch"]:checked::after { transform: translateX(14px); background: v
 .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--text); }
 .search input::placeholder { color: var(--faint); }
 .search input:not(:placeholder-shown) + kbd { display: none; }
-.search-results { left: 0; right: 0; max-height: 320px; overflow: auto; }
+.search-results { left: 0; right: 0; max-height: min(460px, 60vh); overflow: auto; }
+.search-results li.search-head {
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.75rem !important;
+  white-space: nowrap;
+  position: sticky;
+  top: -4px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: -0.25rem -0.25rem 0.2rem;
+  padding: 0.45rem 0.85rem;
+  border-bottom: 1px solid var(--line);
+  background: var(--raised);
+  color: var(--muted);
+  font-size: 12.5px;
+}
 .search-results li { flex-direction: column; align-items: flex-start !important; gap: 0 !important; }
 .search-results li small { font-family: ui-monospace, Consolas, monospace; }
 .selection-bar {
@@ -1178,3 +1202,54 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 }
 .drag-ghost small { display: block; color: var(--accent); font-weight: 400; font-size: 11.5px; }
 @media (max-width: 760px) { .sidebar-resizer { display: none; } }
+
+/* ---------- Links you add ---------- */
+
+.connect-dialog { width: min(480px, calc(100% - 2rem)); }
+.connect-dialog fieldset { margin: 0.5rem 0 0.75rem; padding: 0; border: 0; }
+.connect-dialog legend { margin-bottom: 0.35rem; color: var(--muted); font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.connect-types { display: grid; gap: 0.3rem; }
+.connect-types label {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  cursor: pointer;
+}
+.connect-types label:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.connect-types label:has(input:disabled) { opacity: 0.45; cursor: not-allowed; }
+.connect-types small { display: block; color: var(--muted); font-size: 12px; }
+.connect-dialog .field-label small { display: inline; color: var(--muted); font-weight: 400; }
+.connect-dialog .field-label { margin-bottom: 0.6rem; }
+.connect-banner {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.9rem;
+  transform: translateX(-50%);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: var(--raised);
+  box-shadow: var(--shadow);
+  font-size: 13.5px;
+}
+.stage.connecting #map { cursor: crosshair; }
+.manual-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--edge-manual) 18%, transparent);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.layer-row .line-sample.dashdot { border-top-style: dashed; border-image: repeating-linear-gradient(90deg, var(--c) 0 8px, transparent 8px 11px, var(--c) 11px 13px, transparent 13px 16px) 1; }

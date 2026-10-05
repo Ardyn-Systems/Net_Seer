@@ -283,6 +283,23 @@ def capture(url: str, channel: str | None) -> list[str]:
         save_report_pages(bytes(report))
         shots.reset()
 
+        # 7b. A connection added from outside information.
+        host = node_where(page, "r === 'host'")
+        server = node_where(page, "r === 'server'")
+        page.evaluate("([a, b]) => openConnectDialog(a, b)", [host, server])
+        page.wait_for_selector("#connect-dialog[open]")
+        page.fill("#connect-label", "Port 14")
+        page.fill("#connect-note", "IT closet patch panel, row B")
+        page.mouse.move(5, 5)
+        shots.save("connect-dialog", selectors=["#connect-dialog"], pad=0)
+        page.click("#connect-ok")
+        page.wait_for_timeout(400)
+        page.evaluate("() => { const l = state.graph.links.find(l => isManualLink(l)); state.inspectedLink = l.id; state.cy.getElementById(l.id).select(); renderInspector(); }")
+        page.mouse.move(5, 5)
+        shots.save("manual-link", full=True)
+        page.evaluate("() => { undoLast(); state.redo = []; syncUndoUi(); }")
+        shots.reset()
+
         # 8. Themes.
         page.click("#btn-theme")
         page.wait_for_selector("body > .menu")

@@ -27,6 +27,7 @@ const LAYERS = [
   { kind: "vlan", name: "VLAN membership", color: "--edge-vlan", line: "dashed" },
   { kind: "subnet", name: "Subnet membership", color: "--edge-subnet", line: "dashed" },
   { kind: "bridge", name: "Bridges and attachments", color: "--edge-bridge", line: "dotted" },
+  { kind: "manual", name: "Added by you", color: "--edge-manual", line: "dashdot" },
 ];
 
 const state = {
@@ -174,6 +175,7 @@ function themeColors() {
     vlanEdge: v("--edge-vlan"),
     subnetEdge: v("--edge-subnet"),
     bridge: v("--edge-bridge"),
+    manual: v("--edge-manual"),
     select: v("--select"),
     font: getComputedStyle(document.body).fontFamily,
   };
@@ -748,6 +750,7 @@ function nodeRole(n) {
 }
 
 function edgeLabel(link) {
+  if (isManualLink(link)) return `${MANUAL_MARK} ${link.label || MANUAL_KIND_NAMES[link.kind] || ""}`.trim();
   if (link.kind === "bridge") return link.label || "Attachment";
   const displays = [];
   for (const p of link.ports || []) if (p.display && !displays.includes(p.display)) displays.push(p.display);
@@ -874,6 +877,13 @@ function undoLast() {
     toast("Nothing to undo.", { timeout: 1800 });
     return;
   }
+  if (entry.type === "positions") {
+    applyPositions(entry, "before");
+    state.redo.push(entry);
+    syncUndoUi();
+    toast(`Undid ${entry.label}.`, { timeout: 2500, action: { label: "Redo", onClick: redoLast } });
+    return;
+  }
   state.redo.push(captureMaps(entry.label, entry.maps.map(([id]) => id)));
   if (state.redo.length > UNDO_LIMIT) state.redo.shift();
   applyMapsSnapshot(entry);
@@ -888,11 +898,77 @@ function redoLast() {
     toast("Nothing to redo.", { timeout: 1800 });
     return;
   }
+  if (entry.type === "positions") {
+    applyPositions(entry, "after");
+    state.undo.push(entry);
+    syncUndoUi();
+    toast(`Redid ${entry.label}.`, { undo: true, timeout: 2500 });
+    return;
+  }
   state.undo.push(captureMaps(entry.label, entry.maps.map(([id]) => id)));
   if (state.undo.length > UNDO_LIMIT) state.undo.shift();
   applyMapsSnapshot(entry);
   syncUndoUi();
   toast(`Redid ${entry.label}.`, { undo: true, timeout: 4000 });
+}
+
+/* Drags: one undo step per drag, holding just where the moved devices were and went. */
+
+const dragUndo = { before: null, mapId: null, timer: 0, freeTimer: 0 };
+
+function noteDragStart(target) {
+  const map = getMap(state.activeMapId);
+  if (!map) return;
+  if (!dragUndo.before || dragUndo.mapId !== map.id) {
+    dragUndo.before = new Map();
+    dragUndo.mapId = map.id;
+  }
+  const nodes = target.isParent() ? target.descendants() : target;
+  nodes.forEach((n) => {
+    if (n.isParent() || dragUndo.before.has(n.id())) return;
+    const saved = map.positions?.[n.id()];
+    dragUndo.before.set(n.id(), { pos: { ...n.position() }, saved: saved ? { ...saved } : null });
+  });
+}
+
+function commitDrag() {
+  dragUndo.timer = 0;
+  const before = dragUndo.before;
+  const map = getMap(dragUndo.mapId);
+  dragUndo.before = null;
+  if (!before || !map || !state.cy) return;
+  const moves = [];
+  for (const [id, b] of before) {
+    const node = state.cy.getElementById(id);
+    if (!node.length) continue;
+    const after = { ...node.position() };
+    if (Math.abs(after.x - b.pos.x) < 0.5 && Math.abs(after.y - b.pos.y) < 0.5) continue;
+    moves.push({ id, before: b.pos, after, savedBefore: b.saved, savedAfter: { ...after } });
+  }
+  if (!moves.length) return;
+  const label = moves.length === 1 ? `move ${displayName(nodeById(moves[0].id)) || "device"}` : `move ${moves.length} devices`;
+  state.undo.push({ type: "positions", label, mapId: map.id, moves });
+  if (state.undo.length > UNDO_LIMIT) state.undo.shift();
+  state.redo = [];
+  syncUndoUi();
+}
+
+// Put dragged devices back ("before") or where they were dropped ("after").
+function applyPositions(entry, which) {
+  const map = getMap(entry.mapId);
+  if (!map) return;
+  map.positions = map.positions || {};
+  for (const m of entry.moves) {
+    const saved = which === "before" ? m.savedBefore : m.savedAfter;
+    if (saved) map.positions[m.id] = { ...saved };
+    else delete map.positions[m.id];
+  }
+  markMapDirty(map.id);
+  if (state.activeMapId !== map.id) {
+    showMap(map.id, { fit: true });
+    return;
+  }
+  for (const m of entry.moves) state.cy?.getElementById(m.id).position({ ...m[which] });
 }
 
 function syncUndoUi() {
@@ -988,8 +1064,17 @@ function computeLayout(graph, grouped) {
       const cur = parents.get(dev);
       if (cur === undefined || subnetRank.get(sub) < subnetRank.get(cur)) parents.set(dev, sub);
     };
+    const yours = new Set();
     for (const l of links) {
-      if (l.kind !== "subnet") continue;
+      if (l.kind !== "subnet" || !isManualLink(l)) continue;
+      if (subnetIds.has(l.target) && isDevice(byId.get(l.source))) {
+        parents.set(l.source, l.target);
+        yours.add(l.source);
+      }
+    }
+    for (const l of links) {
+      if (l.kind !== "subnet" || isManualLink(l)) continue;
+      if (yours.has(l.source) || yours.has(l.target)) continue;
       if (subnetIds.has(l.target) && isDevice(byId.get(l.source))) choose(l.source, l.target);
       else if (subnetIds.has(l.source) && isDevice(byId.get(l.target))) choose(l.target, l.source);
     }
@@ -1153,6 +1238,9 @@ function cyStyle(c) {
         "target-arrow-color": c.bridge,
       },
     },
+    { selector: 'edge[kind = "manual"]', style: { "line-color": c.manual } },
+    // Added by you: the type's colour, a dash-dot line, and a pencil in the label.
+    { selector: "edge[manual = 1]", style: { "line-style": "dashed", "line-dash-pattern": [10, 3, 2, 3], width: 2.2, opacity: 1 } },
     { selector: "node:selected", style: { "border-color": c.select, "border-width": 3.5, "underlay-color": c.select, "underlay-opacity": 0.22, "underlay-padding": 6 } },
     { selector: ":parent:selected", style: { "border-color": c.select, "background-opacity": 0.12 } },
     { selector: "edge:selected", style: { width: 3, "line-color": c.select, "target-arrow-color": c.select, "source-arrow-color": c.select, opacity: 1 } },
@@ -1171,9 +1259,9 @@ function toElements(graph) {
     return { data, position: { ...(saved[n.id] || positions.get(n.id) || { x: 0, y: 0 }) } };
   });
   const edges = graph.links
-    .filter((l) => state.filters[l.kind] !== false && !(state.groupBySubnet && l.kind === "subnet"))
+    .filter(linkIsShown)
     .filter((l) => nodeIds.has(l.source) && nodeIds.has(l.target))
-    .map((l) => ({ data: { id: l.id, source: l.source, target: l.target, label: edgeLabel(l), kind: l.kind } }));
+    .map((l) => ({ data: { id: l.id, source: l.source, target: l.target, label: edgeLabel(l), kind: l.kind, manual: isManualLink(l) ? 1 : 0 } }));
   return nodes.concat(edges);
 }
 
@@ -1211,6 +1299,7 @@ function renderMap({ fit = true } = {}) {
   state.suppressSelect = false;
 
   cy.on("tap", "node, edge", (evt) => {
+    if (connectTap(evt.target)) return;
     const multi = evt.originalEvent && (evt.originalEvent.shiftKey || evt.originalEvent.ctrlKey || evt.originalEvent.metaKey);
     if (!multi) cy.elements(":selected").not(evt.target).unselect();
     if (evt.target.isEdge()) {
@@ -1239,7 +1328,18 @@ function renderMap({ fit = true } = {}) {
       }
     }
     const e = evt.originalEvent;
-    if (e) showContextMenu(e.clientX, e.clientY, t !== cy && t.isNode());
+    if (!e) return;
+    if (t !== cy && t.isNode()) syncSelectionFromCy();
+    if (t !== cy && t.isEdge()) {
+      const link = (state.graph?.links || []).find((l) => l.id === t.id());
+      if (link && isManualLink(link)) {
+        state.inspectedLink = link.id;
+        renderInspector();
+        openMenuAt(e.clientX, e.clientY, [{ label: "Edit label and note", onSelect: () => el("manual-label")?.focus() }, "sep", { label: "Remove this link", danger: true, onSelect: () => removeManualLink(link.id) }]);
+        return;
+      }
+    }
+    showContextMenu(e.clientX, e.clientY, t !== cy && t.isNode());
   });
   cy.on("mouseover", "node", (evt) => {
     const n = evt.target;
@@ -1248,7 +1348,10 @@ function renderMap({ fit = true } = {}) {
     cy.elements().not(keepEls).not(":parent").addClass("faded");
   });
   cy.on("mouseout", "node", () => cy.elements(".faded").removeClass("faded"));
-  cy.on("grab", "node", () => cy.elements(".faded").removeClass("faded"));
+  cy.on("grab", "node", (evt) => {
+    cy.elements(".faded").removeClass("faded");
+    noteDragStart(evt.target);
+  });
   cy.on("dragfree", "node", (evt) => {
     const map = getMap(state.activeMapId);
     if (!map) return;
@@ -1258,6 +1361,15 @@ function renderMap({ fit = true } = {}) {
       if (!n.isParent()) map.positions[n.id()] = { ...n.position() };
     });
     markMapDirty(map.id);
+    // Several nodes dragged together each fire this; record the drag once, after the last.
+    clearTimeout(dragUndo.timer);
+    dragUndo.timer = setTimeout(commitDrag, 0);
+  });
+  cy.on("free", "node", () => {
+    clearTimeout(dragUndo.freeTimer);
+    dragUndo.freeTimer = setTimeout(() => {
+      if (!dragUndo.timer) dragUndo.before = null; // a click without a drag
+    }, 0);
   });
   cy.on("zoom", syncZoomUi);
   syncZoomUi();
@@ -1471,7 +1583,10 @@ function renderInspector() {
     el("inspector").classList.remove("open");
   });
   body.querySelectorAll("[data-copy]").forEach((dd) => dd.addEventListener("click", () => copyText(dd.dataset.copy)));
-  if (link) return;
+  if (link) {
+    if (isManualLink(link)) bindManualLinkPanel(link);
+    return;
+  }
   if (state.selection.length === 1) bindDevicePanel(nodeById(state.selection[0]));
   body.querySelectorAll("[data-act]").forEach((btn) => btn.addEventListener("click", (e) => runAction(btn.dataset.act, e.currentTarget)));
 }
@@ -1545,6 +1660,8 @@ function devicePanel(raw) {
     </div>
     <div class="insp-section insp-actions">
       <button type="button" class="btn small" data-act="copy-details">Copy details</button>
+      ${isDeviceNode(raw) ? '<button type="button" class="btn small" data-act="connect" title="Connect to another device from information you have">Connect to…</button>' : ""}
+      ${isDeviceNode(raw) ? '<button type="button" class="btn small" data-act="member">Add to network…</button>' : ""}
       <button type="button" class="btn small" data-act="device-export" aria-haspopup="menu">Export<svg class="icon chev"><use href="#i-chevron"/></svg></button>
       <button type="button" class="btn small" data-act="move" aria-haspopup="menu">Move to<svg class="icon chev"><use href="#i-chevron"/></svg></button>
       <button type="button" class="btn small" data-act="unwanted">Set aside</button>
@@ -1672,13 +1789,13 @@ function nodeName(id) {
 function linkPanel(link) {
   const extra = link.extra || {};
   const ports = (link.ports || []).map((p) => (p.sport != null && p.dport != null ? `${p.display} (${p.sport} → ${p.dport})` : p.display)).filter(Boolean);
-  const kindName = LAYERS.find((l) => l.kind === link.kind)?.name || link.kind;
+  const kindName = isManualLink(link) ? `${MANUAL_KIND_NAMES[link.kind] || link.kind}, added by you` : LAYERS.find((l) => l.kind === link.kind)?.name || link.kind;
   return `
     <div class="insp-head">
       <span class="insp-icon" style="--c: var(${LAYERS.find((l) => l.kind === link.kind)?.color || "--edge-l2"}); border-radius: 50%"></span>
       <div class="insp-title">
         <h2>${escapeHtml(edgeLabel(link) || kindName)}</h2>
-        <p>${escapeHtml(kindName)} · ${escapeHtml(link.medium || "wired")}</p>
+        <p>${escapeHtml(kindName)}${isManualLink(link) ? "" : ` · ${escapeHtml(link.medium || "wired")}`}</p>
       </div>
     </div>
     <div class="insp-section"><dl class="facts">
@@ -1694,7 +1811,8 @@ function linkPanel(link) {
       ${factRow("HTTP host", extra.http_host)}
       ${factRow("DNS query", extra.dns_query)}
     </dl></div>
-    ${ports.length || link.services?.length ? `<div class="insp-section"><h3>Services</h3>${chips(ports.length ? ports : link.services)}</div>` : ""}`;
+    ${ports.length || link.services?.length ? `<div class="insp-section"><h3>Services</h3>${chips(ports.length ? ports : link.services)}</div>` : ""}
+    ${isManualLink(link) ? manualLinkPanel(link) : ""}`;
 }
 
 function multiPanel(ids) {
@@ -1715,6 +1833,7 @@ function multiPanel(ids) {
     <div class="insp-section insp-actions">
       <button type="button" class="btn small" data-act="copy">Copy</button>
       <button type="button" class="btn small" data-act="cut">Cut</button>
+      ${ids.filter((id) => isDeviceNode(nodeById(id))).length === 2 ? '<button type="button" class="btn small" data-act="connect">Connect…</button>' : ""}
       <button type="button" class="btn small" data-act="move" aria-haspopup="menu">Move to<svg class="icon chev"><use href="#i-chevron"/></svg></button>
       <button type="button" class="btn small" data-act="unwanted">Set aside</button>
       <button type="button" class="btn small danger" data-act="delete">Delete</button>
@@ -1729,6 +1848,11 @@ function runAction(act, anchor) {
   else if (act === "unwanted") moveSelectedTo(UNWANTED_ID);
   else if (act === "move") openMoveMenu(anchor);
   else if (act === "copy-details") copyDeviceDetails();
+  else if (act === "connect") {
+    const ids = selectedIds();
+    if (ids.length === 2) openConnectDialog(ids[0], ids[1]);
+    else if (ids.length === 1) startConnect(ids[0]);
+  } else if (act === "member" && selectedIds().length === 1) openMemberDialog(selectedIds()[0]);
   else if (act === "device-export") {
     openMenu(anchor, [
       { label: "PDF", hint: ".pdf", onSelect: () => exportDevice("pdf") },
@@ -1760,6 +1884,7 @@ async function moveToNewMap() {
 function syncSelectionUi() {
   const n = state.selection.length;
   show("selection-bar", n > 0);
+  show("sel-connect", selectedIds().filter((id) => isDeviceNode(nodeById(id))).length === 2);
   el("selection-count").textContent = `${n} selected`;
 }
 
@@ -1767,6 +1892,17 @@ function syncPasteUi() {
   const n = state.clipboard?.nodes?.length || 0;
   show("btn-paste", n > 0);
   el("paste-label").textContent = n ? `Paste ${plural(n, "device")}` : "Paste";
+}
+
+function connectMenuItems() {
+  const ids = selectedIds().filter((id) => isDeviceNode(nodeById(id)));
+  if (ids.length === 2) return ["sep", { label: "Connect these two…", onSelect: () => openConnectDialog(ids[0], ids[1]) }];
+  if (ids.length !== 1) return [];
+  return [
+    "sep",
+    { label: "Connect to…", hint: "click another device", onSelect: () => startConnect(ids[0]) },
+    { label: "Add to subnet or VLAN…", onSelect: () => openMemberDialog(ids[0]) },
+  ];
 }
 
 function showContextMenu(x, y, onNode) {
@@ -1778,6 +1914,8 @@ function showContextMenu(x, y, onNode) {
         { label: "Paste", kbd: "Ctrl V", disabled: !hasClip, onSelect: pasteClipboard },
         "sep",
         { label: "Set aside in Unwanted", onSelect: () => moveSelectedTo(UNWANTED_ID) },
+        ...connectMenuItems(),
+        "sep",
         { label: "Delete", kbd: "Del", danger: true, onSelect: deleteSelected },
       ]
     : [
@@ -1787,6 +1925,248 @@ function showContextMenu(x, y, onNode) {
         { label: "Tidy layout", onSelect: tidyLayout },
       ];
   openMenuAt(x, y, items);
+}
+
+/* ---------- Links you add (from outside information) ---------- */
+// A connection or network membership the capture didn't show, added by a person. It's an
+// ordinary link of the right kind (so Wi-Fi clients sit with their access point and a
+// device moves into its subnet box) with extra.manual = { note, added }, which marks it
+// everywhere: a dash-dot line with a pencil on the map, its own layer, and in exports.
+
+const MANUAL_MARK = "\u270e";
+const MANUAL_KIND_NAMES = { l2: "Wired", wireless: "Wi-Fi", manual: "Connected", subnet: "In subnet", vlan: "In VLAN" };
+const isManualLink = (l) => isPlainObject(l?.extra?.manual);
+const connectState = { from: null };
+
+function linkIsShown(l) {
+  if (isManualLink(l) && state.filters.manual === false) return false;
+  if (!isManualLink(l) && state.filters[l.kind] === false) return false;
+  return !(state.groupBySubnet && l.kind === "subnet");
+}
+
+function isDeviceNode(n) {
+  return Boolean(n) && n.kind !== "subnet" && n.kind !== "vlan";
+}
+
+function startConnect(fromId) {
+  const from = nodeById(fromId);
+  if (!isDeviceNode(from)) return;
+  closeMenu();
+  connectState.from = fromId;
+  el("connect-banner-text").textContent = `Click the device to connect to ${displayName(from)}.`;
+  show("connect-banner", true);
+  el("stage").classList.add("connecting");
+}
+
+function cancelConnect() {
+  if (!connectState.from) return false;
+  connectState.from = null;
+  show("connect-banner", false);
+  el("stage").classList.remove("connecting");
+  return true;
+}
+
+// Returns true when the tap was used to finish connecting.
+function connectTap(target) {
+  if (!connectState.from) return false;
+  const from = connectState.from;
+  if (target?.isNode?.() && !target.isParent() && target.id() !== from && isDeviceNode(nodeById(target.id()))) {
+    cancelConnect();
+    openConnectDialog(from, target.id());
+  }
+  return true; // taps elsewhere while connecting do nothing; Esc or Cancel ends it
+}
+
+function openConnectDialog(aId, bId) {
+  const a = nodeById(aId);
+  const b = nodeById(bId);
+  if (!a || !b) return;
+  const dialog = el("connect-dialog");
+  const aps = [a, b].filter(nodeLooksLikeAp);
+  const wifiOk = aps.length === 1;
+  el("connect-title").textContent = `Connect ${displayName(a)} and ${displayName(b)}`;
+  const wifi = dialog.querySelector('input[value="wireless"]');
+  wifi.disabled = !wifiOk;
+  el("connect-wifi-row").title = wifiOk ? "" : "One of the two must be an access point";
+  dialog.querySelector(`input[value="${wifiOk && nodeLooksLikeWirelessClient(aps[0] === a ? b : a) ? "wireless" : "l2"}"]`).checked = true;
+  el("connect-label").value = "";
+  el("connect-note").value = "";
+  connectState.pair = [aId, bId];
+  dialog.showModal();
+  el("connect-label").focus();
+}
+
+function addManualLink(aId, bId, { kind, label = "", note = "", snapshot = true }) {
+  const map = getMap(state.activeMapId);
+  if (!map || !nodeById(aId) || !nodeById(bId) || aId === bId) return null;
+  let [source, target] = [aId, bId];
+  if (kind === "wireless" && nodeLooksLikeAp(nodeById(aId))) [source, target] = [bId, aId]; // client -> access point
+  if (kind === "subnet" || kind === "vlan") [source, target] = [aId, bId]; // device -> network
+  const id = `manual:${kind}:${kind === "manual" || kind === "l2" ? [source, target].sort().join("|") : `${source}|${target}`}`;
+  if (snapshot) snapshotUndo(kind === "subnet" || kind === "vlan" ? "add to network" : "connect", [map.id]);
+  const existing = map.graph.links.find((l) => l.id === id);
+  const link = existing || { id, source, target, kind, medium: kind === "wireless" ? "wireless" : "wired", vlans: [], services: [], ports: [], extra: {} };
+  link.label = label.trim();
+  link.extra = { ...(link.extra || {}), manual: { note: note.trim(), added: new Date().toISOString() }, ...(kind === "wireless" ? { associated: true } : {}) };
+  if (!existing) map.graph.links.push(link);
+  markMapEdited(map.id);
+  refreshAll();
+  return link;
+}
+
+function removeManualLink(linkId) {
+  const map = getMap(state.activeMapId);
+  const link = map?.graph.links.find((l) => l.id === linkId);
+  if (!link || !isManualLink(link)) return;
+  snapshotUndo("remove link", [map.id]);
+  map.graph.links = map.graph.links.filter((l) => l.id !== linkId);
+  // A network you created that nothing belongs to any more goes too.
+  for (const end of [link.source, link.target]) {
+    const n = map.graph.nodes.find((x) => x.id === end);
+    if (n && !isDeviceNode(n) && isPlainObject(n.extra?.manual) && !map.graph.links.some((l) => l.source === end || l.target === end)) {
+      map.graph.nodes = map.graph.nodes.filter((x) => x.id !== end);
+    }
+  }
+  if (map.id === state.activeMapId) state.graph = map.graph;
+  if (state.inspectedLink === linkId) state.inspectedLink = null;
+  markMapEdited(map.id);
+  refreshAll();
+  toast("Removed the link you added.", { undo: true });
+}
+
+function manualLinkPanel(link) {
+  const info = link.extra.manual;
+  const added = Date.parse(info.added) ? new Date(info.added).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+  return `
+    <div class="insp-section">
+      <span class="manual-badge">${MANUAL_MARK} Added by you${added ? ` · ${escapeHtml(added)}` : ""}</span>
+      <label class="field-label">Label on the map
+        <input type="text" id="manual-label" maxlength="60" value="${escapeHtml(link.label || "")}" placeholder="${escapeHtml(MANUAL_KIND_NAMES[link.kind] || "")}" autocomplete="off" />
+      </label>
+      <label class="field-label">Where this came from
+        <textarea id="manual-note" rows="3" maxlength="500" placeholder="Switch port label, diagram, who told you…">${escapeHtml(info.note || "")}</textarea>
+      </label>
+    </div>
+    <div class="insp-section insp-actions">
+      <button type="button" class="btn small danger" id="manual-remove">Remove this link</button>
+    </div>`;
+}
+
+function bindManualLinkPanel(link) {
+  const map = getMap(state.activeMapId);
+  const save = () => {
+    markMapEdited(map.id);
+    const edge = state.cy?.getElementById(link.id);
+    if (edge?.length) edge.data("label", edgeLabel(link));
+  };
+  el("manual-label").addEventListener("input", (e) => {
+    link.label = e.target.value.trim();
+    save();
+  });
+  el("manual-note").addEventListener("input", (e) => {
+    link.extra.manual = { ...link.extra.manual, note: e.target.value };
+    save();
+  });
+  el("manual-remove").addEventListener("click", () => removeManualLink(link.id));
+}
+
+/* Subnet and VLAN membership */
+
+function networkNodes(kind) {
+  return (state.graph?.nodes || []).filter((n) => n.kind === kind).sort((a, b) => String(a.label).localeCompare(String(b.label), undefined, { numeric: true }));
+}
+
+function openMemberDialog(deviceId) {
+  const dev = nodeById(deviceId);
+  if (!isDeviceNode(dev)) return;
+  connectState.member = deviceId;
+  el("member-title").textContent = `Add ${displayName(dev)} to a subnet or VLAN`;
+  el("member-note").value = "";
+  el("member-new").value = "";
+  el("member-error").classList.add("hidden");
+  el("member-dialog").querySelector('input[value="subnet"]').checked = true;
+  fillMemberPick();
+  el("member-dialog").showModal();
+}
+
+function fillMemberPick() {
+  const kind = el("member-dialog").querySelector('input[name="member-kind"]:checked').value;
+  const pick = el("member-pick");
+  const nets = networkNodes(kind);
+  pick.innerHTML = nets.map((n) => `<option value="${escapeHtml(n.id)}">${escapeHtml(n.label)}</option>`).join("") + `<option value="__new">New ${kind === "vlan" ? "VLAN" : "subnet"}…</option>`;
+  el("member-pick-label").textContent = kind === "vlan" ? "VLAN" : "Subnet";
+  el("member-new-label").textContent = kind === "vlan" ? "VLAN number (1–4094)" : "New subnet, like 10.20.0.0/24";
+  el("member-new").placeholder = kind === "vlan" ? "120" : "10.20.0.0/24";
+  if (!nets.length) pick.value = "__new";
+  show("member-new-row", pick.value === "__new");
+}
+
+function parseNewNetwork(kind, text) {
+  const value = String(text || "").trim();
+  if (kind === "vlan") {
+    const n = Number(value);
+    return Number.isInteger(n) && n >= 1 && n <= 4094 ? { id: `vlan:${n}`, label: `VLAN ${n}`, vlan: n } : null;
+  }
+  const m = value.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/);
+  if (m && m.slice(1, 5).every((o) => Number(o) <= 255) && Number(m[5]) <= 32) return { id: `subnet:${value}`, label: value };
+  if (/^[0-9a-f:]+\/\d{1,3}$/i.test(value) && value.includes(":")) return { id: `subnet:${value.toLowerCase()}`, label: value.toLowerCase() };
+  return null;
+}
+
+function addToNetwork(deviceId, kind, netId, newNet, note) {
+  const map = getMap(state.activeMapId);
+  if (!map) return;
+  snapshotUndo("add to network", [map.id]); // one step covers a new network and the link to it
+  let target = netId;
+  if (newNet) {
+    target = newNet.id;
+    if (!map.graph.nodes.some((n) => n.id === target)) {
+      map.graph.nodes.push({
+        id: target, kind, label: newNet.label, medium: "wired", macs: [], mac_tx: [], mac_rx: [], mac_da: [], mac_ra: [], ips: [], ssids: [],
+        channels: [], frequencies_mhz: [], encryption: [], vlans: newNet.vlan ? [newNet.vlan] : [], roles: [], services: [], ports: [], routing: {},
+        extra: { manual: { note: "", added: new Date().toISOString() } }, inferred_type: kind === "vlan" ? "VLAN" : "Subnet",
+      });
+      indexGraph();
+    }
+  }
+  addManualLink(deviceId, target, { kind, note, snapshot: false });
+  toast(`Added ${displayName(nodeById(deviceId))} to ${nodeById(target)?.label || "the network"}.`, { undo: true });
+}
+
+function bindManualDialogs() {
+  const connect = el("connect-dialog");
+  el("connect-cancel").addEventListener("click", () => connect.close());
+  el("connect-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const [a, b] = connectState.pair || [];
+    const kind = connect.querySelector('input[name="connect-kind"]:checked')?.value || "l2";
+    connect.close();
+    const link = addManualLink(a, b, { kind, label: el("connect-label").value, note: el("connect-note").value });
+    if (link) toast(`Connected ${displayName(nodeById(a))} and ${displayName(nodeById(b))}.`, { undo: true });
+  });
+  const member = el("member-dialog");
+  el("member-cancel").addEventListener("click", () => member.close());
+  member.querySelectorAll('input[name="member-kind"]').forEach((r) => r.addEventListener("change", fillMemberPick));
+  el("member-pick").addEventListener("change", () => show("member-new-row", el("member-pick").value === "__new"));
+  el("member-new").addEventListener("input", () => el("member-error").classList.add("hidden"));
+  el("member-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const kind = member.querySelector('input[name="member-kind"]:checked').value;
+    const pick = el("member-pick").value;
+    let newNet = null;
+    if (pick === "__new") {
+      newNet = parseNewNetwork(kind, el("member-new").value);
+      if (!newNet) {
+        el("member-error").textContent = kind === "vlan" ? "Enter a VLAN number from 1 to 4094." : "Enter a subnet like 10.20.0.0/24.";
+        el("member-error").classList.remove("hidden");
+        el("member-new").focus();
+        return;
+      }
+    }
+    member.close();
+    addToNetwork(connectState.member, kind, pick === "__new" ? null : pick, newNet, el("member-note").value);
+  });
+  el("connect-banner-cancel").addEventListener("click", cancelConnect);
 }
 
 /* ---------- Edit operations ---------- */
@@ -2740,20 +3120,38 @@ function tidyLayout() {
 
 /* ---------- Search ---------- */
 
+// Every match, best first: the name, then a caption, SSID, address, maker, and notes.
+// Each hit says which field matched, so "netgear" shows the SSID or the maker it found.
+const SEARCH_FIELDS = [
+  ["name", (raw) => [displayName(raw)]],
+  ["caption", (raw) => [getDeviceMeta(raw.id).extra]], // yours; an SSID shown as a caption counts as SSID
+  ["SSID", (raw, n) => n.ssids || []],
+  ["IP", (raw, n) => n.ips || []],
+  ["MAC", (raw, n) => n.macs || []],
+  ["maker", (raw, n) => [n.vendor]],
+  ["type", (raw, n) => [n.inferred_type]],
+  ["probed", (raw, n) => n.extra?.probed_ssids || []],
+  ["notes", (raw, n) => [n.notes]],
+];
+
 function searchNodes(query) {
   const q = query.trim().toLowerCase();
   if (!q) return [];
   const out = [];
   for (const raw of state.graph?.nodes || []) {
     const n = overlayNode(raw);
-    const hay = [displayName(raw), n.inferred_type, n.caption, n.vendor, ...(n.ips || []), ...(n.macs || []), ...(n.ssids || []), n.notes].filter(Boolean).join(" ").toLowerCase();
-    if (hay.includes(q)) {
-      const name = displayName(raw).toLowerCase();
-      out.push({ raw, n, score: name.startsWith(q) ? 0 : name.includes(q) ? 1 : 2 });
+    for (const [rank, [field, values]] of SEARCH_FIELDS.entries()) {
+      const value = values(raw, n).find((v) => v != null && String(v).toLowerCase().includes(q));
+      if (value == null) continue;
+      const starts = String(value).toLowerCase().startsWith(q) ? 0 : 0.5;
+      out.push({ raw, n, field, value: String(value), score: rank + starts });
+      break;
     }
   }
-  return out.sort((a, b) => a.score - b.score).slice(0, 8);
+  return out.sort((x, y) => x.score - y.score || displayName(x.raw).localeCompare(displayName(y.raw), undefined, { numeric: true }));
 }
+
+const SEARCH_SHOW = 200;
 
 function renderSearch() {
   const results = el("search-results");
@@ -2765,21 +3163,40 @@ function renderSearch() {
   }
   if (!hits.length) {
     results.innerHTML = '<li class="menu-label">No matching devices</li>';
+  } else {
+    const head = document.createElement("li");
+    head.className = "search-head";
+    head.innerHTML = `<span>${plural(hits.length, "device")} match</span>${hits.length > 1 ? '<button type="button" class="link-btn">Select all on the map</button>' : ""}`;
+    head.querySelector("button")?.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      el("search").blur();
+      el("search-results").classList.add("hidden");
+      selectNodes(hits.map((h) => h.raw.id));
+      fitMap();
+      toast(`Selected ${plural(hits.length, "device")} matching “${el("search").value.trim()}”.`, { timeout: 3500 });
+    });
+    results.appendChild(head);
   }
-  hits.forEach((hit, i) => {
+  hits.slice(0, SEARCH_SHOW).forEach((hit, i) => {
     const li = document.createElement("li");
     li.setAttribute("role", "option");
     if (i === 0) li.classList.add("active");
-    const sub = [hit.n.ips?.[0], hit.n.macs?.[0], hit.n.ssids?.[0]].filter(Boolean).join(" · ");
-    li.innerHTML = `<span>${escapeHtml(displayName(hit.raw))}</span><small>${escapeHtml(sub || hit.n.inferred_type || "")}</small>`;
+    const where = hit.field === "name" ? [hit.n.ips?.[0], hit.n.macs?.[0], hit.n.ssids?.[0]].filter(Boolean).join(" · ") : `${hit.field}: ${hit.value}`;
+    li.innerHTML = `<span>${escapeHtml(displayName(hit.raw))}</span><small>${escapeHtml(where || hit.n.inferred_type || "")}</small>`;
     li.addEventListener("mousedown", (e) => {
       e.preventDefault();
       pickSearchResult(hit.raw.id);
     });
     results.appendChild(li);
   });
+  if (hits.length > SEARCH_SHOW) {
+    const more = document.createElement("li");
+    more.className = "menu-label";
+    more.textContent = `${hits.length - SEARCH_SHOW} more. Type more to narrow it down, or use Select all.`;
+    results.appendChild(more);
+  }
   results.classList.remove("hidden");
-  renderSearch.hits = hits;
+  renderSearch.hits = hits.slice(0, SEARCH_SHOW);
 }
 
 function pickSearchResult(id) {
@@ -3769,7 +4186,7 @@ const TOUR_STEPS = [
   {
     target: "#inspector",
     title: "Details",
-    text: "Select a device to see everything NetSeer found: addresses, radio, services, and routing. You can rename it and add notes here.",
+    text: "Select a device to see everything NetSeer found: addresses, radio, services, and routing. Rename it, add notes, or connect it to another device from something you know (a port label, a diagram).",
     before: selectTourDevice,
   },
   { target: "#btn-export", title: "Export", text: "Save the map as a draw.io or Visio diagram, or create a PDF report with just the parts you need." },
@@ -4013,6 +4430,7 @@ function bindUi() {
       return;
     }
     if (e.key === "Escape") {
+      if (cancelConnect()) return;
       if (openMenuState) {
         closeMenu()?.focus();
         return;
@@ -4086,6 +4504,7 @@ async function init() {
   bindSettings();
   bindUpdateWizard();
   bindSidebarResize();
+  bindManualDialogs();
   bindListDrag();
   loadPrefs();
   renderLayerList();
