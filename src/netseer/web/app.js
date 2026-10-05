@@ -3723,7 +3723,12 @@ const TOUR_STEPS = [
   },
   { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map." },
   { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn." },
-  { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Hover a device to see what it connects to. Shift-drag to select several." },
+  {
+    target: "#sidebar",
+    title: "Organize the sidebar",
+    text: "Right-click a map or survey to rename, merge, remove, or delete it. Drag rows to reorder them, or drop one onto a map to merge it. Drag the sidebar's edge to make it wider.",
+  },
+  { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Access points show their Wi-Fi network (SSID) under their name. Hover a device to see what it connects to." },
   { target: ".search", title: "Find a device", text: "Search by name, IP, MAC, SSID, maker, or notes. Press / to jump here from anywhere." },
   {
     target: "#inspector",

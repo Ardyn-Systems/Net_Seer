@@ -327,7 +327,7 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("settings-about", selectors=["#settings-dialog"], pad=0)
         page.click('.settings-nav [data-pane="help"]')
         page.click("#help-tour")
-        for _ in range(5):
+        for _ in range(6):
             page.keyboard.press("ArrowRight")
         page.wait_for_timeout(400)
         shots.save("tour", full=True)

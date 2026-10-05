@@ -52,7 +52,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 
 Checking for updates is the only time NetSeer goes online: it reads the public release list from `api.github.com`. Nothing about you or your maps is sent.
 
-**The tour** is offered once on the first visit, and from **Help** → **Take the tour** any time after. Nine steps; **Next**/**Back** or the arrow keys, and **Skip tour** or Esc to stop.
+**The tour** is offered once on the first visit, and from **Help** → **Take the tour** any time after. Ten steps; **Next**/**Back** or the arrow keys, and **Skip tour** or Esc to stop.
 
 ---
 
@@ -233,7 +233,8 @@ NetSeer remembers your choices for next time (the selection itself isn't remembe
 | Delete / Backspace | Delete selected devices |
 | `F` | Fit to screen |
 | `?` | Show shortcuts |
-| Esc | Close menus, clear the selection |
+| Esc | Close menus, clear the selection, cancel a drag |
+| Right-click | Menus for devices, maps, and surveys |
 
 ---
 

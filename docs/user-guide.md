@@ -204,7 +204,8 @@ Press `?`, or open **Settings** → **Help** → **Keyboard shortcuts**, to see 
 | Shift + click, Shift + drag | Add to the selection, box-select |
 | `F` | Fit the map to the screen |
 | `?` | Show the shortcuts |
-| Esc | Close menus and clear the selection |
+| Esc | Close menus, clear the selection, or cancel a drag |
+| Right-click | Menus for devices, maps, and surveys |
 
 ## Settings, updates, and the tour
 
@@ -267,9 +268,9 @@ Versions before 0.4.0 can't update themselves. If you go back to one, download l
 
 ### The tour
 
-On your first visit NetSeer offers a one-minute tour. You can start it any time from **Settings** → **Help** → **Take the tour**. It highlights each part of the screen in turn: opening surveys, the sidebar, the map, search, details, export, themes, and settings. Use **Next** and **Back** or the arrow keys. **Skip tour** or Esc ends it.
+On your first visit NetSeer offers a one-minute tour. You can start it any time from **Settings** → **Help** → **Take the tour**. It highlights each part of the screen in turn: opening surveys, the sidebar and how to organize it, the map, search, details, export, themes, and settings. Use **Next** and **Back** or the arrow keys. **Skip tour** or Esc ends it.
 
-![The tour highlighting the details panel, with step 6 of 9 explaining what it shows](images/tour.png)
+![The tour highlighting the details panel, with step 7 of 10 explaining what it shows](images/tour.png)
 
 ## Where your work is saved
 
