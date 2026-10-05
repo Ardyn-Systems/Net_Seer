@@ -44,7 +44,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 
 | Section | What's there |
 | --- | --- |
-| **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Fade unrelated devices on hover** |
+| **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Show SSIDs under access points**; **Fade unrelated devices on hover** |
 | **Your data** | Count of saved maps and devices; whether storage is protected from automatic cleanup, with **Protect my maps** if not; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
 | **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); every release with **Release notes** and **Update**, **Reinstall**, or **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
 | **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
@@ -52,7 +52,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 
 Checking for updates is the only time NetSeer goes online: it reads the public release list from `api.github.com`. Nothing about you or your maps is sent.
 
-**The tour** is offered once on the first visit, and from **Help** → **Take the tour** any time after. Nine steps; **Next**/**Back** or the arrow keys, and **Skip tour** or Esc to stop.
+**The tour** is offered once on the first visit, and from **Help** → **Take the tour** any time after. Ten steps; **Next**/**Back** or the arrow keys, and **Skip tour** or Esc to stop.
 
 ---
 
@@ -60,7 +60,7 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 - **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump.
 - Each capture becomes its own map and joins the **Surveys** tab.
-- **Surveys** tab: click a row to open it. The **×** on a row removes it from the list; its map stays under **Maps**. **Restore bundled samples** brings hidden samples back.
+- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**; both removals can be undone. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
 - First visit: the bundled campus survey opens automatically. An empty map shows a welcome card with **Open survey** and **Try the campus sample**.
 - Problems (unsupported file, empty capture, decode warnings) show up as a message at the top of the window.
 
@@ -68,7 +68,7 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 ## Maps
 
-The **Maps** tab lists every map. Click a row to switch. Each row's **⋯** menu has:
+The **Maps** tab lists every map. Click a row to switch. Right-click a row, or use its **⋯** menu:
 
 | Map | Menu |
 | --- | --- |
@@ -79,6 +79,18 @@ The **Maps** tab lists every map. Click a row to switch. Each row's **⋯** menu
 - **Merge into…** copies this map's devices, links, names, and notes into the map you pick. Clashing IDs get a suffix (`~2`). This map stays as it is.
 - **Delete map…** asks first, and you can undo it right after.
 - Unwanted always sits at the bottom of the list and can't be deleted or merged.
+
+**Dragging in the sidebar**
+
+| Drag | Result |
+| --- | --- |
+| A map up or down | Reorders the list (saved) |
+| A map onto another map | Merges it into that map (Undo) |
+| A survey up or down | Reorders the list (saved) |
+| A survey over the **Maps** tab, then onto a map | Merges the survey into that map (Undo) |
+| The sidebar's right edge | Resizes the sidebar (saved; double-click resets, or focus it and use the arrow keys) |
+
+Esc cancels a drag. The list scrolls by itself when you drag near its top or bottom.
 
 ---
 
@@ -158,6 +170,8 @@ NetSeer lays the map out the same way every time:
 
 Zoom with the wheel, the **−** / **+** buttons, or **Fit to screen** (`F`). Hovering a device fades everything that isn't connected to it.
 
+Access points show their SSID as a second line (`HQ-Secure`, or `HQ-Secure +2` for several). A caption you type replaces it; **Settings** → **General** → **Show SSIDs under access points** turns it off. Diagram exports use the same labels.
+
 ---
 
 ## Layers
@@ -219,7 +233,8 @@ NetSeer remembers your choices for next time (the selection itself isn't remembe
 | Delete / Backspace | Delete selected devices |
 | `F` | Fit to screen |
 | `?` | Show shortcuts |
-| Esc | Close menus, clear the selection |
+| Esc | Close menus, clear the selection, cancel a drag |
+| Right-click | Menus for devices, maps, and surveys |
 
 ---
 

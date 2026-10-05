@@ -256,6 +256,12 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.reset()
         page.click(".tab[data-tab=surveys]")
         shots.save("surveys-tab", selectors=[".tabs", ".tab-panel:not(.hidden)"], pad=12)
+        row = page.locator('#survey-list .list-row[data-id="office-lan"]')
+        box = row.bounding_box()
+        page.mouse.click(box["x"] + 60, box["y"] + box["height"] / 2, button="right")
+        page.wait_for_selector("body > .menu")
+        shots.save("survey-menu", selectors=[".tabs", ".tab-panel:not(.hidden)", "body > .menu"], pad=12)
+        shots.reset()
         page.click(".tab[data-tab=layers]")
         shots.save("layers-tab", selectors=[".tabs", ".tab-panel:not(.hidden)"], pad=12)
         page.click(".tab[data-tab=maps]")
@@ -321,7 +327,7 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("settings-about", selectors=["#settings-dialog"], pad=0)
         page.click('.settings-nav [data-pane="help"]')
         page.click("#help-tour")
-        for _ in range(5):
+        for _ in range(6):
             page.keyboard.press("ArrowRight")
         page.wait_for_timeout(400)
         shots.save("tour", full=True)

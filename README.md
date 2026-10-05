@@ -121,6 +121,8 @@ From the frames and survey rows, NetSeer extracts:
 - **A map that lays itself out.** Subnets are boxes around their devices, access points sit with their clients, and the layout fits your window. Drag anything to rearrange; positions are saved. **Tidy layout** resets them.
 - **Details for every device.** Click one to see what NetSeer found, rename it, add a caption and notes, copy any value, or edit any field. Edits are marked and can be reset.
 - **Several maps at once.** Each capture becomes a map. Copy, cut, paste, and move devices between maps (an access point brings its clients), merge maps, and set devices aside in **Unwanted**. Undo goes back 30 steps.
+- **An organized sidebar.** Drag maps and surveys to reorder them, or drop one onto a map to merge it. Right-click for rename, merge, remove, and delete. Drag the sidebar's edge to make it wider.
+- **Access points labelled with their SSID**, so Wi-Fi networks are easy to pick out at a glance.
 - **Find a device** by name, IP, MAC, SSID, or notes (press `/`).
 - **Layers** to show or hide wired, IP, service, wireless, VLAN, subnet, and bridge links.
 - **Exports:**

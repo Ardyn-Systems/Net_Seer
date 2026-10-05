@@ -50,7 +50,15 @@ Click **Open survey**, or drag capture files anywhere onto the NetSeer window. E
 
 Captures can be up to 50 MB, and NetSeer reads up to 80,000 packets from each. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
 
-The **Surveys** tab lists your captures and the bundled samples. Click one to open it. The **×** removes it from the list; its map stays under **Maps**. **Restore bundled samples** brings back any samples you removed.
+The **Surveys** tab lists your captures and the bundled samples. Click one to open it. Right-click a survey (or use its **⋯** button) for more:
+
+![Right-click menu on a survey: Open, Merge into, Remove from list, and Delete survey and its map](images/survey-menu.png)
+
+- **Merge into…** copies the survey's devices into a map you pick.
+- **Remove from list** hides the survey and keeps its map under **Maps**. You can undo it.
+- **Delete survey and its map…** removes both after asking. You can undo it.
+
+**Restore bundled samples** brings back any samples you removed. Drag surveys up or down to put them in the order you like.
 
 ## Read the map
 
@@ -59,7 +67,7 @@ The **Surveys** tab lists your captures and the bundled samples. Click one to op
 - **Boxes are subnets.** Each device sits inside the subnet it was seen in (for example `10.10.10.0/24`). Turn this off with **Group by subnet** in **Layers**.
 - **Shapes and colours show the device type.** Access points are hexagons; routers and gateways have cut corners; servers, hosts, and wireless clients are rounded boxes in their own colours. VLANs are tag shapes. The legend is at the bottom of the **Layers** tab.
 - **Lines are links.** Solid lines are wired neighbours, dashed lines are IP traffic, arrows run from a client to the service it used, and dotted pink lines with diamonds are bridges. Labels such as `http tcp/80` name the service.
-- **Access points sit with their clients**, so you can see who is on which Wi-Fi network.
+- **Access points sit with their clients**, so you can see who is on which Wi-Fi network. Each access point shows its **SSID** (network name) under its name, such as `HQ-Secure`, or `HQ-Secure +2` when it broadcasts several. A caption you type replaces it, and you can turn SSIDs off in **Settings**.
 - **Hover a device** to fade everything that isn't connected to it.
 
 Move around with the mouse: drag the background to pan and scroll to zoom (about 10% per notch). **Fit to screen** (or press `F`) frames everything.
@@ -121,12 +129,14 @@ To copy instead, choose **Copy**, open the other map, and **Paste** (the button 
 
 ## Work with several maps
 
-The **Maps** tab lists every map. Click one to switch. The **⋯** menu on a map renames it, merges it into another map, or deletes it.
+The **Maps** tab lists every map. Click one to switch. Right-click a map, or use its **⋯** menu, to rename it, merge it into another map, or delete it.
 
 ![Maps tab with the campus survey's menu open: Rename, Merge into, and Delete map](images/maps-tab.png)
 
 - **New blank map** starts an empty map to paste devices into, for example to draw just one site or one problem.
 - **Merge into…** copies all of this map's devices into another map. The original map stays as it is.
+- **Drag to organize.** Drag a map up or down the list to reorder it. Drop it **onto** another map to merge it into that map, with Undo. To merge a survey, drag it from **Surveys**, hold it over the **Maps** tab until the tab opens, then drop it on a map. Esc cancels a drag.
+- **Resize the sidebar** by dragging its right edge, so long names fit. Double-click the edge to reset it. NetSeer remembers the width.
 - **Unwanted** is a holding area for devices you set aside. Its **Save to files and empty** option writes them to JSON files (one per original capture) and clears it. Drop one of those files back onto NetSeer to reload it.
 
 ![A blank map called "Lab bench" with a prompt to paste devices or open a survey](images/blank-map.png)
@@ -194,7 +204,8 @@ Press `?`, or open **Settings** → **Help** → **Keyboard shortcuts**, to see 
 | Shift + click, Shift + drag | Add to the selection, box-select |
 | `F` | Fit the map to the screen |
 | `?` | Show the shortcuts |
-| Esc | Close menus and clear the selection |
+| Esc | Close menus, clear the selection, or cancel a drag |
+| Right-click | Menus for devices, maps, and surveys |
 
 ## Settings, updates, and the tour
 
@@ -202,7 +213,7 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 ![Settings, General: theme, scroll-to-zoom speed, Group by subnet, and hover fading](images/settings-general.png)
 
-**General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes and hover fading on or off.
+**General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn subnet boxes, SSIDs under access points, and hover fading on or off.
 
 **Your data.** Shows how many maps and devices are saved in this browser.
 
@@ -257,9 +268,9 @@ Versions before 0.4.0 can't update themselves. If you go back to one, download l
 
 ### The tour
 
-On your first visit NetSeer offers a one-minute tour. You can start it any time from **Settings** → **Help** → **Take the tour**. It highlights each part of the screen in turn: opening surveys, the sidebar, the map, search, details, export, themes, and settings. Use **Next** and **Back** or the arrow keys. **Skip tour** or Esc ends it.
+On your first visit NetSeer offers a one-minute tour. You can start it any time from **Settings** → **Help** → **Take the tour**. It highlights each part of the screen in turn: opening surveys, the sidebar and how to organize it, the map, search, details, export, themes, and settings. Use **Next** and **Back** or the arrow keys. **Skip tour** or Esc ends it.
 
-![The tour highlighting the details panel, with step 6 of 9 explaining what it shows](images/tour.png)
+![The tour highlighting the details panel, with step 7 of 10 explaining what it shows](images/tour.png)
 
 ## Where your work is saved
 
