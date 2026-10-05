@@ -1611,7 +1611,7 @@ function syncCompareRows() {
   el("compare-add").disabled = laters.length >= 5;
 }
 
-function openCompareDialog({ later = null } = {}) {
+function openCompareDialog({ baseline = null, later = null } = {}) {
   if (compareChoices().length < 1) {
     toast("Open a survey first, then compare it with another.", { timeout: 3000 });
     return;
@@ -1619,7 +1619,7 @@ function openCompareDialog({ later = null } = {}) {
   compare.cache.clear();
   const rows = el("compare-rows");
   rows.innerHTML = "";
-  rows.appendChild(compareRow("baseline"));
+  rows.appendChild(compareRow("baseline", baseline || {}));
   rows.appendChild(compareRow("later", later || {}));
   el("compare-error").classList.add("hidden");
   syncCompareRows();
@@ -2995,20 +2995,20 @@ function updateEmptyState() {
   show("empty", empty && !loading);
   if (!empty) return;
   const firstRun = !state.maps.some((m) => m.kind !== "unwanted" && m.graph?.nodes?.length);
-  if (map?.kind === "unwanted") {
+  if (firstRun && (map?.kind === "unwanted" || map?.kind === "survey" || !map)) {
+    el("empty-title").textContent = "Map your network";
+    el("empty-body").textContent = "Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page. Or try a demo with the sample captures.";
+  } else if (map?.kind === "unwanted") {
     el("empty-title").textContent = "Nothing set aside";
     el("empty-body").textContent = "Devices you set aside from other maps land here. Select devices and choose Set aside, then empty Unwanted to save them as files.";
   } else if (map?.kind === "blank") {
     el("empty-title").textContent = "This map is blank";
     el("empty-body").textContent = "Copy devices from another map and paste them here, or open a survey to start a new map.";
-  } else if (firstRun) {
-    el("empty-title").textContent = "Map your network";
-    el("empty-body").textContent = "Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page, or explore the bundled campus survey.";
   } else {
     el("empty-title").textContent = "No devices on this map";
     el("empty-body").textContent = "Open another survey, or paste devices from a different map.";
   }
-  el("empty-sample").classList.toggle("hidden", map?.kind === "unwanted" || !state.catalog.length);
+  el("empty-sample").classList.toggle("hidden", (map?.kind === "unwanted" && !firstRun) || !state.catalog.length);
 }
 
 /* ---------- Inspector ---------- */
@@ -4144,7 +4144,6 @@ function renderSurveyList() {
   const list = el("survey-list");
   list.innerHTML = "";
   el("survey-empty").classList.toggle("hidden", state.surveys.length > 0);
-  el("btn-restore-samples").classList.toggle("hidden", hiddenSampleIds().length === 0);
   for (const item of state.surveys) {
     const row = document.createElement("li");
     const active = `map:${item.id}` === state.activeMapId;
@@ -4311,11 +4310,52 @@ async function mergeSurveyDialog(surveyId) {
   if (destId) mergeSurveyInto(surveyId, destId);
 }
 
-function restoreBundledSamples() {
-  writeLocal(HIDDEN_SAMPLES_KEY, []);
-  const uploads = state.surveys.filter((s) => s.kind === "upload");
-  state.surveys = [...uploads, ...state.catalog.map(sampleToSurvey)];
+/* ---------- Demo (Settings) ---------- */
+
+// The sample captures, opened on request: none are loaded until you pick one.
+const DEMO_SKIP = new Set(["empty-capture"]);
+
+async function openDemo(id) {
+  const sample = state.catalog.find((s) => s.id === id);
+  if (!sample) return;
+  unhideSurvey(id);
+  if (!state.surveys.some((s) => s.id === id)) state.surveys = sortSurveys([...state.surveys, sampleToSurvey(sample)]);
   renderSurveyList();
+  await selectSurvey(id);
+}
+
+function renderDemo() {
+  const list = el("demo-list");
+  list.innerHTML = "";
+  for (const s of state.catalog.filter((x) => !DEMO_SKIP.has(x.id))) {
+    const opened = mapNodeCount(getMap(`map:${s.id}`)) > 0;
+    const untimed = UNTIMED_KINDS.has(s.kind);
+    const li = document.createElement("li");
+    li.innerHTML = `<span><span class="release-name">${escapeHtml(s.name)}</span>${opened ? '<span class="release-tag">Opened</span>' : ""}
+        <span class="release-meta">${escapeHtml(s.summary)}${untimed ? " · no timeline" : ""}</span></span>
+      <span class="release-actions"><button type="button" class="btn small${opened ? " ghost" : ""}" data-demo="${escapeHtml(s.id)}">${opened ? "Show" : "Open"}</button></span>`;
+    list.appendChild(li);
+  }
+  if (!list.children.length) list.innerHTML = '<li class="hint">No samples in this copy of NetSeer.</li>';
+  show("demo-compare-row", state.catalog.some((s) => s.id === "branch-baseline") && state.catalog.some((s) => s.id === "branch-later"));
+}
+
+// Opens both branch office samples and sets up Compare surveys with them.
+async function demoCompare() {
+  el("settings-dialog").close();
+  await openDemo("branch-baseline");
+  await openDemo("branch-later");
+  openCompareDialog({ baseline: { value: "m|map:branch-baseline" }, later: { value: "m|map:branch-later" } });
+}
+
+function bindDemo() {
+  el("demo-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-demo]");
+    if (!btn) return;
+    el("settings-dialog").close();
+    openDemo(btn.dataset.demo);
+  });
+  el("demo-compare").addEventListener("click", demoCompare);
 }
 
 function applyGraph(graph, title, surveyId) {
@@ -4947,6 +4987,7 @@ function showSettingsPane(name) {
   document.querySelectorAll(".settings-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== name));
   if (name === "data") refreshDataSummary();
   if (name === "updates") renderUpdates();
+  if (name === "demo") renderDemo();
 }
 
 function renderSettings() {
@@ -6033,12 +6074,7 @@ function isTypingTarget(target) {
 function bindUi() {
   el("btn-open").addEventListener("click", () => el("file").click());
   el("empty-open").addEventListener("click", () => el("file").click());
-  el("empty-sample").addEventListener("click", () => {
-    const sample = state.catalog.find((s) => s.id === "campus-all") || state.catalog[0];
-    if (!sample) return;
-    if (!state.surveys.some((s) => s.id === sample.id)) state.surveys.push(sampleToSurvey(sample));
-    selectSurvey(sample.id);
-  });
+  el("empty-sample").addEventListener("click", () => openSettings("demo"));
   el("file").addEventListener("change", (e) => {
     const files = [...(e.target.files || [])];
     e.target.value = "";
@@ -6093,7 +6129,6 @@ function bindUi() {
   el("map-title").addEventListener("click", () => state.activeMapId && renameMap(state.activeMapId));
   el("btn-sidebar").addEventListener("click", () => el("sidebar").classList.toggle("open"));
   el("btn-new-map").addEventListener("click", createBlankMap);
-  el("btn-restore-samples").addEventListener("click", restoreBundledSamples);
   el("btn-show-all").addEventListener("click", () => setAllLayers(true));
   el("btn-show-none").addEventListener("click", () => setAllLayers(false));
   el("layout-select").addEventListener("change", (e) => setLayoutMode(e.target.value));
@@ -6924,6 +6959,7 @@ async function init() {
   bindDisconnectDialog();
   bindTimeline();
   bindCompareDialog();
+  bindDemo();
   bindEggTerminal();
   syncThemeBackdrop();
   el("loading-stop").addEventListener("click", stopReading);
@@ -6943,13 +6979,16 @@ async function init() {
   }
   const hidden = new Set(hiddenSampleIds());
   const restoredUploads = state.maps.filter((m) => String(m.sourceId || "").startsWith("upload:")).map((m) => ({ id: m.sourceId, kind: "upload", name: m.name, summary: "Your capture", graph: m.graph }));
-  state.surveys = sortSurveys([...restoredUploads.filter((s) => !hidden.has(s.id)), ...state.catalog.filter((s) => !hidden.has(s.id)).map(sampleToSurvey)]);
+  // Samples aren't loaded for you: they're in Settings → Demo, and join Surveys once opened.
+  const openedSamples = state.catalog.filter((s) => !hidden.has(s.id) && mapNodeCount(getMap(`map:${s.id}`)) > 0);
+  state.surveys = sortSurveys([...restoredUploads.filter((s) => !hidden.has(s.id)), ...openedSamples.map(sampleToSurvey)]);
   await openStartingMap();
   const updated = noteVersionChange();
   // The app window is Chromium (WebView2) or a Chromium app-mode window: no prompt there.
   if (state.server.mode === "desktop") requestPersistentStorage();
   if (!updated) offerTour();
   autoCheckUpdates();
+  state.ready = true;
 }
 
 async function openStartingMap() {
@@ -6963,9 +7002,9 @@ async function openStartingMap() {
     showMap(userMap.id);
     return;
   }
-  const first = state.surveys.find((s) => s.id === "campus-all") || state.surveys[0];
+  const first = state.surveys[0];
   if (first) await selectSurvey(first.id);
-  else showMap(UNWANTED_ID);
+  else showMap(UNWANTED_ID); // nothing yet: the welcome offers Open survey and the demo
 }
 
 init().catch((err) => fail(err));

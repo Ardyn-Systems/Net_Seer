@@ -1586,3 +1586,8 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 .change-list li::marker { color: var(--c); }
 .change-list, .change-line { border-left: 3px solid var(--c); padding-left: 1.4rem; }
 .change-line { margin: 0; font-size: 13px; padding-left: 0.6rem; }
+
+/* ---------- Settings: Demo ---------- */
+
+.demo-compare { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin: 0.25rem 0 0.75rem; padding: 0.65rem 0.75rem; border: 1px solid var(--accent); border-radius: 10px; background: var(--accent-soft); }
+.demo-compare .hint { display: block; margin: 0.1rem 0 0; }
