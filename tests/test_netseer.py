@@ -801,3 +801,35 @@ def test_upload_limit_and_port_come_from_the_environment(monkeypatch):
     assert default_port() == 47331
     monkeypatch.delenv("PORT")
     assert default_port() == 47331
+
+
+def test_health_reports_how_netseer_runs(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import netseer.desktop as desktop
+    import netseer.web as webmod
+
+    client = TestClient(webmod.app)
+    for name in ("NETSEER_HOSTED", "NETSEER_MODE", "NETSEER_PACKAGE", "APPIMAGE"):
+        monkeypatch.delenv(name, raising=False)
+    info = client.get("/api/health").json()
+    assert info["mode"] == "server" and info["package"] == "source" and info["frozen"] is False
+    assert info["repo"] == "ardyn-systems/NetSeer" and info["platform"] in {"windows", "linux", "macos"}
+
+    monkeypatch.setenv("NETSEER_MODE", "desktop")
+    monkeypatch.setenv("NETSEER_PACKAGE", "portable")
+    info = client.get("/api/health").json()
+    assert info["mode"] == "desktop" and info["package"] == "portable"
+    monkeypatch.setenv("NETSEER_HOSTED", "1")
+    assert client.get("/api/health").json()["mode"] == "hosted"
+
+    # Which download a desktop build came from.
+    assert desktop.package_type() == "source"
+    monkeypatch.setattr(desktop.sys, "frozen", True, raising=False)
+    monkeypatch.setattr(desktop.sys, "executable", str(tmp_path / "NetSeer.exe"))
+    monkeypatch.setattr(desktop.sys, "platform", "win32")
+    assert desktop.package_type() == "portable"
+    (tmp_path / "unins000.exe").write_bytes(b"")
+    assert desktop.package_type() == "installer"
+    monkeypatch.setenv("APPIMAGE", "/home/me/NetSeer.AppImage")
+    assert desktop.package_type() == "appimage"

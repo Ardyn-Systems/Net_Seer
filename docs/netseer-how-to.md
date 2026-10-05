@@ -14,7 +14,7 @@ Maps, names, notes, field edits, dragged positions, and the clipboard are saved 
 
 | Area | What's there |
 | --- | --- |
-| Top bar | Logo, the **current map's name** (click to rename), **Open survey**, **Export**, the **theme** button, and **keyboard shortcuts** (`?`) |
+| Top bar | Logo, the **current map's name** (click to rename), **Open survey**, **Export**, the **theme** button, and **Settings** (cog) |
 | Left sidebar | Three tabs: **Maps**, **Surveys**, **Layers** |
 | Map | The network drawing, with **Find a device** and **Undo** at the top, zoom controls at the bottom right, and a toolbar at the bottom whenever something is selected |
 | Right panel | **Details** for whatever you selected |
@@ -34,7 +34,25 @@ Click the **palette** button in the top bar and pick one:
 | **Daylight** | Light and crisp; best for screenshots, projectors, and printing |
 | **Blueprint** | Engineering drawing on a blue grid |
 
-Your choice is remembered in this browser. Themes change the app and the on-screen map only; draw.io, Visio, and PDF exports keep their own fixed colors.
+Your choice is remembered in this browser. Themes change the app and the on-screen map only; draw.io, Visio, and PDF exports keep their own fixed colors. **Settings** → **General** has the same choices.
+
+---
+
+## Settings
+
+The **cog** in the top bar. A dot on it means a newer release is out.
+
+| Section | What's there |
+| --- | --- |
+| **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Group by subnet**; **Fade unrelated devices on hover** |
+| **Your data** | Count of saved maps and devices; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
+| **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); every release with **Release notes** and a download for your install type, labelled **Update**, **Reinstall**, or **Roll back**. From source, it copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
+| **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
+| **About** | Version, how NetSeer is running, links, and component licenses |
+
+Checking for updates is the only time NetSeer goes online: it reads the public release list from `api.github.com`. Nothing about you or your maps is sent.
+
+**The tour** is offered once on the first visit, and from **Help** → **Take the tour** any time after. Nine steps; **Next**/**Back** or the arrow keys, and **Skip tour** or Esc to stop.
 
 ---
 
@@ -206,6 +224,8 @@ NetSeer remembers your choices for next time (the selection itself isn't remembe
 ---
 
 ## Update and uninstall
+
+**Settings** → **Updates** lists every release with the right download for your install, including older ones to roll back to. Back up first under **Your data**.
 
 Stay on [[netseer-install-and-use]]: `git pull origin main`, `uv sync --group dev`, restart `netseer`. To uninstall, stop the process and delete the clone / venv.
 

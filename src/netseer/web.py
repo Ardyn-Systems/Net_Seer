@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 import time
 from pathlib import Path
 
@@ -56,6 +57,25 @@ def max_body_bytes() -> int:
     # Request bodies above this are refused before parsing (upload limit plus multipart overhead).
     return max_upload_bytes() + 1024 * 1024
 
+
+REPO = "ardyn-systems/NetSeer"
+
+
+def run_mode() -> str:
+    """How this copy runs: "hosted" (public server), "desktop" (app window), or "server" (netseer CLI)."""
+    if hosted_mode():
+        return "hosted"
+    return "desktop" if os.environ.get("NETSEER_MODE") == "desktop" else "server"
+
+
+def platform_name() -> str:
+    if sys.platform.startswith("win"):
+        return "windows"
+    if sys.platform == "darwin":
+        return "macos"
+    return "linux" if sys.platform.startswith("linux") else sys.platform
+
+
 MAX_UNWANTED_GROUPS = 200
 MAX_UNWANTED_FILES = 1000
 
@@ -100,6 +120,12 @@ def health() -> dict:
         "version": __version__,
         "hosted": hosted_mode(),
         "max_upload_mb": max_upload_bytes() // (1024 * 1024),
+        "mode": run_mode(),
+        "platform": platform_name(),
+        "frozen": bool(getattr(sys, "frozen", False)),
+        # installer / portable / appimage for desktop builds, "source" otherwise.
+        "package": os.environ.get("NETSEER_PACKAGE") or "source",
+        "repo": REPO,
     }
 
 
