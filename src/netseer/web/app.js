@@ -146,11 +146,11 @@ async function copyText(text, label = "Copied") {
 /* ---------- Theme ---------- */
 
 // The Matrix theme is listed once someone has found it (see the logo terminal).
-const themeList = () => (matrixUnlocked() || currentTheme() === "matrix" ? [...THEMES, MATRIX_THEME] : THEMES);
+const themeList = () => [...THEMES, ...SECRET_THEMES.filter((t) => secretUnlocked(t.id) || currentTheme() === t.id)];
 
 function currentTheme() {
   const id = document.documentElement.dataset.theme;
-  return THEMES.some((t) => t.id === id) || id === "matrix" ? id : "terrain";
+  return THEMES.some((t) => t.id === id) || secretTheme(id) ? id : "terrain";
 }
 
 function themeColors() {
@@ -184,11 +184,11 @@ function themeColors() {
 }
 
 function applyTheme(id) {
-  const theme = [...THEMES, MATRIX_THEME].find((t) => t.id === id) || THEMES[0];
+  const theme = [...THEMES, ...SECRET_THEMES].find((t) => t.id === id) || THEMES[0];
   document.documentElement.dataset.theme = theme.id;
   writeLocal(THEME_KEY, theme.id);
   if (state.cy) state.cy.style(cyStyle(themeColors()));
-  syncMatrixRain();
+  syncThemeBackdrop();
 }
 
 function openThemeMenu(anchor) {
@@ -2640,6 +2640,16 @@ function cyStyle(c) {
     { selector: 'edge[change = "same"]', style: { opacity: 0.45 } },
     { selector: 'edge[change = "removed"]', style: { "line-color": CHANGE_COLORS.gone, "target-arrow-color": CHANGE_COLORS.gone, "line-style": "dashed", width: 3, opacity: 0.95 } },
     { selector: 'edge[change = "added"]', style: { "line-color": CHANGE_COLORS.new, "target-arrow-color": CHANGE_COLORS.new, width: 3, opacity: 0.95 } },
+    {
+      selector: 'node[role = "egg-ripple"]',
+      style: { shape: "ellipse", width: "data(size)", height: "data(size)", "background-opacity": 0, "border-width": 4, "border-color": c.select, "border-opacity": 0.9, label: "", events: "no", "z-index": 1 },
+    },
+    {
+      selector: 'node[role = "egg-packet"]',
+      style: { shape: "ellipse", width: 18, height: 18, "background-color": c.select, "border-width": 0, label: "", events: "no", "underlay-color": c.select, "underlay-opacity": 0.5, "underlay-padding": 8, "z-index": 99 },
+    },
+    { selector: "edge.egg-path", style: { "line-color": c.select, "target-arrow-color": c.select, width: 4, opacity: 1, "z-index": 50 } },
+    { selector: "node.egg-ping", style: { "underlay-color": c.select, "underlay-opacity": 0.6, "underlay-padding": 10 } },
     { selector: 'node[role = "group"]', style: { "font-size": 20, "text-margin-y": -10, "text-max-width": 300, color: c.nodeText } },
     {
       selector: 'node[role = "ring"]',
@@ -5224,7 +5234,7 @@ const installCommand = (tag) => `uv tool install --force "git+https://github.com
 
 function updateHowText() {
   const { platform, package: pkg } = state.server;
-  if (state.server.updater) return "Click Update, or Roll back on an older version. NetSeer downloads it, checks it against GitHub's checksum, and installs it for you, then reopens.";
+  if (state.server.updater) return "Click Update, or open Earlier versions to roll back. NetSeer downloads it, checks it against GitHub's checksum, and installs it for you, then reopens.";
   if (pkg === "installer") return "To switch versions, download that version's installer and run it. It replaces the version you have now.";
   if (pkg === "appimage") return "To switch versions, download that version's AppImage, make it executable, and run it instead of this one. Keep the old file if you might want to go back.";
   if (pkg === "portable") {
@@ -5257,23 +5267,65 @@ function renderUpdates() {
   renderReleaseList(cache.releases);
 }
 
+// The current version and anything newer get a card each. Older versions, wanted only to roll
+// back, wait in a folded "Earlier versions" list with one picker.
+const releaseUi = { olderOpen: false, picked: null };
+
+function releaseDate(r) {
+  return Date.parse(r.date) ? new Date(r.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
+}
+
+function releaseActions(r) {
+  const cmp = compareVersions(r.tag, state.server.version);
+  const asset = assetFor(r);
+  const verb = cmp > 0 ? "Update" : cmp < 0 ? "Roll back" : "Reinstall";
+  let actions = `<a class="btn small ghost" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Release notes</a>`;
+  if (asset && state.server.updater) actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-update="${escapeHtml(r.tag)}">${verb}</button>`;
+  else if (asset) actions += `<a class="btn small${cmp > 0 ? " primary" : ""}" href="${escapeHtml(asset.url)}" target="_blank" rel="noopener" title="${escapeHtml(asset.name)}, ${formatSize(asset.size)}">${verb}</a>`;
+  else if (state.server.package === "source") actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-copy="${escapeHtml(r.tag)}">Copy ${verb.toLowerCase()} command</button>`;
+  return actions;
+}
+
+function releaseMeta(r) {
+  const asset = assetFor(r);
+  return `${escapeHtml(releaseDate(r))}${asset ? ` · ${escapeHtml(asset.name)}` : ""}`;
+}
+
 function renderReleaseList(releases) {
   const list = el("release-list");
   list.innerHTML = "";
-  for (const r of releases.slice(0, 12)) {
+  const all = releases.slice(0, 40);
+  const older = all.filter((r) => compareVersions(r.tag, state.server.version) < 0);
+  for (const r of all.filter((x) => !older.includes(x))) {
     const cmp = compareVersions(r.tag, state.server.version);
     const li = document.createElement("li");
     li.classList.toggle("current", cmp === 0);
-    const tag = cmp === 0 ? '<span class="release-tag">Current</span>' : cmp > 0 ? '<span class="release-tag newer">Newer</span>' : "";
-    const date = Date.parse(r.date) ? new Date(r.date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" }) : "";
-    const asset = assetFor(r);
-    const verb = cmp > 0 ? "Update" : cmp < 0 ? "Roll back" : "Reinstall";
-    let actions = `<a class="btn small ghost" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Release notes</a>`;
-    if (asset && state.server.updater) actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-update="${escapeHtml(r.tag)}">${verb}</button>`;
-    else if (asset) actions += `<a class="btn small${cmp > 0 ? " primary" : ""}" href="${escapeHtml(asset.url)}" target="_blank" rel="noopener" title="${escapeHtml(asset.name)}, ${formatSize(asset.size)}">${verb}</a>`;
-    else if (state.server.package === "source") actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-copy="${escapeHtml(r.tag)}">Copy ${verb.toLowerCase()} command</button>`;
-    li.innerHTML = `<span><span class="release-name">${escapeHtml(r.name)}</span>${tag}<span class="release-meta">${escapeHtml(date)}${asset ? ` · ${escapeHtml(asset.name)}` : ""}</span></span>
-      <span class="release-actions">${actions}</span>`;
+    const tag = cmp === 0 ? '<span class="release-tag">Current</span>' : '<span class="release-tag newer">Newer</span>';
+    li.innerHTML = `<span><span class="release-name">${escapeHtml(r.name)}</span>${tag}<span class="release-meta">${releaseMeta(r)}</span></span>
+      <span class="release-actions">${releaseActions(r)}</span>`;
+    list.appendChild(li);
+  }
+  if (older.length) {
+    const li = document.createElement("li");
+    li.className = "release-older";
+    const picked = older.find((r) => r.tag === releaseUi.picked) || older[0];
+    li.innerHTML = `<details${releaseUi.olderOpen ? " open" : ""}>
+        <summary><span class="release-name">Earlier versions</span><span class="release-tag">${older.length}</span><span class="release-meta">Only needed to roll back</span></summary>
+        <div class="release-pick">
+          <select id="release-older" aria-label="Earlier version">${older
+            .map((r) => `<option value="${escapeHtml(r.tag)}"${r === picked ? " selected" : ""}>${escapeHtml(r.name)}${releaseDate(r) ? ` · ${escapeHtml(releaseDate(r))}` : ""}</option>`)
+            .join("")}</select>
+          <span class="release-actions" id="release-older-actions">${releaseActions(picked)}</span>
+        </div>
+        <p class="release-meta" id="release-older-meta">${releaseMeta(picked)}</p>
+      </details>`;
+    li.querySelector("details").addEventListener("toggle", (e) => (releaseUi.olderOpen = e.currentTarget.open));
+    li.querySelector("select").addEventListener("change", (e) => {
+      const r = older.find((x) => x.tag === e.target.value);
+      releaseUi.picked = r.tag;
+      el("release-older-actions").innerHTML = releaseActions(r);
+      el("release-older-meta").innerHTML = releaseMeta(r);
+    });
     list.appendChild(li);
   }
   if (!list.children.length) list.innerHTML = '<li class="hint">No releases yet.</li>';
@@ -6183,8 +6235,14 @@ function startHeartbeat() {
 
 // Not a real shell: a pretend PowerShell (Windows) or terminal (everything else) that knows a
 // few NetSeer-only commands. Opened by clicking the logo five times in quick succession.
-const MATRIX_THEME = { id: "matrix", name: "Matrix", note: "You found it", swatch: ["#000000", "#00ff41", "#7dffb0", "#c8ff00"] };
-const MATRIX_KEY = "netseer.matrix";
+// Secret themes: listed in Themes only once someone has found them in the terminal.
+const SECRET_THEMES = [
+  { id: "matrix", name: "Matrix", note: "You found it", swatch: ["#000000", "#00ff41", "#7dffb0", "#c8ff00"], key: "netseer.matrix" },
+  { id: "darkside", name: "Dark Side", note: "Order 66 executed", swatch: ["#05060a", "#ff2a2a", "#3fa9ff", "#ffd23f"], key: "netseer.darkside" },
+  { id: "neon", name: "Neon", note: "Hack the planet", swatch: ["#12002b", "#ff2fd6", "#00f0ff", "#ffe14d"], key: "netseer.neon" },
+];
+const secretTheme = (id) => SECRET_THEMES.find((t) => t.id === id);
+const secretUnlocked = (id) => readLocal(secretTheme(id).key, false) === true;
 const ARDYN_ART = String.raw`   ███╗     ██████╗  ██████╗  ██╗   ██╗ ███╗   ██╗
   █████╗    ██╔══██╗ ██╔══██╗ ╚██╗ ██╔╝ ████╗  ██║
   ██╔██╗    ██████╔╝ ██║  ██║  ╚████╔╝  ██╔██╗ ██║
@@ -6196,9 +6254,8 @@ S       Y       S       T       E       M       S
 
          Tools for those who look closer.`;
 
-const egg = { clicks: [], history: [], at: 0, before: null, rain: null };
+const egg = { clicks: [], history: [], at: 0, before: null, backdrop: null, job: null };
 const eggWindows = () => /windows/i.test(navigator.userAgent);
-const matrixUnlocked = () => readLocal(MATRIX_KEY, false) === true;
 
 function onLogoClick() {
   const now = Date.now();
@@ -6232,6 +6289,7 @@ function openEggTerminal() {
 }
 
 function closeEggTerminal() {
+  eggCancel({ quiet: true });
   el("egg-term").hidden = true;
 }
 
@@ -6250,11 +6308,25 @@ function runEggCommand(raw) {
   egg.history.push(cmd);
   egg.at = egg.history.length;
   const name = cmd.toLowerCase();
+  const [verb, ...rest] = cmd.split(/\s+/);
+  const arg = rest.join(" ");
+  const program = verb.toLowerCase();
+  // Each shell runs a script its own way: .\name in PowerShell, ./name in bash.
+  const script = (s) => name === (eggWindows() ? `.\\${s}` : `./${s}`);
   if (name === "whoami") eggPrint(ARDYN_ART, "egg-art");
-  else if (name === "hacktheworld") hackTheWorld();
-  else if (name === "unplug") unplug();
+  else if (name === "redpill") hackTheWorld();
+  else if (program === "ping") eggPing(arg);
+  else if (program === (eggWindows() ? "tracert" : "traceroute")) eggTraceroute(arg);
+  else if (script("wardrive")) eggWardrive();
+  else if (name === "hacktheplanet") hackThePlanet();
+  else if (name === "jackout") forgetTheme("neon", { nothing: "You're not jacked in.", done: "Jacked out" });
+  else if (name === "unplug") forgetTheme("matrix", { nothing: "Nothing to unplug from.", done: "Unplugged" });
+  else if (script("order66")) executeOrder66();
+  else if (name === "rescindorder66") forgetTheme("darkside", { nothing: "There's no order to rescind.", done: "Order rescinded" });
   else if (name === "help" || name === "get-help")
-    eggPrint("whoami         who made this\nhacktheworld   see the network for what it really is\nunplug         leave the Matrix and forget it was there\nclear          clear the screen\nexit           close this window");
+    eggPrint(
+      `whoami         who made this\nredpill        see the network for what it really is\nunplug         leave the Matrix and forget it was there\nping [device]  ping a device on the map (the selected one, or the gateway)\n${eggWindows() ? "tracert" : "traceroute"} [device]\n               follow a route across the map to a device\nclear          clear the screen\nexit           close this window`
+    );
   else if (name === "clear" || name === "cls") el("egg-out").textContent = "";
   else if (name === "exit") closeEggTerminal();
   else {
@@ -6262,45 +6334,68 @@ function runEggCommand(raw) {
     eggPrint(
       eggWindows()
         ? `${word} : The term '${word}' is not recognized as the name of a cmdlet, function, script file, or operable program.`
-        : `${word}: command not found`,
+        : `${word.replace(/\\(.)/g, "$1")}: command not found`, // bash drops a backslash before a character
       "egg-error"
     );
   }
 }
 
-function hackTheWorld() {
-  if (currentTheme() === "matrix") {
-    eggPrint("You're already in. Type 'unplug' to leave.");
+// Plays a few lines, then switches to a secret theme and lists it in Themes.
+function enterSecretTheme(id, lines, okAt, already) {
+  if (currentTheme() === id) {
+    eggPrint(already);
     return;
   }
-  const lines = ["Bypassing the mainframe...", "Rerouting packets through the green rain...", "Access granted.", "Follow the falling code. Type 'unplug' to leave."];
-  egg.before = currentTheme();
-  writeLocal(MATRIX_KEY, true);
+  // Remember the everyday theme to go back to, even when hopping between secret ones.
+  if (THEMES.some((t) => t.id === currentTheme())) egg.before = currentTheme();
+  eggStartJob(id);
   lines.forEach((text, i) =>
-    setTimeout(() => {
-      eggPrint(text, i === 2 ? "egg-ok" : "");
-      if (i === 2) applyTheme("matrix");
+    eggLater(() => {
+      eggPrint(text, i === okAt ? `egg-ok egg-ok-${id}` : "");
+      if (i === okAt) {
+        writeLocal(secretTheme(id).key, true);
+        applyTheme(id);
+      }
+      if (i === lines.length - 1) eggEndJob();
     }, 450 * (i + 1))
   );
 }
 
-function unplug() {
-  const inMatrix = currentTheme() === "matrix";
-  if (!inMatrix && !matrixUnlocked()) {
-    eggPrint("Nothing to unplug from.");
+function hackTheWorld() {
+  enterSecretTheme("matrix", ["Bypassing the mainframe...", "Rerouting packets through the green rain...", "Access granted.", "Follow the falling code. Type 'unplug' to leave."], 2, "You're already in. Type 'unplug' to leave.");
+}
+
+function hackThePlanet() {
+  enterSecretTheme("neon", ["Dialing in at 28.8k...", "Bypassing the Gibson...", "Hack the planet!", "Type 'jackout' to log off."], 2, "You're already jacked in. Type 'jackout' to log off.");
+}
+
+function executeOrder66() {
+  enterSecretTheme(
+    "darkside",
+    ["Transmitting to every unit on the network...", "Order acknowledged.", "Switching to the dark side.", "Type 'rescindorder66' to stand down."],
+    2,
+    "The order has already been carried out. Type 'rescindorder66' to stand down."
+  );
+}
+
+// Leaving a secret theme takes it out of Themes too; its command brings it back.
+function forgetTheme(id, { nothing, done }) {
+  const theme = secretTheme(id);
+  const inIt = currentTheme() === id;
+  if (!inIt && !secretUnlocked(id)) {
+    eggPrint(nothing);
     return;
   }
-  // Leaving takes Matrix out of the theme options too; hacktheworld brings it back.
   try {
-    localStorage.removeItem(MATRIX_KEY);
+    localStorage.removeItem(theme.key);
   } catch {
     /* Nothing stored, nothing to forget. */
   }
-  if (inMatrix) {
-    const back = egg.before && egg.before !== "matrix" ? egg.before : "terrain";
+  if (inIt) {
+    const back = THEMES.some((t) => t.id === egg.before) ? egg.before : "terrain";
     applyTheme(back);
-    eggPrint(`Unplugged. Back to ${THEMES.find((t) => t.id === back).name}, and the Matrix is gone from Themes.`);
-  } else eggPrint("Unplugged. The Matrix is gone from Themes.");
+    eggPrint(`${done}. Back to ${THEMES.find((t) => t.id === back).name}, and ${theme.name} is gone from Themes.`);
+  } else eggPrint(`${done}. ${theme.name} is gone from Themes.`);
 }
 
 function bindEggTerminal() {
@@ -6312,8 +6407,16 @@ function bindEggTerminal() {
   el("egg-input").addEventListener("keydown", (e) => {
     const input = e.currentTarget;
     if (e.key === "Enter") {
+      if (egg.job) return; // busy, like a real shell
       runEggCommand(input.value);
       input.value = "";
+    } else if (e.key.toLowerCase() === "c" && e.ctrlKey && !e.shiftKey && input.selectionStart === input.selectionEnd && !window.getSelection()?.toString()) {
+      e.preventDefault();
+      if (!eggCancel()) {
+        // Nothing running: the shell just echoes ^C and gives a fresh prompt.
+        eggPrint(`${eggPrompt()}${input.value}^C`);
+        input.value = "";
+      }
     } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
       e.preventDefault();
       egg.at = Math.max(0, Math.min(egg.history.length, egg.at + (e.key === "ArrowUp" ? -1 : 1)));
@@ -6349,62 +6452,435 @@ function bindEggTerminal() {
   });
 }
 
-/* The green rain behind the map, drawn only while the Matrix theme is on. */
-function syncMatrixRain() {
-  const on = currentTheme() === "matrix";
-  const canvas = el("matrix-rain");
+/* The moving backdrop behind the map for the secret themes: green rain, or a starfield. */
+function syncThemeBackdrop() {
+  const id = currentTheme();
+  const kind = ["matrix", "darkside", "neon"].includes(id) ? id : null;
+  const canvas = el("theme-backdrop");
   if (!canvas) return;
-  canvas.hidden = !on;
-  if (!on) {
-    if (egg.rain) cancelAnimationFrame(egg.rain.frame);
-    egg.rain = null;
-    return;
+  canvas.hidden = !kind;
+  if (egg.backdrop && egg.backdrop.kind !== kind) {
+    cancelAnimationFrame(egg.backdrop.frame);
+    egg.backdrop = null;
   }
-  if (egg.rain) return;
+  if (!kind || egg.backdrop) return;
   const ctx = canvas.getContext("2d");
-  const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEF";
-  const size = 16;
   const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const rain = (egg.rain = { frame: 0, drops: [], last: 0, w: 0, h: 0 });
+  const fx = (egg.backdrop = { kind, frame: 0, last: 0, w: 0, h: 0, born: performance.now() });
+  const painter = kind === "matrix" ? matrixRain(ctx, fx) : kind === "neon" ? synthwave(ctx, fx) : starfield(ctx, fx);
   const fit = () => {
     const dpr = window.devicePixelRatio || 1;
-    rain.w = canvas.clientWidth;
-    rain.h = canvas.clientHeight;
-    canvas.width = Math.max(1, rain.w * dpr);
-    canvas.height = Math.max(1, rain.h * dpr);
+    fx.w = canvas.clientWidth;
+    fx.h = canvas.clientHeight;
+    canvas.width = Math.max(1, fx.w * dpr);
+    canvas.height = Math.max(1, fx.h * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.fillStyle = "#000";
-    ctx.fillRect(0, 0, rain.w, rain.h);
-    const cols = Math.ceil(rain.w / size);
-    rain.drops = Array.from({ length: cols }, (_, i) => rain.drops[i] ?? Math.random() * -rain.h / size);
-  };
-  const draw = () => {
-    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
-    ctx.fillRect(0, 0, rain.w, rain.h);
-    ctx.font = `${size - 2}px ui-monospace, Consolas, monospace`;
-    rain.drops.forEach((y, i) => {
-      const ch = glyphs[(Math.random() * glyphs.length) | 0];
-      ctx.fillStyle = Math.random() < 0.06 ? "#d6ffe0" : "#00c43a";
-      ctx.fillText(ch, i * size, y * size);
-      rain.drops[i] = y * size > rain.h && Math.random() > 0.975 ? 0 : y + 1;
-    });
+    painter.fit();
   };
   fit();
   if (still) {
-    // One settled frame instead of motion.
-    for (let i = 0; i < 60; i++) draw();
+    painter.still(); // one settled frame instead of motion
     return;
   }
   const tick = (t) => {
-    if (egg.rain !== rain) return;
+    if (egg.backdrop !== fx) return;
     if (canvas.width !== Math.round(canvas.clientWidth * (window.devicePixelRatio || 1))) fit();
-    if (!document.hidden && t - rain.last > 50) {
-      rain.last = t;
-      draw();
+    if (!document.hidden && t - fx.last > painter.every) {
+      fx.last = t;
+      painter.draw(t);
     }
-    rain.frame = requestAnimationFrame(tick);
+    fx.frame = requestAnimationFrame(tick);
   };
-  rain.frame = requestAnimationFrame(tick);
+  fx.frame = requestAnimationFrame(tick);
+}
+
+function matrixRain(ctx, fx) {
+  const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEF";
+  const size = 16;
+  let drops = [];
+  const draw = () => {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.fillRect(0, 0, fx.w, fx.h);
+    ctx.font = `${size - 2}px ui-monospace, Consolas, monospace`;
+    drops.forEach((y, i) => {
+      const ch = glyphs[(Math.random() * glyphs.length) | 0];
+      ctx.fillStyle = Math.random() < 0.06 ? "#d6ffe0" : "#00c43a";
+      ctx.fillText(ch, i * size, y * size);
+      drops[i] = y * size > fx.h && Math.random() > 0.975 ? 0 : y + 1;
+    });
+  };
+  return {
+    every: 50,
+    fit() {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, fx.w, fx.h);
+      drops = Array.from({ length: Math.ceil(fx.w / size) }, (_, i) => drops[i] ?? (Math.random() * -fx.h) / size);
+    },
+    draw,
+    still() {
+      for (let i = 0; i < 60; i++) draw();
+    },
+  };
+}
+
+// Stars drifting slowly towards you; the first moments after switching are a jump to light speed.
+function starfield(ctx, fx) {
+  const WARP_MS = 1400;
+  let stars = [];
+  const spawn = (far) => ({ x: (Math.random() - 0.5) * 2, y: (Math.random() - 0.5) * 2, z: far ? 1 : 0.05 + Math.random() * 0.95, tw: Math.random() * Math.PI * 2, red: Math.random() < 0.04 });
+  const sky = () => {
+    ctx.fillStyle = "#05060a";
+    ctx.fillRect(0, 0, fx.w, fx.h);
+    // A faint red glow low on one side, like a distant nebula.
+    const g = ctx.createRadialGradient(fx.w * 0.15, fx.h * 0.95, 0, fx.w * 0.15, fx.h * 0.95, Math.max(fx.w, fx.h) * 0.7);
+    g.addColorStop(0, "rgba(160, 20, 30, 0.16)");
+    g.addColorStop(1, "rgba(160, 20, 30, 0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, fx.w, fx.h);
+  };
+  const project = (s) => {
+    const f = Math.min(fx.w, fx.h) * 0.6;
+    return [fx.w / 2 + (s.x / s.z) * f, fx.h / 2 + (s.y / s.z) * f];
+  };
+  const draw = (t) => {
+    const age = t - fx.born;
+    const warp = age < WARP_MS ? Math.sin((age / WARP_MS) * Math.PI) : 0; // up, then back down
+    const speed = 0.0009 + warp * 0.05;
+    sky();
+    for (const s of stars) {
+      const [x0, y0] = project(s);
+      s.z -= speed;
+      s.tw += 0.05;
+      if (s.z <= 0.04) Object.assign(s, spawn(true));
+      const [x1, y1] = project(s);
+      if (x1 < -20 || x1 > fx.w + 20 || y1 < -20 || y1 > fx.h + 20) {
+        Object.assign(s, spawn(true));
+        continue;
+      }
+      const near = 1 - s.z;
+      const alpha = Math.min(1, 0.25 + near * 0.9) * (0.75 + 0.25 * Math.sin(s.tw));
+      const colour = s.red ? `rgba(255, 90, 90, ${alpha})` : `rgba(225, 235, 255, ${alpha})`;
+      if (warp > 0.15) {
+        ctx.strokeStyle = colour;
+        ctx.lineWidth = 0.6 + near * 1.6;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = colour;
+        const r = 0.35 + near * 1.5;
+        ctx.beginPath();
+        ctx.arc(x1, y1, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  };
+  return {
+    every: 33,
+    fit() {
+      const count = Math.round(Math.min(700, (fx.w * fx.h) / 2600));
+      stars = Array.from({ length: count }, () => spawn(false));
+      sky();
+    },
+    draw,
+    still() {
+      fx.born = -Infinity; // no warp
+      draw(0);
+    },
+  };
+}
+
+/* ---------- Terminal toys that play on the map ---------- */
+
+// One command runs at a time, like a real shell: the prompt hides until it ends, and Ctrl+C
+// stops it.
+function eggStartJob(name) {
+  eggCancel({ quiet: true });
+  egg.job = { name, timers: [] };
+  el("egg-prompt").textContent = "";
+}
+
+function eggEndJob() {
+  egg.job = null;
+  el("egg-prompt").textContent = eggPrompt();
+}
+
+function eggLater(fn, ms) {
+  const id = setTimeout(fn, ms);
+  egg.job?.timers.push(id);
+  return id;
+}
+
+// Take whatever a command put on the map back off it.
+function eggCleanup() {
+  if (state.cy) {
+    state.cy.nodes('[role = "egg-ripple"], [role = "egg-packet"]').remove();
+    state.cy.edges(".egg-path").removeClass("egg-path");
+    state.cy.nodes(".egg-ping").removeClass("egg-ping");
+  }
+  document.querySelector(".egg-lane")?.remove();
+}
+
+function eggCancel({ quiet = false } = {}) {
+  const job = egg.job;
+  if (!job) return false;
+  job.timers.forEach(clearTimeout);
+  eggCleanup();
+  // Windows ping says "Control-C"; everything else just echoes ^C.
+  if (!quiet) eggPrint(eggWindows() && job.name === "ping" ? "Control-C" : "^C");
+  eggEndJob();
+  return true;
+}
+
+const eggDevices = () => (state.graph?.nodes || []).filter(isDeviceNode);
+const eggIp = (n) => (n.ips || [])[0] || "";
+const eggAddr = (n) => eggIp(n) || (n.macs || [])[0] || n.id.replace(/^\w+:/, "");
+const eggMs = (base) => (base + Math.random() * base * 0.6).toFixed(3);
+
+// A device named on the command line: its name, address, MAC, or network name.
+function eggFind(query) {
+  const q = query.toLowerCase();
+  const devices = eggDevices();
+  const exact = devices.find((n) => [displayName(n), ...(n.ips || []), ...(n.macs || [])].some((v) => String(v).toLowerCase() === q));
+  return exact || devices.find((n) => [displayName(n), ...(n.ips || []), ...(n.macs || []), ...(n.ssids || [])].some((v) => String(v).toLowerCase().includes(q))) || null;
+}
+
+const eggOnMap = (n) => n && state.cy && state.cy.getElementById(n.id).length && !state.cy.getElementById(n.id).hasClass("time-out");
+
+// Where a command starts from: the selected device, else a client, else anything.
+function eggSource() {
+  const picked = state.selection.map((id) => nodeById(id)).find((n) => n && isDeviceNode(n) && eggOnMap(n));
+  if (picked) return picked;
+  // Prefer devices with links, so a route or a reply has somewhere to go.
+  const devices = eggDevices()
+    .filter(eggOnMap)
+    .sort((a, b) => Number(state.cy.getElementById(b.id).degree() > 0) - Number(state.cy.getElementById(a.id).degree() > 0));
+  return devices.find((n) => nodeRole(n) === "wireless") || devices.find((n) => nodeRole(n) === "host") || devices[0] || null;
+}
+
+function eggDefaultTarget(from) {
+  const devices = eggDevices().filter((n) => eggOnMap(n) && n.id !== from?.id);
+  return devices.find((n) => nodeRole(n) === "gateway") || devices.find((n) => nodeRole(n) === "ap") || devices[0] || null;
+}
+
+function eggTempNode(id, role, pos, data = {}) {
+  state.cy.getElementById(id).remove();
+  return state.cy.add({ group: "nodes", data: { id, role, synthetic: 1, ...data }, position: { ...pos }, selectable: false, grabbable: false });
+}
+
+/* ping: a sonar ripple from the device for every reply. */
+function eggPing(arg) {
+  const win = eggWindows();
+  if (!state.cy) return eggPrint("No map is open.", "egg-error");
+  const target = arg ? eggFind(arg) : state.selection.length ? eggSource() : eggDefaultTarget(null);
+  if (!target || !eggOnMap(target)) {
+    return eggPrint(win ? `Ping request could not find host ${arg}. Please check the name and try again.` : `ping: ${arg}: Name or service not known`, "egg-error");
+  }
+  const name = displayName(target);
+  const addr = eggAddr(target);
+  eggPrint(win ? `\nPinging ${name} [${addr}] with 32 bytes of data:` : `PING ${name} (${addr}) 56(84) bytes of data.`);
+  eggStartJob("ping");
+  const node = state.cy.getElementById(target.id);
+  const times = [];
+  for (let i = 0; i < 4; i += 1) {
+    eggLater(() => {
+      const t = Number(eggMs(1.2));
+      times.push(t);
+      eggPrint(win ? `Reply from ${addr}: bytes=32 time${t < 1 ? "<1" : `=${Math.round(t)}`}ms TTL=64` : `64 bytes from ${addr}: icmp_seq=${i + 1} ttl=64 time=${t.toFixed(2)} ms`);
+      eggRipple(node, i);
+      if (i === 3) {
+        const min = Math.min(...times);
+        const max = Math.max(...times);
+        const avg = times.reduce((s, x) => s + x, 0) / times.length;
+        eggPrint(
+          win
+            ? `\nPing statistics for ${addr}:\n    Packets: Sent = 4, Received = 4, Lost = 0 (0% loss),\nApproximate round trip times in milli-seconds:\n    Minimum = ${Math.round(min)}ms, Maximum = ${Math.round(max)}ms, Average = ${Math.round(avg)}ms`
+            : `\n--- ${name} ping statistics ---\n4 packets transmitted, 4 received, 0% packet loss, time 3004ms\nrtt min/avg/max/mdev = ${min.toFixed(3)}/${avg.toFixed(3)}/${max.toFixed(3)}/${((max - min) / 2).toFixed(3)} ms`
+        );
+        eggEndJob();
+      }
+    }, 900 * i + 300);
+  }
+}
+
+function eggRipple(node, i) {
+  if (!state.cy || !node.length || node.removed()) return;
+  const ring = eggTempNode(`egg:ripple:${i}`, "egg-ripple", node.position(), { size: 40 });
+  node.flashClass("egg-ping", 350);
+  if (eggStill()) return setTimeout(() => ring.remove(), 600);
+  ring.animate({ style: { width: 520, height: 520, "border-opacity": 0, "border-width": 1 } }, { duration: 1400, easing: "ease-out", complete: () => ring.remove() });
+}
+
+const eggStill = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// With no target named: the gateway if a route leads there, else the farthest device that can
+// be reached, so the trace always has somewhere to go.
+function eggReachableTarget(shown, from) {
+  if (!from) return null;
+  const root = state.cy.getElementById(from.id);
+  const dist = shown.dijkstra({ root, directed: false });
+  const reachable = eggDevices()
+    .filter((n) => n.id !== from.id && eggOnMap(n))
+    .map((n) => ({ n, d: dist.distanceTo(state.cy.getElementById(n.id)) }))
+    .filter((x) => Number.isFinite(x.d));
+  if (!reachable.length) return null;
+  return (reachable.find((x) => nodeRole(x.n) === "gateway") || reachable.sort((a, b) => b.d - a.d)[0]).n;
+}
+
+/* traceroute / tracert: a packet hops along the real links, one line per hop. */
+function eggTraceroute(arg) {
+  const win = eggWindows();
+  if (!state.cy) return eggPrint("No map is open.", "egg-error");
+  const from = eggSource();
+  const cy = state.cy;
+  const shown = cy.elements().not(".time-out").not('[role = "group"], [role = "annotation"], [role = "ring"]');
+  const to = arg ? eggFind(arg) : eggReachableTarget(shown, from);
+  if (arg && !to) return eggPrint(win ? `Unable to resolve target system name ${arg}.` : `${arg}: Name or service not known\nCannot handle "host" cmdline arg \`${arg}' on position 1 (argc 1)`, "egg-error");
+  if (!from || !to || !eggOnMap(to)) return eggPrint(from ? `${displayName(from)} has no links to follow on this map.` : "Nothing to trace on this map.", "egg-error");
+  const result = shown.aStar({ root: cy.getElementById(from.id), goal: cy.getElementById(to.id), directed: false });
+  const name = displayName(to);
+  const addr = eggAddr(to);
+  eggPrint(win ? `\nTracing route to ${name} [${addr}]\nover a maximum of 30 hops:\n` : `traceroute to ${name} (${addr}), 30 hops max, 60 byte packets`);
+  if (!result.found) {
+    eggPrint(win ? "  1     *        *        *     Request timed out.\nTrace complete." : " 1  * * *\n(no links lead there on this map)");
+    return;
+  }
+  eggStartJob("traceroute");
+  const hops = result.path.nodes().toArray().slice(1);
+  const edges = result.path.edges();
+  cy.animate({ fit: { eles: result.path, padding: 140 } }, { duration: eggStill() ? 0 : 500 });
+  edges.addClass("egg-path");
+  const packet = eggTempNode("egg:packet", "egg-packet", result.path.nodes()[0].position());
+  const step = eggStill() ? 250 : 700;
+  hops.forEach((hop, i) => {
+    eggLater(() => {
+      const raw = nodeById(hop.id());
+      const ms = [eggMs(0.4 + i * 0.6), eggMs(0.4 + i * 0.6), eggMs(0.4 + i * 0.6)];
+      const label = raw ? `${displayName(raw)} ${win ? `[${eggAddr(raw)}]` : `(${eggAddr(raw)})`}` : hop.id();
+      eggPrint(
+        win
+          ? `${String(i + 1).padStart(3)}    ${ms.map((m) => (Number(m) < 1 ? "<1 ms" : `${Math.round(m)} ms`).padStart(5)).join("    ")}  ${label}`
+          : `${String(i + 1).padStart(2)}  ${label}  ${ms.join(" ms  ")} ms`
+      );
+      if (!packet.removed()) packet.animate({ position: { ...hop.position() } }, { duration: step * 0.85, easing: "ease-in-out" });
+      hop.flashClass("egg-ping", 400);
+      if (i === hops.length - 1) {
+        if (win) eggPrint("\nTrace complete.");
+        eggEndJob();
+        eggLater(() => {
+          packet.remove();
+          edges.removeClass("egg-path");
+        }, 1800);
+      }
+    }, step * (i + 1));
+  });
+}
+
+/* ./wardrive: a little car crosses the bottom of the map, logging networks as it goes. */
+const CAR_SVG = `<svg viewBox="0 0 64 34" width="64" height="34" aria-hidden="true"><path d="M30 6 v-5" stroke="currentColor" stroke-width="1.5"/><path d="M26 3 q4 -4 8 0" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 22 l4 -9 q2 -4 7 -4 h22 q5 0 8 4 l6 9 h4 q3 0 3 3 v3 h-62 v-3 q0 -3 3 -3z" fill="currentColor"/><path d="M14 13 l3 -3 h9 v6 h-14z M30 10 h8 q3 0 5 3 l2 3 h-15z" fill="var(--canvas)" opacity="0.75"/><circle cx="16" cy="28" r="5" fill="#111"/><circle cx="16" cy="28" r="2" fill="#bbb"/><circle cx="48" cy="28" r="5" fill="#111"/><circle cx="48" cy="28" r="2" fill="#bbb"/></svg>`;
+const WIFI_SVG = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M2 9a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="19.5" r="1.5" fill="currentColor"/></svg>`;
+
+function eggWardrive() {
+  const aps = eggDevices().filter((n) => nodeRole(n) === "ap");
+  const named = [...new Set(aps.flatMap((n) => n.ssids || []).map((s) => String(s).trim()).filter(Boolean))];
+  const networks = (named.length ? named : ["linksys", "NETGEAR42", "xfinitywifi", "HP-Print-3B-OfficeJet", "Guest"]).slice(0, 8);
+  const channelOfSsid = (s) => aps.find((n) => (n.ssids || []).includes(s))?.channels?.[0] || [1, 6, 11, 36, 44][Math.floor(Math.random() * 5)];
+  eggPrint(`Wardrive started ${formatTime(Date.now() / 1000, { date: true })}. GPS: 3D fix, 9 satellites.`);
+  eggStartJob("wardrive");
+  const stage = el("stage");
+  const map = el("map").getBoundingClientRect();
+  const box = stage.getBoundingClientRect();
+  document.querySelector(".egg-lane")?.remove();
+  const lane = document.createElement("div");
+  lane.className = "egg-lane";
+  lane.style.top = `${map.bottom - box.top - 92}px`;
+  lane.innerHTML = `<div class="egg-car">${CAR_SVG}</div>`;
+  stage.appendChild(lane);
+  const car = lane.querySelector(".egg-car");
+  const width = map.width;
+  const duration = eggStill() ? 0 : 7000;
+  if (duration) car.animate([{ transform: "translateX(-80px)" }, { transform: `translateX(${width + 20}px)` }], { duration, easing: "linear", fill: "forwards" });
+  networks.forEach((ssid, i) => {
+    const at = (i + 1) / (networks.length + 1);
+    eggLater(() => {
+      eggPrint(`New network: ${ssid} (ch ${channelOfSsid(ssid)}, ${-(45 + Math.round(Math.random() * 40))} dBm)`);
+      if (!duration) return;
+      const drop = document.createElement("div");
+      drop.className = "egg-drop";
+      drop.style.left = `${at * (width + 100) - 60}px`;
+      drop.innerHTML = `${WIFI_SVG}<span>${escapeHtml(ssid)}</span>`;
+      lane.appendChild(drop);
+      drop.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "translateY(-14px)", offset: 0.2 }, { opacity: 0, transform: "translateY(-46px)" }], { duration: 2600, easing: "ease-out", fill: "forwards" });
+    }, duration * at || 150 * (i + 1));
+  });
+  eggLater(() => {
+    eggPrint(`Drive complete: ${plural(networks.length, "network")} logged.`, "egg-ok");
+    eggEndJob();
+    eggLater(() => lane.remove(), 2700);
+  }, (duration || 150 * networks.length) + 300);
+}
+
+/* hacktheplanet's backdrop: a synthwave sunset over a moving grid. */
+function synthwave(ctx, fx) {
+  let offset = 0;
+  const draw = () => {
+    const { w, h } = fx;
+    const horizon = h * 0.6;
+    const sky = ctx.createLinearGradient(0, 0, 0, horizon);
+    sky.addColorStop(0, "#0d0221");
+    sky.addColorStop(0.65, "#2a0845");
+    sky.addColorStop(1, "#6b0f6b");
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, w, horizon);
+    // The sun, banded near the bottom.
+    const r = Math.min(w, h) * 0.2;
+    const cx = w / 2;
+    const cy = horizon - r * 0.35;
+    const sun = ctx.createLinearGradient(0, cy - r, 0, cy + r);
+    sun.addColorStop(0, "#ffe14d");
+    sun.addColorStop(0.55, "#ff6ad5");
+    sun.addColorStop(1, "#c4247f");
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.clip();
+    ctx.fillStyle = sun;
+    ctx.fillRect(cx - r, cy - r, r * 2, r * 2);
+    ctx.fillStyle = "#2a0845";
+    for (let i = 0; i < 6; i += 1) {
+      const y = cy + r * (0.1 + i * 0.16);
+      ctx.fillRect(cx - r, y, r * 2, 2 + i * 1.4);
+    }
+    ctx.restore();
+    // The floor.
+    const floor = ctx.createLinearGradient(0, horizon, 0, h);
+    floor.addColorStop(0, "#1a0533");
+    floor.addColorStop(1, "#07010f");
+    ctx.fillStyle = floor;
+    ctx.fillRect(0, horizon, w, h - horizon);
+    ctx.strokeStyle = "rgba(255, 47, 214, 0.55)";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    for (let i = -14; i <= 14; i += 1) {
+      ctx.moveTo(cx + i * 6, horizon);
+      ctx.lineTo(cx + i * w * 0.16, h);
+    }
+    for (let k = 0; k < 14; k += 1) {
+      const t = ((k + offset) / 14) ** 2.2;
+      const y = horizon + t * (h - horizon);
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.7)";
+    ctx.beginPath();
+    ctx.moveTo(0, horizon);
+    ctx.lineTo(w, horizon);
+    ctx.stroke();
+    offset = (offset + 0.02) % 1;
+  };
+  return { every: 40, fit: draw, draw, still: draw };
 }
 
 async function init() {
@@ -6422,7 +6898,7 @@ async function init() {
   bindTimeline();
   bindCompareDialog();
   bindEggTerminal();
-  syncMatrixRain();
+  syncThemeBackdrop();
   el("loading-stop").addEventListener("click", stopReading);
   el("loading-cancel").addEventListener("click", cancelReading);
   bindListDrag();

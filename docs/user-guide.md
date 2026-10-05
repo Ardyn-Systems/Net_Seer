@@ -324,11 +324,12 @@ Use a backup to move your maps to another computer or browser, or before trying 
 
 **Updates.** Shows your version and how NetSeer is installed. **Check for updates** asks GitHub for the list of releases. This is the only time NetSeer goes online, and nothing about you or your maps is sent.
 
-![Settings, Updates: version 0.4.0 installed, an example newer release with an Update button, and an older one with Roll back](images/settings-updates.png)
+![Settings, Updates: the installed version, a newer release with an Update button, and Earlier versions opened to a list to pick one and Roll back](images/settings-updates.png)
 
 *The releases in this picture are an example.*
 
-- **Update** gets a newer version. **Roll back** goes back to an older one, if a new release gives you trouble. Your maps stay where they are either way.
+- **Update** gets a newer version. Newer versions and the one you have each get a card.
+- **Earlier versions** is folded away. Open it, pick a version from the list, and click **Roll back** to go back to it, if a new release gives you trouble. Your maps stay where they are either way.
 - In the **desktop app** (version 0.4.0 or later), either button opens the update wizard, described below.
 - From **source**, the button copies a `uv tool install` command for that version instead.
 
@@ -394,7 +395,7 @@ To keep a copy, or to move your maps somewhere else, use **Settings** → **Your
 
 **A capture won't open.** Check that it's one of the [supported formats](#open-your-captures). In the online copy, it must be under 20 MB; installed copies have no limit. Files that parse but contain no devices say "No hosts, access points, or links were found".
 
-**A new version is misbehaving.** Open **Settings** → **Updates**, click **Check for updates**, and choose **Roll back** on the version that worked. The wizard backs up your maps first.
+**A new version is misbehaving.** Open **Settings** → **Updates**, click **Check for updates**, and open **Earlier versions**, pick the version that worked, and click **Roll back**. The wizard backs up your maps first.
 
 **An update didn't finish.** Open NetSeer from the Start menu or app menu. On Windows, the installer's log is `%LOCALAPPDATA%\NetSeer\update-install.log`. For a portable copy, the version you had is still in the folder ending in `.previous`. You can always download the release from GitHub and install it the usual way.
 

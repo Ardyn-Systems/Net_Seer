@@ -27,6 +27,8 @@ VIEWPORT = {"width": 1440, "height": 900}
 
 from playwright.sync_api import Page, sync_playwright  # noqa: E402
 
+from netseer import __version__  # noqa: E402
+
 # Settings → Updates asks GitHub for releases; answer with a fixed example list instead.
 EXAMPLE_NOTES = """An example release, for the user guide's pictures.
 
@@ -36,11 +38,20 @@ EXAMPLE_NOTES = """An example release, for the user guide's pictures.
 - **Find a device** also searches open ports.
 - Fixes: subnet boxes no longer overlap on narrow windows.
 """
+# Relative to the version being photographed: an example newer one, this one, and a few older.
+_major, _minor, _patch = (int(x) for x in __version__.split(".")[:3])
+NEWER_TAG = f"v{_major}.{_minor + 1}.0"
 EXAMPLE_RELEASES = [
     {"tag_name": tag, "name": f"NetSeer {tag[1:]}", "draft": False, "prerelease": False, "published_at": date, "body": EXAMPLE_NOTES,
      "html_url": f"https://github.com/ardyn-systems/NetSeer/releases/tag/{tag}",
      "assets": [{"name": f"NetSeer-Setup-{tag[1:]}.exe", "browser_download_url": f"https://github.com/ardyn-systems/NetSeer/releases/download/{tag}/NetSeer-Setup-{tag[1:]}.exe", "size": size}]}
-    for tag, date, size in (("v0.5.0", "2026-12-01T12:00:00Z", 27_400_000), ("v0.4.0", "2026-10-05T12:00:00Z", 26_900_000), ("v0.3.1", "2026-10-05T02:00:00Z", 26_367_868))
+    for tag, date, size in (
+        (NEWER_TAG, "2026-12-01T12:00:00Z", 27_400_000),
+        (f"v{__version__}", "2026-10-05T18:00:00Z", 27_180_000),
+        ("v0.4.8", "2026-10-05T04:00:00Z", 27_160_000),
+        ("v0.4.0", "2026-10-02T12:00:00Z", 26_900_000),
+        ("v0.3.1", "2026-10-01T02:00:00Z", 26_367_868),
+    )
 ]
 
 
@@ -61,7 +72,7 @@ def fake_updater(context) -> None:
         if name == "status" and calls["started"]:
             calls["polls"] += 1
         state = "idle" if not calls["started"] else "downloading" if calls["polls"] < 2 else "ready"
-        body = {"status": state, "tag": "v0.5.0", "done": 9_000_000, "total": 27_400_000}
+        body = {"status": state, "tag": NEWER_TAG, "done": 9_000_000, "total": 27_400_000}
         route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
 
     context.route("**/api/health", health)
@@ -353,9 +364,11 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.click('.settings-nav [data-pane="updates"]')
         page.click("#updates-check")
         page.wait_for_selector("#release-list .release-name")
+        if page.locator(".release-older summary").count():
+            page.click(".release-older summary")
         page.mouse.move(5, 5)
         shots.save("settings-updates", selectors=["#settings-dialog"], pad=0)
-        page.click('#release-list [data-update="v0.5.0"]')
+        page.click(f'#release-list [data-update="{NEWER_TAG}"]')
         page.wait_for_selector("#update-dialog[open]")
         page.mouse.move(5, 5)
         shots.save("update-wizard", selectors=["#update-dialog"], pad=0)

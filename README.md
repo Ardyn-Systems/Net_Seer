@@ -285,7 +285,7 @@ bash packaging/linux/build-appimage.sh 0.5.1   # AppImage and .tar.gz in dist/
 - **AppImage:** replace the file (run `--install` again if you added it to the menu). To remove it, run `--uninstall`, then delete the file.
 - **From source:** `uv tool upgrade netseer` (or `git pull` in a clone, then `uv sync`). Remove with `uv tool uninstall netseer`.
 
-**From 0.4.0, the desktop app updates itself.** Open **Settings** → **Updates** → **Check for updates**, then click **Update** (or **Roll back** on an older version):
+**From 0.4.0, the desktop app updates itself.** Open **Settings** → **Updates** → **Check for updates**, then click **Update** (or open **Earlier versions**, pick one, and click **Roll back**):
 
 1. A short wizard shows what's new and can back up your maps first.
 2. NetSeer downloads the right file for your install from GitHub and checks its SHA-256 against the checksum GitHub publishes. A file that doesn't match is deleted.
