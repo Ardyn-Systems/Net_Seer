@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui7" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui8" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -130,6 +130,7 @@
           </ul>
         </section>
       </aside>
+      <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-controls="sidebar" tabindex="0" title="Drag to resize. Double-click to reset."></div>
 
       <main class="stage" id="stage">
         <div id="map" class="map" role="application" aria-label="Network map"></div>
@@ -333,6 +334,8 @@
             <h3>Map</h3>
             <label class="switch-row"><span>Group by subnet<small>Draw a box around each subnet's devices</small></span>
               <input id="settings-group" type="checkbox" role="switch" /></label>
+            <label class="switch-row"><span>Show SSIDs under access points<small>A second line with the network name, unless you've written a caption</small></span>
+              <input id="settings-ssid" type="checkbox" role="switch" /></label>
             <label class="switch-row"><span>Fade unrelated devices on hover<small>Highlights what the device under the pointer connects to</small></span>
               <input id="settings-hover" type="checkbox" role="switch" /></label>
           </section>
@@ -481,6 +484,6 @@
       </div>
     </div>
 
-    <script src="/static/app.js?v=ui9"></script>
+    <script src="/static/app.js?v=ui10"></script>
   </body>
 </html>

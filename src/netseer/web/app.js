@@ -49,7 +49,7 @@ const state = {
   suppressSelect: false,
   server: { hosted: false, maxUploadMb: 50, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
-  prefs: { zoomSpeed: "normal", hoverFade: true, autoUpdate: false, tourOffered: false },
+  prefs: { zoomSpeed: "normal", hoverFade: true, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
 };
 
 /* ---------- Small helpers ---------- */
@@ -693,6 +693,10 @@ function overlayNode(node) {
   else if (out.inferred_type) out.label = out.inferred_type;
   const caption = (meta.extra || "").trim();
   if (caption) out.caption = caption;
+  else if (!out.caption) {
+    const auto = autoCaption(out); // exports label access points the same way as the map
+    if (auto) out.caption = auto;
+  }
   const notes = (meta.notes || "").trim();
   if (notes) out.notes = notes;
   const edited = [];
@@ -715,9 +719,18 @@ function displayName(node) {
 }
 
 function nodeLabel(node) {
-  const caption = (getDeviceMeta(node.id).extra || "").trim();
+  const caption = (getDeviceMeta(node.id).extra || "").trim() || autoCaption(overlayNode(node));
   const name = displayName(node);
   return caption ? `${name}\n${caption}` : name;
+}
+
+// Access points show the network they broadcast under their name, so they're quick to
+// tell apart: "HQ-Secure", or "HQ-Secure +2" for several. A caption you type wins.
+function autoCaption(node) {
+  if (!state.prefs.apSsid || !node || nodeRole(node) !== "ap") return "";
+  const ssids = (Array.isArray(node.ssids) ? node.ssids : []).map((s) => String(s ?? "").replace(/\0/g, "").trim()).filter(Boolean);
+  if (!ssids.length) return "";
+  return ssids.length > 1 ? `${ssids[0]} +${ssids.length - 1}` : ssids[0];
 }
 
 function nodeRole(n) {
@@ -806,9 +819,10 @@ function upsertMap(partial) {
 /* ---------- Undo ---------- */
 // Each entry holds only the maps an action touched, not the whole session.
 
-function snapshotUndo(label, mapIds) {
+function snapshotUndo(label, mapIds, { surveys = false } = {}) {
   const ids = [...new Set(mapIds.filter(Boolean))];
   state.undo.push({
+    surveys: surveys ? { list: [...state.surveys], hidden: hiddenSampleIds() } : null,
     label,
     activeMapId: state.activeMapId,
     order: state.maps.map((m) => m.id),
@@ -845,6 +859,11 @@ function undoLast() {
     return (ia < 0 ? 1e9 : ia) - (ib < 0 ? 1e9 : ib);
   });
   restoreMetaSnapshot(ids, entry.meta);
+  if (entry.surveys) {
+    state.surveys = entry.surveys.list;
+    writeLocal(HIDDEN_SAMPLES_KEY, entry.surveys.hidden);
+    renderSurveyList();
+  }
   state.clipboard = entry.clipboard;
   markSessionDirty();
   const target = getMap(entry.activeMapId) ? entry.activeMapId : state.maps[0]?.id;
@@ -1460,7 +1479,7 @@ function devicePanel(raw) {
         <input type="text" id="insp-name-input" value="${escapeHtml(meta.name || "")}" placeholder="${escapeHtml(inferredName(raw))}" autocomplete="off" />
       </label>
       <label class="field-label">Caption under the name
-        <input type="text" id="insp-caption" value="${escapeHtml(meta.extra || "")}" placeholder="Lobby, rack A1, 2nd floor" autocomplete="off" />
+        <input type="text" id="insp-caption" value="${escapeHtml(meta.extra || "")}" placeholder="${escapeHtml(autoCaption(overlayNode(raw)) ? `${autoCaption(overlayNode(raw))} (from the SSID)` : "Lobby, rack A1, 2nd floor")}" autocomplete="off" />
       </label>
     </div>
     <div class="insp-section">
@@ -1950,6 +1969,10 @@ function renderMapList() {
   for (const map of ordered) {
     const row = document.createElement("li");
     row.className = `list-row${map.id === state.activeMapId ? " active" : ""}`;
+    row.dataset.id = map.id;
+    // Unwanted stays at the bottom: it can't be dragged, but you can still drag devices' maps onto others.
+    if (map.kind !== "unwanted") row.dataset.dragType = "map";
+    row.dataset.dropType = "map";
     const n = mapNodeCount(map);
     row.innerHTML = `<button type="button" class="row-main"><span class="row-dot"></span><span class="row-text"><span class="row-title">${escapeHtml(map.name)}</span>
       <span class="row-sub">${escapeHtml(mapKindLabel(map))} · ${plural(n, "device")}</span></span></button>
@@ -1960,18 +1983,28 @@ function renderMapList() {
     });
     row.querySelector(".row-menu-btn").addEventListener("click", (e) => {
       e.stopPropagation();
-      const items = [{ label: "Rename…", onSelect: () => renameMap(map.id) }];
-      if (map.kind === "unwanted") {
-        items.push({ label: "Save to files and empty…", disabled: !n, onSelect: () => emptyUnwanted() });
-      } else {
-        items.push({ label: "Merge into…", disabled: state.maps.filter((m) => m.kind !== "unwanted" && m.id !== map.id).length === 0, onSelect: () => mergeMapDialog(map.id) });
-        items.push("sep", { label: "Delete map…", danger: true, onSelect: () => deleteMap(map.id) });
-      }
-      openMenu(e.currentTarget, items, { align: "right" });
+      openMenu(e.currentTarget, mapMenuItems(map), { align: "right" });
+    });
+    row.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      openMenuAt(e.clientX, e.clientY, [{ label: "Open", onSelect: () => showMap(map.id) }, "sep", ...mapMenuItems(map)]);
     });
     list.appendChild(row);
   }
 }
+
+function mapMenuItems(map) {
+  const items = [{ label: "Rename…", onSelect: () => renameMap(map.id) }];
+  if (map.kind === "unwanted") {
+    items.push({ label: "Save to files and empty…", disabled: !mapNodeCount(map), onSelect: () => emptyUnwanted() });
+  } else {
+    items.push({ label: "Merge into…", disabled: mergeTargets(map.id).length === 0, onSelect: () => mergeMapDialog(map.id) });
+    items.push("sep", { label: "Delete map…", danger: true, onSelect: () => deleteMap(map.id) });
+  }
+  return items;
+}
+
+const mergeTargets = (excludeId) => state.maps.filter((m) => m.kind !== "unwanted" && m.id !== excludeId);
 
 async function renameMap(mapId) {
   const map = getMap(mapId);
@@ -2009,8 +2042,8 @@ async function mergeMapDialog(sourceId) {
   if (destId) mergeMaps(sourceId, destId);
 }
 
-function mergeMaps(sourceId, destId) {
-  const source = getMap(sourceId);
+function mergeMaps(sourceOrId, destId) {
+  const source = typeof sourceOrId === "string" ? getMap(sourceOrId) : sourceOrId;
   const dest = getMap(destId);
   if (!source || !dest || source.id === dest.id) return;
   snapshotUndo("merge", [dest.id]);
@@ -2152,17 +2185,24 @@ function renderSurveyList() {
     const row = document.createElement("li");
     const active = `map:${item.id}` === state.activeMapId;
     row.className = `list-row${active ? " active" : ""}`;
+    row.dataset.id = item.id;
+    row.dataset.dragType = "survey";
+    row.dataset.dropType = "survey";
     const sub = item.kind === "upload" ? "Your capture" : item.summary;
     row.innerHTML = `<button type="button" class="row-main" title="${escapeHtml(item.summary || "")}"><span class="row-dot"></span><span class="row-text"><span class="row-title">${escapeHtml(item.name)}</span>
       <span class="row-sub">${escapeHtml(sub)}</span></span></button>
-      <button type="button" class="icon-btn row-menu-btn" aria-label="Remove ${escapeHtml(item.name)} from the list" title="Remove from list"><svg class="icon"><use href="#i-x"/></svg></button>`;
+      <button type="button" class="icon-btn row-menu-btn" aria-label="Options for ${escapeHtml(item.name)}" aria-haspopup="menu" aria-expanded="false"><svg class="icon"><use href="#i-dots"/></svg></button>`;
     row.querySelector(".row-main").addEventListener("click", () => {
       selectSurvey(item.id);
       closeNarrowPanels();
     });
     row.querySelector(".row-menu-btn").addEventListener("click", (e) => {
       e.stopPropagation();
-      removeSurvey(item.id);
+      openMenu(e.currentTarget, surveyMenuItems(item), { align: "right" });
+    });
+    row.addEventListener("contextmenu", (e) => {
+      e.preventDefault();
+      openMenuAt(e.clientX, e.clientY, surveyMenuItems(item));
     });
     list.appendChild(row);
   }
@@ -2202,13 +2242,100 @@ async function selectSurvey(id) {
 function removeSurvey(id) {
   const item = state.surveys.find((s) => s.id === id);
   if (!item) return;
-  state.surveys = state.surveys.filter((s) => s.id !== id);
-  if (item.kind === "sample") {
-    const hidden = hiddenSampleIds();
-    if (!hidden.includes(id)) writeLocal(HIDDEN_SAMPLES_KEY, [...hidden, id]);
-  }
+  snapshotUndo("remove from list", [], { surveys: true });
+  hideSurvey(item);
   renderSurveyList();
-  toast(`Removed ${item.name} from the list. Its map stays under Maps.`, { timeout: 3500 });
+  toast(`Removed ${item.name} from the list. Its map stays under Maps.`, { undo: true, timeout: 4500 });
+}
+
+// Hidden surveys stay hidden after a reload: samples and your own captures alike.
+function hideSurvey(item) {
+  state.surveys = state.surveys.filter((s) => s.id !== item.id);
+  const hidden = hiddenSampleIds();
+  if (!hidden.includes(item.id)) writeLocal(HIDDEN_SAMPLES_KEY, [...hidden, item.id]);
+}
+
+function unhideSurvey(id) {
+  const hidden = hiddenSampleIds();
+  if (hidden.includes(id)) writeLocal(HIDDEN_SAMPLES_KEY, hidden.filter((h) => h !== id));
+}
+
+function surveyMenuItems(item) {
+  const ownMap = `map:${item.id}`;
+  return [
+    { label: "Open", onSelect: () => selectSurvey(item.id) },
+    { label: "Merge into…", disabled: mergeTargets(ownMap).length === 0, onSelect: () => mergeSurveyDialog(item.id) },
+    "sep",
+    { label: "Remove from list", onSelect: () => removeSurvey(item.id) },
+    { label: "Delete survey and its map…", danger: true, onSelect: () => deleteSurvey(item.id) },
+  ];
+}
+
+async function deleteSurvey(id) {
+  const item = state.surveys.find((s) => s.id === id);
+  if (!item) return;
+  const mapId = `map:${item.id}`;
+  const map = getMap(mapId);
+  const ok = await openDialog({
+    title: `Delete “${item.name}”?`,
+    body: map
+      ? `This removes it from Surveys and deletes its map${mapNodeCount(map) ? ` (${plural(mapNodeCount(map), "device")})` : ""} with your edits. You can undo this right after.`
+      : "This removes it from Surveys. You can undo this right after.",
+    okLabel: "Delete",
+    danger: true,
+  });
+  if (!ok) return;
+  snapshotUndo("delete survey", [mapId], { surveys: true });
+  hideSurvey(item);
+  if (map) {
+    state.maps = state.maps.filter((m) => m.id !== mapId);
+    store.deletedMaps.add(mapId);
+    for (const k of Object.keys(metaCache)) if (k.startsWith(`${mapId}::`)) delete metaCache[k];
+    markMetaDirty();
+    markSessionDirty();
+  }
+  if (state.activeMapId === mapId) showMap((state.maps.find((m) => m.kind !== "unwanted") || getMap(UNWANTED_ID)).id);
+  else renderMapList();
+  renderSurveyList();
+  toast(`Deleted ${item.name}.`, { undo: true });
+}
+
+// A survey's own map when it has one (with your edits), otherwise its graph as loaded.
+async function surveySource(item) {
+  const existing = getMap(`map:${item.id}`);
+  if (existing && (mapNodeCount(existing) > 0 || existing.edited)) return existing;
+  let graph = item.graph;
+  if (!graph) {
+    setBusy(true, `Loading ${item.name}…`);
+    try {
+      graph = await parseResponse(await fetch(`/api/samples/${encodeURIComponent(item.id)}/graph`));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return { id: `map:${item.id}`, name: item.name, kind: "survey", captures: graph?.meta?.sources || [], graph };
+}
+
+async function mergeSurveyInto(surveyId, destId) {
+  const item = state.surveys.find((s) => s.id === surveyId);
+  if (!item || !getMap(destId)) return;
+  if (destId === `map:${item.id}`) {
+    toast("That's this survey's own map.", { timeout: 2500 });
+    return;
+  }
+  try {
+    mergeMaps(await surveySource(item), destId);
+  } catch (err) {
+    fail(err);
+  }
+}
+
+async function mergeSurveyDialog(surveyId) {
+  const item = state.surveys.find((s) => s.id === surveyId);
+  if (!item) return;
+  const options = mergeTargets(`map:${item.id}`).map((m) => ({ value: m.id, label: `${m.name} (${plural(mapNodeCount(m), "device")})` }));
+  const destId = await openDialog({ title: `Merge “${item.name}” into…`, body: "Its devices and links are copied into the map you choose. The survey stays as it is.", select: { options, label: "Destination map" }, okLabel: "Merge" });
+  if (destId) mergeSurveyInto(surveyId, destId);
 }
 
 function restoreBundledSamples() {
@@ -2247,6 +2374,7 @@ async function loadFile(file) {
     const at = state.surveys.findIndex((s) => s.id === id);
     if (at >= 0) state.surveys.splice(at, 1, item);
     else state.surveys.unshift(item);
+    unhideSurvey(id);
     applyGraph(graph, file.name, id);
     // Their own capture is worth keeping; Firefox asks here, other browsers decide quietly.
     requestPersistentStorage();
@@ -2519,7 +2647,8 @@ function loadPrefs() {
   if (typeof prefs.groupBySubnet === "boolean") state.groupBySubnet = prefs.groupBySubnet;
   if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
-  for (const k of ["hoverFade", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
+  for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
+  if (Number.isFinite(prefs.sidebarWidth)) setSidebarWidth(prefs.sidebarWidth, { save: false });
 }
 
 function savePrefs() {
@@ -2681,6 +2810,7 @@ function renderSettings() {
   document.querySelectorAll('input[name="zoom-speed"]').forEach((r) => (r.checked = r.value === state.prefs.zoomSpeed));
   el("settings-group").checked = state.groupBySubnet;
   el("settings-hover").checked = state.prefs.hoverFade;
+  el("settings-ssid").checked = state.prefs.apSsid;
   el("updates-auto").checked = state.prefs.autoUpdate;
   const version = state.server.version || "unknown";
   document.querySelectorAll(".app-version").forEach((n) => (n.textContent = version));
@@ -3070,6 +3200,15 @@ function bindSettings() {
     })
   );
   el("settings-group").addEventListener("change", (e) => setGroupBySubnet(e.target.checked));
+  el("settings-ssid").addEventListener("change", (e) => {
+    state.prefs.apSsid = e.target.checked;
+    savePrefs();
+    state.cy?.nodes().forEach((n) => {
+      const raw = state.nodeIndex.get(n.id());
+      if (raw) n.data("label", nodeLabel(raw));
+    });
+    if (state.selection.length === 1) renderInspector();
+  });
   el("settings-hover").addEventListener("change", (e) => {
     state.prefs.hoverFade = e.target.checked;
     savePrefs();
@@ -3325,6 +3464,254 @@ function bindUpdateWizard() {
       cancelUpdate();
     }
   });
+}
+
+/* ---------- Sidebar: resize ---------- */
+
+const SIDEBAR_MIN = 200;
+const sidebarMax = () => Math.max(SIDEBAR_MIN, Math.min(560, Math.round(window.innerWidth * 0.45)));
+
+function setSidebarWidth(px, { save = true } = {}) {
+  const shell = document.querySelector(".shell");
+  const handle = el("sidebar-resizer");
+  if (px == null) {
+    shell.style.removeProperty("--sidebar-w");
+    state.prefs.sidebarWidth = null;
+  } else {
+    const w = Math.round(Math.max(SIDEBAR_MIN, Math.min(sidebarMax(), px)));
+    shell.style.setProperty("--sidebar-w", `${w}px`);
+    state.prefs.sidebarWidth = w;
+  }
+  const now = Math.round(el("sidebar").getBoundingClientRect().width) || state.prefs.sidebarWidth || 272;
+  handle.setAttribute("aria-valuenow", String(now));
+  handle.setAttribute("aria-valuemin", String(SIDEBAR_MIN));
+  handle.setAttribute("aria-valuemax", String(sidebarMax()));
+  if (save) savePrefs();
+}
+
+function bindSidebarResize() {
+  const handle = el("sidebar-resizer");
+  const shell = document.querySelector(".shell");
+  let dragging = false;
+  handle.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    dragging = true;
+    handle.setPointerCapture(e.pointerId);
+    handle.classList.add("dragging");
+    document.body.classList.add("resizing");
+  });
+  handle.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    setSidebarWidth(e.clientX - shell.getBoundingClientRect().left, { save: false });
+  });
+  const stop = () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove("dragging");
+    document.body.classList.remove("resizing");
+    savePrefs();
+  };
+  handle.addEventListener("pointerup", stop);
+  handle.addEventListener("pointercancel", stop);
+  handle.addEventListener("dblclick", () => setSidebarWidth(null));
+  handle.addEventListener("keydown", (e) => {
+    const current = el("sidebar").getBoundingClientRect().width;
+    const step = e.shiftKey ? 48 : 16;
+    if (e.key === "ArrowLeft") setSidebarWidth(current - step);
+    else if (e.key === "ArrowRight") setSidebarWidth(current + step);
+    else if (e.key === "Home") setSidebarWidth(SIDEBAR_MIN);
+    else if (e.key === "End") setSidebarWidth(sidebarMax());
+    else if (e.key === "Enter") setSidebarWidth(null);
+    else return;
+    e.preventDefault();
+  });
+  window.addEventListener("resize", () => {
+    if (state.prefs.sidebarWidth) setSidebarWidth(state.prefs.sidebarWidth, { save: false });
+  });
+}
+
+/* ---------- Sidebar: drag rows ---------- */
+// Pointer-based rather than HTML drag and drop, which won't drag buttons in Firefox.
+// Drag a map or survey up or down to reorder it, or onto a map to merge into that map.
+// Hovering over the Maps tab while dragging a survey switches to it.
+
+const SURVEY_ORDER_KEY = "netseer.surveyOrder";
+const drag = { start: null, active: false, ghost: null, row: null, target: null, zone: null, tabTimer: null, tab: null, scroll: 0, raf: 0, suppressClick: false };
+
+function sortSurveys(list) {
+  const order = readLocal(SURVEY_ORDER_KEY, []);
+  if (!Array.isArray(order) || !order.length) return list;
+  const rank = (s) => {
+    const i = order.indexOf(s.id);
+    return i < 0 ? -1 : i; // new captures stay on top
+  };
+  return list.map((s, i) => [s, i]).sort(([a, ia], [b, ib]) => rank(a) - rank(b) || ia - ib).map(([s]) => s);
+}
+
+function dropZone(type, id, row, y) {
+  const targetType = row.dataset.dropType;
+  const targetId = row.dataset.id;
+  if (!targetType || targetId === id) return null;
+  const r = row.getBoundingClientRect();
+  const f = (y - r.top) / Math.max(1, r.height);
+  if (targetType === "map") {
+    const target = getMap(targetId);
+    if (!target || target.kind === "unwanted") return null;
+    if (type === "survey") return targetId === `map:${id}` ? null : "into";
+    if (type === "map") return f < 0.28 ? "before" : f > 0.72 ? "after" : "into";
+  }
+  if (targetType === "survey" && type === "survey") return f < 0.5 ? "before" : "after";
+  return null;
+}
+
+function clearDropMarks() {
+  document.querySelectorAll(".drop-before, .drop-after, .drop-into, .drop-hover").forEach((n) => n.classList.remove("drop-before", "drop-after", "drop-into", "drop-hover"));
+}
+
+function ghostHint() {
+  if (!drag.target) return "";
+  if (drag.zone === "into") return `Merge into ${getMap(drag.target.dataset.id)?.name || "this map"}`;
+  return "Move here";
+}
+
+function startListDrag() {
+  const { row, type, id } = drag.start;
+  drag.active = true;
+  drag.row = row;
+  row.classList.add("dragging");
+  document.body.classList.add("list-dragging");
+  closeMenu();
+  const name = type === "map" ? getMap(id)?.name : state.surveys.find((s) => s.id === id)?.name;
+  drag.ghost = document.createElement("div");
+  drag.ghost.className = "drag-ghost";
+  drag.ghost.innerHTML = `${escapeHtml(name || "")}<small></small>`;
+  document.body.appendChild(drag.ghost);
+}
+
+function onListDragMove(e) {
+  if (!drag.start || e.pointerId !== drag.start.pointerId) return;
+  if (!drag.active) {
+    if (Math.hypot(e.clientX - drag.start.x, e.clientY - drag.start.y) < 6) return;
+    startListDrag();
+  }
+  e.preventDefault();
+  drag.ghost.style.transform = `translate(${e.clientX + 14}px, ${e.clientY + 10}px)`;
+  clearDropMarks();
+  drag.target = null;
+  drag.zone = null;
+  const under = document.elementFromPoint(e.clientX, e.clientY);
+  // Over a tab: switch to it after a moment, so a survey can be dropped on a map.
+  const tab = under?.closest?.(".tab");
+  if (tab !== drag.tab) {
+    clearTimeout(drag.tabTimer);
+    drag.tab = tab;
+    if (tab && !tab.classList.contains("active")) drag.tabTimer = setTimeout(() => setTab(tab.dataset.tab), 350);
+  }
+  if (tab) tab.classList.add("drop-hover");
+  const row = under?.closest?.("#sidebar .list-row[data-drop-type]");
+  const zone = row ? dropZone(drag.start.type, drag.start.id, row, e.clientY) : null;
+  if (zone) {
+    drag.target = row;
+    drag.zone = zone;
+    row.classList.add(`drop-${zone}`);
+  }
+  drag.ghost.querySelector("small").textContent = ghostHint();
+  // Near the top or bottom of the sidebar: scroll it.
+  const box = el("sidebar").getBoundingClientRect();
+  const edge = 44;
+  drag.scroll = e.clientY < box.top + edge + 40 ? -1 : e.clientY > box.bottom - edge ? 1 : 0;
+  if (drag.scroll && !drag.raf) drag.raf = requestAnimationFrame(autoScrollSidebar);
+}
+
+function autoScrollSidebar() {
+  drag.raf = 0;
+  if (!drag.active || !drag.scroll) return;
+  el("sidebar").scrollTop += drag.scroll * 10;
+  drag.raf = requestAnimationFrame(autoScrollSidebar);
+}
+
+function endListDrag(e, { cancel = false } = {}) {
+  if (!drag.start) return;
+  const wasActive = drag.active;
+  const { type, id } = drag.start;
+  const target = drag.target;
+  const zone = drag.zone;
+  clearTimeout(drag.tabTimer);
+  cancelAnimationFrame(drag.raf);
+  drag.ghost?.remove();
+  drag.row?.classList.remove("dragging");
+  document.body.classList.remove("list-dragging");
+  clearDropMarks();
+  Object.assign(drag, { start: null, active: false, ghost: null, row: null, target: null, zone: null, tab: null, scroll: 0, raf: 0 });
+  if (!wasActive) return;
+  // The click that ends a drag shouldn't also open the row.
+  drag.suppressClick = true;
+  setTimeout(() => (drag.suppressClick = false), 0);
+  if (cancel || !target || !zone) return;
+  const targetId = target.dataset.id;
+  if (zone === "into") {
+    if (type === "map") mergeMaps(id, targetId);
+    else mergeSurveyInto(id, targetId);
+  } else if (type === "map") moveMapInList(id, targetId, zone === "after");
+  else moveSurveyInList(id, targetId, zone === "after");
+}
+
+function moveMapInList(id, targetId, after) {
+  const moving = getMap(id);
+  if (!moving || id === targetId) return;
+  const rest = state.maps.filter((m) => m.id !== id);
+  const at = rest.findIndex((m) => m.id === targetId);
+  if (at < 0) return;
+  rest.splice(at + (after ? 1 : 0), 0, moving);
+  state.maps = rest;
+  markSessionDirty();
+  renderMapList();
+}
+
+function moveSurveyInList(id, targetId, after) {
+  const moving = state.surveys.find((s) => s.id === id);
+  if (!moving || id === targetId) return;
+  const rest = state.surveys.filter((s) => s.id !== id);
+  const at = rest.findIndex((s) => s.id === targetId);
+  if (at < 0) return;
+  rest.splice(at + (after ? 1 : 0), 0, moving);
+  state.surveys = rest;
+  writeLocal(SURVEY_ORDER_KEY, rest.map((s) => s.id));
+  renderSurveyList();
+}
+
+function bindListDrag() {
+  const sidebar = el("sidebar");
+  sidebar.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || e.pointerType === "touch") return;
+    const row = e.target.closest(".list-row[data-drag-type]");
+    if (!row || e.target.closest(".row-menu-btn")) return;
+    drag.start = { x: e.clientX, y: e.clientY, row, type: row.dataset.dragType, id: row.dataset.id, pointerId: e.pointerId };
+  });
+  window.addEventListener("pointermove", onListDragMove);
+  window.addEventListener("pointerup", (e) => endListDrag(e));
+  window.addEventListener("pointercancel", (e) => endListDrag(e, { cancel: true }));
+  window.addEventListener("blur", () => endListDrag(null, { cancel: true }));
+  window.addEventListener(
+    "keydown",
+    (e) => {
+      if (e.key === "Escape" && drag.active) {
+        e.stopPropagation();
+        endListDrag(null, { cancel: true });
+      }
+    },
+    true
+  );
+  sidebar.addEventListener(
+    "click",
+    (e) => {
+      if (!drag.suppressClick) return;
+      e.preventDefault();
+      e.stopPropagation();
+    },
+    true
+  );
 }
 
 /* ---------- Walkthrough tour ---------- */
@@ -3653,6 +4040,8 @@ async function init() {
   bindReportDialog();
   bindSettings();
   bindUpdateWizard();
+  bindSidebarResize();
+  bindListDrag();
   loadPrefs();
   renderLayerList();
   syncZoomUi();
@@ -3667,7 +4056,7 @@ async function init() {
   }
   const hidden = new Set(hiddenSampleIds());
   const restoredUploads = state.maps.filter((m) => String(m.sourceId || "").startsWith("upload:")).map((m) => ({ id: m.sourceId, kind: "upload", name: m.name, summary: "Your capture", graph: m.graph }));
-  state.surveys = [...restoredUploads, ...state.catalog.filter((s) => !hidden.has(s.id)).map(sampleToSurvey)];
+  state.surveys = sortSurveys([...restoredUploads.filter((s) => !hidden.has(s.id)), ...state.catalog.filter((s) => !hidden.has(s.id)).map(sampleToSurvey)]);
   await openStartingMap();
   const updated = noteVersionChange();
   // The app window is Chromium (WebView2) or a Chromium app-mode window: no prompt there.
