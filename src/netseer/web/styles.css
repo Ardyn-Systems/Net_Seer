@@ -1339,3 +1339,104 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 @media (max-width: 760px) { .tl-count { display: none; } }
 
 .layout-select { width: 100%; }
+
+/* ---------- Easter egg: Matrix theme and the logo terminal ---------- */
+
+[data-theme="matrix"] {
+  color-scheme: dark;
+  --bg: #000000;
+  --panel: #020a04;
+  --raised: #06140a;
+  --hover: #0b2112;
+  --line: #0f2e18;
+  --line-strong: #1b4a28;
+  --text: #b8ffcc;
+  --muted: #4fd17a;
+  --faint: #2f8a4c;
+  --accent: #00ff41;
+  --accent-hover: #5cff85;
+  --on-accent: #001a07;
+  --accent-soft: rgba(0, 255, 65, 0.12);
+  --danger: #ff5f56;
+  --danger-soft: rgba(255, 95, 86, 0.14);
+  --canvas: #000000;
+  --canvas-image: none;
+  --canvas-size: auto;
+  --node-fill: rgba(0, 20, 6, 0.88);
+  --node-text: #c8ffd6;
+  --edge-text: #7dffa0;
+  --node-host: #00ff41;
+  --node-server: #7dffb0;
+  --node-gateway: #c8ff00;
+  --node-ap: #00e5a0;
+  --node-wireless: #9dff6a;
+  --node-subnet: #2f8a4c;
+  --node-vlan: #4fffd2;
+  --group-fill: #0b3a18;
+  --edge-l2: #00c43a;
+  --edge-l3: #8aff8a;
+  --edge-service: #4fffd2;
+  --edge-wireless: #00e5a0;
+  --edge-vlan: #4fffd2;
+  --edge-subnet: #1f6b36;
+  --edge-bridge: #c8ff00;
+  --edge-manual: #eaff70;
+  --select: #ffffff;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+}
+[data-theme="matrix"] body { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+[data-theme="matrix"] .map { background: transparent; }
+.matrix-rain { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+.egg-term {
+  position: fixed;
+  top: 18%;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(720px, calc(100vw - 32px));
+  height: min(440px, calc(100vh - 120px));
+  display: flex;
+  flex-direction: column;
+  background: #1e1e1e;
+  color: #e6e6e6;
+  border: 1px solid #3c3c3c;
+  border-radius: 8px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Ubuntu Mono", ui-monospace, monospace;
+  font-size: 13px;
+}
+.egg-term[hidden] { display: none; }
+.egg-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.4rem 0.35rem 0.75rem;
+  background: #2d2d2d;
+  color: #d8d8d8;
+  font: 12.5px system-ui, sans-serif;
+  cursor: move;
+  user-select: none;
+  touch-action: none;
+}
+.egg-bar span { flex: 1; text-align: center; }
+.egg-close { background: none; border: 0; color: inherit; font-size: 16px; line-height: 1; padding: 0.2rem 0.5rem; border-radius: 4px; cursor: pointer; }
+.egg-close:hover { background: #e81123; color: #fff; }
+.egg-term.ps { background: #012456; border-color: #1b3f73; color: #eeedf0; }
+.egg-term.ps .egg-bar { background: #f0f0f0; color: #111; flex-direction: row; }
+.egg-term.ps .egg-bar span { text-align: left; }
+.egg-term:not(.ps) .egg-bar { flex-direction: row-reverse; }
+.egg-term:not(.ps) { background: #300a24; border-color: #4a1a3a; }
+.egg-term:not(.ps) .egg-close:hover { background: #e95420; }
+.egg-body { flex: 1; overflow: auto; padding: 0.6rem 0.75rem; cursor: text; }
+.egg-out > div { white-space: pre-wrap; word-break: break-word; line-height: 1.35; }
+.egg-out > .egg-art { white-space: pre; line-height: 1.2; margin: 0.3rem 0; color: #7ee787; overflow-x: auto; }
+.egg-term.ps .egg-art { color: #ffffff; }
+.egg-out > .egg-error { color: #ff6b6b; }
+.egg-term.ps .egg-out > .egg-error { color: #ff8a80; background: none; }
+.egg-out > .egg-ok { color: #00ff41; font-weight: 700; }
+.egg-line { display: flex; white-space: pre; }
+.egg-term:not(.ps) .egg-line span { color: #8ae234; font-weight: 700; }
+.egg-line input { flex: 1; min-width: 0; background: transparent; border: 0; outline: 0; color: inherit; font: inherit; padding: 0; caret-color: currentColor; }
+.egg-line input:focus, .egg-line input:focus-visible { outline: 0; box-shadow: none; border: 0; }

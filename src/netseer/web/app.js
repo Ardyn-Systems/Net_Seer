@@ -146,9 +146,12 @@ async function copyText(text, label = "Copied") {
 
 /* ---------- Theme ---------- */
 
+// The Matrix theme is listed once someone has found it (see the logo terminal).
+const themeList = () => (matrixUnlocked() || currentTheme() === "matrix" ? [...THEMES, MATRIX_THEME] : THEMES);
+
 function currentTheme() {
   const id = document.documentElement.dataset.theme;
-  return THEMES.some((t) => t.id === id) ? id : "terrain";
+  return THEMES.some((t) => t.id === id) || id === "matrix" ? id : "terrain";
 }
 
 function themeColors() {
@@ -182,10 +185,11 @@ function themeColors() {
 }
 
 function applyTheme(id) {
-  const theme = THEMES.find((t) => t.id === id) || THEMES[0];
+  const theme = [...THEMES, MATRIX_THEME].find((t) => t.id === id) || THEMES[0];
   document.documentElement.dataset.theme = theme.id;
   writeLocal(THEME_KEY, theme.id);
   if (state.cy) state.cy.style(cyStyle(themeColors()));
+  syncMatrixRain();
 }
 
 function openThemeMenu(anchor) {
@@ -194,7 +198,7 @@ function openThemeMenu(anchor) {
     anchor,
     [
       { heading: "Theme" },
-      ...THEMES.map((t) => ({
+      ...themeList().map((t) => ({
         theme: t,
         checked: t.id === active,
         onSelect: () => {
@@ -4538,7 +4542,7 @@ function renderThemeGrid() {
   const grid = el("settings-themes");
   const active = currentTheme();
   grid.innerHTML = "";
-  for (const t of THEMES) {
+  for (const t of themeList()) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "chip-btn";
@@ -5757,6 +5761,225 @@ function startHeartbeat() {
   window.addEventListener("pagehide", () => navigator.sendBeacon?.("/api/heartbeat?bye=true"));
 }
 
+/* ---------- Easter egg: the logo terminal ---------- */
+
+// Not a real shell: a pretend PowerShell (Windows) or terminal (everything else) that knows a
+// few NetSeer-only commands. Opened by clicking the logo five times in quick succession.
+const MATRIX_THEME = { id: "matrix", name: "Matrix", note: "You found it", swatch: ["#000000", "#00ff41", "#7dffb0", "#c8ff00"] };
+const MATRIX_KEY = "netseer.matrix";
+const ARDYN_ART = String.raw`   ███╗     ██████╗  ██████╗  ██╗   ██╗ ███╗   ██╗
+  █████╗    ██╔══██╗ ██╔══██╗ ╚██╗ ██╔╝ ████╗  ██║
+  ██╔██╗    ██████╔╝ ██║  ██║  ╚████╔╝  ██╔██╗ ██║
+ ██╔╝╚██╗   ██╔══██╗ ██║  ██║   ╚██╔╝   ██║╚██╗██║
+██╔╝  ╚██╗  ██║  ██║ ██████╔╝    ██║    ██║ ╚████║
+╚═╝    ╚═╝  ╚═╝  ╚═╝ ╚═════╝     ╚═╝    ╚═╝  ╚═══╝
+
+S       Y       S       T       E       M       S
+
+         Tools for those who look closer.`;
+
+const egg = { clicks: [], history: [], at: 0, before: null, rain: null };
+const eggWindows = () => /windows/i.test(navigator.userAgent);
+const matrixUnlocked = () => readLocal(MATRIX_KEY, false) === true;
+
+function onLogoClick() {
+  const now = Date.now();
+  egg.clicks = egg.clicks.filter((t) => now - t < 2500).concat(now);
+  if (egg.clicks.length >= 5) {
+    egg.clicks = [];
+    openEggTerminal();
+  }
+}
+
+function eggPrompt() {
+  return eggWindows() ? "PS C:\\Users\\netseer> " : "netseer@netseer:~$ ";
+}
+
+function openEggTerminal() {
+  const term = el("egg-term");
+  const win = eggWindows();
+  term.classList.toggle("ps", win);
+  el("egg-title").textContent = win ? "Windows PowerShell" : "netseer@netseer: ~";
+  el("egg-prompt").textContent = eggPrompt();
+  if (term.hidden) {
+    el("egg-out").textContent = "";
+    eggPrint(
+      win
+        ? "Windows PowerShell\nCopyright (C) NetSeer. No rights reserved, some secrets kept.\n\nType 'help' to see what this shell knows.\n"
+        : "NetSeer GNU/Terrain (tty1)\n\nType 'help' to see what this shell knows.\n"
+    );
+  }
+  term.hidden = false;
+  el("egg-input").focus();
+}
+
+function closeEggTerminal() {
+  el("egg-term").hidden = true;
+}
+
+function eggPrint(text, cls) {
+  const line = document.createElement("div");
+  if (cls) line.className = cls;
+  line.textContent = text;
+  el("egg-out").appendChild(line);
+  el("egg-body").scrollTop = el("egg-body").scrollHeight;
+}
+
+function runEggCommand(raw) {
+  const cmd = raw.trim();
+  eggPrint(eggPrompt() + raw);
+  if (!cmd) return;
+  egg.history.push(cmd);
+  egg.at = egg.history.length;
+  const name = cmd.toLowerCase();
+  if (name === "whoami") eggPrint(ARDYN_ART, "egg-art");
+  else if (name === "hacktheworld") hackTheWorld();
+  else if (name === "unplug") unplug();
+  else if (name === "help" || name === "get-help")
+    eggPrint("whoami         who made this\nhacktheworld   see the network for what it really is\nunplug         go back to the theme you had\nclear          clear the screen\nexit           close this window");
+  else if (name === "clear" || name === "cls") el("egg-out").textContent = "";
+  else if (name === "exit") closeEggTerminal();
+  else {
+    const word = cmd.split(/\s+/)[0];
+    eggPrint(
+      eggWindows()
+        ? `${word} : The term '${word}' is not recognized as the name of a cmdlet, function, script file, or operable program.`
+        : `${word}: command not found`,
+      "egg-error"
+    );
+  }
+}
+
+function hackTheWorld() {
+  if (currentTheme() === "matrix") {
+    eggPrint("You're already in. Type 'unplug' to leave.");
+    return;
+  }
+  const lines = ["Bypassing the mainframe...", "Rerouting packets through the green rain...", "Access granted.", "Follow the falling code. Type 'unplug' to come back."];
+  egg.before = currentTheme();
+  writeLocal(MATRIX_KEY, true);
+  lines.forEach((text, i) =>
+    setTimeout(() => {
+      eggPrint(text, i === 2 ? "egg-ok" : "");
+      if (i === 2) applyTheme("matrix");
+    }, 450 * (i + 1))
+  );
+}
+
+function unplug() {
+  if (currentTheme() !== "matrix") {
+    eggPrint("Nothing to unplug from.");
+    return;
+  }
+  const back = egg.before && egg.before !== "matrix" ? egg.before : "terrain";
+  applyTheme(back);
+  eggPrint(`Back to ${THEMES.find((t) => t.id === back).name}. The Matrix stays in Themes if you want it again.`);
+}
+
+function bindEggTerminal() {
+  el("brand-logo").addEventListener("click", onLogoClick);
+  el("egg-close").addEventListener("click", closeEggTerminal);
+  el("egg-body").addEventListener("click", () => {
+    if (!window.getSelection()?.toString()) el("egg-input").focus();
+  });
+  el("egg-input").addEventListener("keydown", (e) => {
+    const input = e.currentTarget;
+    if (e.key === "Enter") {
+      runEggCommand(input.value);
+      input.value = "";
+    } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      e.preventDefault();
+      egg.at = Math.max(0, Math.min(egg.history.length, egg.at + (e.key === "ArrowUp" ? -1 : 1)));
+      input.value = egg.history[egg.at] || "";
+    } else if (e.key === "Escape") {
+      e.stopPropagation();
+      closeEggTerminal();
+    } else if (e.key === "l" && e.ctrlKey) {
+      e.preventDefault();
+      el("egg-out").textContent = "";
+    }
+  });
+  // Drag the window by its title bar.
+  const bar = el("egg-bar");
+  bar.addEventListener("pointerdown", (e) => {
+    if (e.target.closest("button")) return;
+    const term = el("egg-term");
+    const box = term.getBoundingClientRect();
+    const dx = e.clientX - box.left;
+    const dy = e.clientY - box.top;
+    bar.setPointerCapture(e.pointerId);
+    const move = (ev) => {
+      term.style.left = `${Math.max(0, Math.min(window.innerWidth - 80, ev.clientX - dx))}px`;
+      term.style.top = `${Math.max(0, Math.min(window.innerHeight - 40, ev.clientY - dy))}px`;
+      term.style.transform = "none";
+    };
+    const up = () => {
+      bar.removeEventListener("pointermove", move);
+      bar.removeEventListener("pointerup", up);
+    };
+    bar.addEventListener("pointermove", move);
+    bar.addEventListener("pointerup", up);
+  });
+}
+
+/* The green rain behind the map, drawn only while the Matrix theme is on. */
+function syncMatrixRain() {
+  const on = currentTheme() === "matrix";
+  const canvas = el("matrix-rain");
+  if (!canvas) return;
+  canvas.hidden = !on;
+  if (!on) {
+    if (egg.rain) cancelAnimationFrame(egg.rain.frame);
+    egg.rain = null;
+    return;
+  }
+  if (egg.rain) return;
+  const ctx = canvas.getContext("2d");
+  const glyphs = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワン0123456789ABCDEF";
+  const size = 16;
+  const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const rain = (egg.rain = { frame: 0, drops: [], last: 0, w: 0, h: 0 });
+  const fit = () => {
+    const dpr = window.devicePixelRatio || 1;
+    rain.w = canvas.clientWidth;
+    rain.h = canvas.clientHeight;
+    canvas.width = Math.max(1, rain.w * dpr);
+    canvas.height = Math.max(1, rain.h * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(0, 0, rain.w, rain.h);
+    const cols = Math.ceil(rain.w / size);
+    rain.drops = Array.from({ length: cols }, (_, i) => rain.drops[i] ?? Math.random() * -rain.h / size);
+  };
+  const draw = () => {
+    ctx.fillStyle = "rgba(0, 0, 0, 0.08)";
+    ctx.fillRect(0, 0, rain.w, rain.h);
+    ctx.font = `${size - 2}px ui-monospace, Consolas, monospace`;
+    rain.drops.forEach((y, i) => {
+      const ch = glyphs[(Math.random() * glyphs.length) | 0];
+      ctx.fillStyle = Math.random() < 0.06 ? "#d6ffe0" : "#00c43a";
+      ctx.fillText(ch, i * size, y * size);
+      rain.drops[i] = y * size > rain.h && Math.random() > 0.975 ? 0 : y + 1;
+    });
+  };
+  fit();
+  if (still) {
+    // One settled frame instead of motion.
+    for (let i = 0; i < 60; i++) draw();
+    return;
+  }
+  const tick = (t) => {
+    if (egg.rain !== rain) return;
+    if (canvas.width !== Math.round(canvas.clientWidth * (window.devicePixelRatio || 1))) fit();
+    if (!document.hidden && t - rain.last > 50) {
+      rain.last = t;
+      draw();
+    }
+    rain.frame = requestAnimationFrame(tick);
+  };
+  rain.frame = requestAnimationFrame(tick);
+}
+
 async function init() {
   startHeartbeat();
   mapResize.observe(el("map"));
@@ -5770,6 +5993,8 @@ async function init() {
   bindManualDialogs();
   bindDisconnectDialog();
   bindTimeline();
+  bindEggTerminal();
+  syncMatrixRain();
   el("loading-stop").addEventListener("click", stopReading);
   el("loading-cancel").addEventListener("click", cancelReading);
   bindListDrag();
