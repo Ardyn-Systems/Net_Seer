@@ -8,11 +8,13 @@
 
 NetSeer turns packet captures and wireless surveys into an interactive network map. Drop in a Wireshark, tcpdump, Kismet, or airodump-ng capture and it lays out the devices, subnets, VLANs, access points, and services it finds, with the evidence behind each one. Then rename, annotate, rearrange, and export the result to **draw.io**, **Visio**, or a **PDF report**.
 
-Everything runs on your machine. NetSeer reads capture files you give it; it doesn't sniff live traffic, and it makes no network requests of its own.
+**Try it now at [netseer.onrender.com](https://netseer.onrender.com)**, no install needed. Or get the desktop app for Windows or Linux.
+
+NetSeer reads capture files you give it; it doesn't sniff live traffic. The desktop app and source installs run entirely on your machine and make no network requests of their own.
 
 ## Contents
 
-- [Get NetSeer](#get-netseer) (including [online](#try-it-online))
+- [Get NetSeer](#get-netseer) (or [try it online](#try-it-online))
 - [What it reads](#what-it-reads)
 - [What you get](#what-you-get)
 - [Where your data lives](#where-your-data-lives)
@@ -31,15 +33,24 @@ Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) ·
 | Linux desktop | `NetSeer-<version>-x86_64.AppImage`, or the `.tar.gz` | Its own window (see below) |
 | Linux server, Kali, Raspberry Pi | Install from source with `uv` or `pipx` | A browser, locally or over SSH |
 | macOS | From source | A browser |
-| Anywhere, nothing to install | A public copy on Render's free plan | A browser, at your own `onrender.com` address |
+| Anywhere, nothing to install | **[netseer.onrender.com](https://netseer.onrender.com)** | Your browser |
 
 Download the Windows and Linux builds from [Releases](https://github.com/ardyn-systems/NetSeer/releases).
 
 ### Try it online
 
+**[https://netseer.onrender.com](https://netseer.onrender.com)** runs the latest NetSeer from this repo's `main` branch. It updates automatically whenever `main` changes.
+
+- **First load can be slow.** It's on a free plan, so after 15 minutes without visitors it sleeps, and the next visit takes about 50 seconds to wake it.
+- **Files are processed, not kept.** Captures you open are sent to the server only to draw the map. Your maps, names, and notes stay in your browser.
+- **Public mode limits:** captures up to 20 MB, and **Save to files and empty** downloads files to your computer instead of saving them on the server.
+- **Sensitive captures:** for captures from your own network, use the desktop app or a source install, which keep everything on your machine.
+
+### Host your own copy
+
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ardyn-systems/NetSeer)
 
-Put your own public copy of NetSeer online for free on Render. It runs in a safer public mode, and it redeploys automatically whenever `main` changes on GitHub. See [docs/hosting.md](docs/hosting.md) for sign-up, deployment, limits, and privacy.
+Put your own public copy online for free on Render, the same way the one above runs. See [docs/hosting.md](docs/hosting.md) for sign-up, deployment, limits, and privacy.
 
 ### Windows
 

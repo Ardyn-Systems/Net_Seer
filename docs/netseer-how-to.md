@@ -4,7 +4,7 @@
 
 What each part of the screen does, and how to use it. For a walkthrough with screenshots, see the [user guide](user-guide.md). For clone, install, update, and uninstall on Debian/Ubuntu, see [[netseer-install-and-use]].
 
-NetSeer is a **local** browser preview (`http://127.0.0.1:47331` by default). It is not a compiled binary. Open it with `netseer`.
+NetSeer runs as a desktop app (Windows installer, Linux AppImage), from source with `netseer` (then open `http://127.0.0.1:47331`), or online at [netseer.onrender.com](https://netseer.onrender.com). The controls are the same everywhere.
 
 Maps, names, notes, field edits, dragged positions, and the clipboard are saved in **this browser** (IndexedDB for this origin). They are not written back into the original capture. Maps saved by older versions in `localStorage` move over automatically the first time you open the new version.
 

@@ -2,7 +2,7 @@
 
 **Turn traffic into terrain.** NetSeer turns packet captures and wireless surveys into a network map you can explore, annotate, and export. This guide walks through it with screenshots from the bundled campus sample.
 
-For installing, see the [README](../README.md#get-netseer). For a terse reference of every control, see the [How to](netseer-how-to.md).
+To follow along without installing anything, open **[netseer.onrender.com](https://netseer.onrender.com)**; it starts with the same campus sample (the first visit can take about 50 seconds while the free server wakes up). For installing, see the [README](../README.md#get-netseer). For a terse reference of every control, see the [How to](netseer-how-to.md).
 
 ## Contents
 
