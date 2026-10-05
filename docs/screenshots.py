@@ -385,6 +385,22 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.evaluate("() => { const m = upsertMap({ id: 'map:blank-docs', name: 'Lab bench', kind: 'blank', graph: emptyGraph('Lab bench') }); showMap(m.id); }")
         shots.save("blank-map", full=True)
 
+        # Compare surveys: the bundled branch office, a week apart.
+        page.click(".tab[data-tab=maps]")
+        page.click("#btn-compare")
+        page.wait_for_selector("#compare-dialog[open]")
+        page.select_option('.compare-row[data-role="baseline"] .compare-source', "s|branch-baseline")
+        page.wait_for_function("() => document.querySelector('.compare-row[data-role=baseline]')._src")
+        page.select_option('.compare-row[data-role="later"] .compare-source', "s|branch-later")
+        page.wait_for_function("() => document.querySelector('.compare-row[data-role=later]')._src")
+        page.wait_for_timeout(300)
+        shots.save("compare-dialog", selectors=["#compare-dialog"], pad=0)
+        page.click("#compare-ok")
+        page.wait_for_function("() => getMap(state.activeMapId)?.kind === 'compare' && state.cy")
+        page.wait_for_timeout(800)
+        page.mouse.move(5, 5)
+        shots.save("compare-map", full=True)
+
         browser.close()
         return shots.taken
 

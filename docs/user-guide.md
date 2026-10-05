@@ -15,15 +15,16 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 7. [Find a device](#find-a-device)
 8. [Select, copy, and move devices](#select-copy-and-move-devices)
 9. [Work with several maps](#work-with-several-maps)
-10. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
-11. [Show and hide layers](#show-and-hide-layers)
-12. [Export diagrams and files](#export-diagrams-and-files)
-13. [Create a PDF report](#create-a-pdf-report)
-14. [Change the theme](#change-the-theme)
-15. [Keyboard shortcuts](#keyboard-shortcuts)
-16. [Settings, updates, and the tour](#settings-updates-and-the-tour)
-17. [Where your work is saved](#where-your-work-is-saved)
-18. [Troubleshooting](#troubleshooting)
+10. [Compare surveys for changes](#compare-surveys-for-changes)
+11. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
+12. [Show and hide layers](#show-and-hide-layers)
+13. [Export diagrams and files](#export-diagrams-and-files)
+14. [Create a PDF report](#create-a-pdf-report)
+15. [Change the theme](#change-the-theme)
+16. [Keyboard shortcuts](#keyboard-shortcuts)
+17. [Settings, updates, and the tour](#settings-updates-and-the-tour)
+18. [Where your work is saved](#where-your-work-is-saved)
+19. [Troubleshooting](#troubleshooting)
 
 ## A tour of the screen
 
@@ -56,9 +57,10 @@ Installed copies open captures of any size, including long wardrives. A big file
 
 The **Surveys** tab lists your captures and the bundled samples. Click one to open it. Right-click a survey (or use its **⋯** button) for more:
 
-![Right-click menu on a survey: Open, Merge into, Remove from list, and Delete survey and its map](images/survey-menu.png)
+![Right-click menu on a survey: Open, Merge into, Compare with a baseline, Remove from list, and Delete survey and its map](images/survey-menu.png)
 
 - **Merge into…** copies the survey's devices into a map you pick.
+- **Compare with a baseline…** opens **Compare surveys** with this survey ready to check against an earlier one. See [Compare surveys for changes](#compare-surveys-for-changes).
 - **Remove from list** hides the survey and keeps its map under **Maps**. Click **Bring back** in the message to restore it.
 - **Delete survey and its map…** removes both after asking. **Undo** brings the map back; **Bring back** in the message restores the survey to the list.
 
@@ -113,6 +115,7 @@ When a capture records times (pcap, pcapng, and Kismet logs do), a **timeline** 
 
 - **Drag the two handles** to pick a window. Only devices and links heard during it stay on the map; the rest disappear, and nothing moves. The bar shows the window, its length, and how many devices are in it.
 - **New map from this window** makes a separate map of just that time: the devices and links heard in it (and any you added), with their activity trimmed to the window and your names, captions, and notes carried over. It's named after the window, lays out fresh, and its own timeline covers only that period. The original map is unchanged; Undo removes the new one.
+- **Compare…** checks this window against a baseline survey, or against another window of the same capture. See [Compare surveys for changes](#compare-surveys-for-changes).
 - **Show all** goes back to the whole capture. The **×** hides the timeline (and shows everything); the **clock** button by the zoom controls brings it back.
 - A device's **Details** show when it was first and last seen, and how long it was active. Links show the same.
 - **Exports follow the window:** draw.io, Visio, and the PDF report include only what's on the map, and the report notes the window.
@@ -150,9 +153,9 @@ To copy instead, choose **Copy**, open the other map, and **Paste** (the button 
 
 ## Work with several maps
 
-The **Maps** tab lists every map. Click one to switch. Right-click a map, or use its **⋯** menu, to rename it, merge it into another map, or delete it.
+The **Maps** tab lists every map. Click one to switch. Right-click a map, or use its **⋯** menu, to rename it, merge it into another map, compare it with a baseline, or delete it.
 
-![Maps tab with the campus survey's menu open: Rename, Merge into, and Delete map](images/maps-tab.png)
+![Maps tab with the campus survey's menu open: Rename, Merge into, Compare with a baseline, and Delete map](images/maps-tab.png)
 
 - **New blank map** starts an empty map to paste devices into, for example to draw just one site or one problem.
 - **Merge into…** copies all of this map's devices into another map. The original map stays as it is.
@@ -161,6 +164,34 @@ The **Maps** tab lists every map. Click one to switch. Right-click a map, or use
 - **Unwanted** is a holding area for devices you set aside. Its **Save to files and empty** option writes them to JSON files (one per original capture) and clears it. Drop one of those files back onto NetSeer to reload it.
 
 ![A blank map called "Lab bench" with a prompt to paste devices or open a survey](images/blank-map.png)
+
+## Compare surveys for changes
+
+Survey a site once as a **baseline**, survey it again later, and NetSeer shows what changed. Click **Compare surveys…** in the **Maps** tab (or **Compare with a baseline…** on a map or survey, or **Compare…** on the timeline).
+
+![Compare surveys: a baseline and a survey to compare with, each with From and To sliders for its time window](images/compare-dialog.png)
+
+1. **Baseline:** pick the earlier survey or map. Surveys you haven't opened yet are listed too.
+2. **Compare with:** pick the later survey. **Add another survey** compares more than one against the same baseline; each gets its own map.
+3. **Time windows:** drag **From** and **To** to compare only part of a capture, such as the first hour of one walk against the last hour of another. Two windows of the same capture work too. **Whole capture** resets them.
+4. Click **Compare**. A new **Comparison** map opens, and **Layers** shows what changed.
+
+![A comparison map: a client that left its Wi-Fi network ringed in red, a new client ringed in green, a laptop that moved networks and a possible rogue access point ringed in blue, and the unchanged devices faded](images/compare-map.png)
+
+| Colour | Meaning |
+| --- | --- |
+| **Red** | Left a Wi-Fi network, access point, subnet, or VLAN it was on, or is no longer seen at all (dashed) |
+| **Green** | Joined a network it wasn't on, or is new since the baseline |
+| **Blue** | Something else changed: moved from one network to another, roamed to another access point, a randomized MAC that rotated, a new access point using a known network's name (a possible rogue), an access point's name, security, or channel, an address, a type, or its services |
+| Faded | Nothing NetSeer can see changed |
+
+Each changed device also says what happened under its name (**+ Joined Branch-Staff**, **− No longer seen**, **Δ MAC changed**), so the map reads without the colours too. Links that are gone are red and dashed; new links are green. Click a device to see every change in **Details**.
+
+- **Randomized MACs:** phones change their MAC address. When one random MAC disappears and another appears that probes the same networks, uses the same access point, or has the same address, NetSeer treats them as one device and says why.
+- **Show unchanged devices** in **Layers** hides the faded ones, leaving only what changed.
+- Your names, captions, and notes come along from the surveys you compared. Undo removes the new maps.
+
+To try it, compare the bundled **Branch Wi-Fi: baseline** with **Branch Wi-Fi: a week later**.
 
 ## Add what the capture didn't show
 

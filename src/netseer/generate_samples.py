@@ -27,6 +27,7 @@ from scapy.layers.dot11 import (  # type: ignore[import-untyped]
     Dot11AssoReq,
     Dot11Beacon,
     Dot11Elt,
+    Dot11ProbeReq,
 )
 from scapy.utils import PcapNgWriter, mac2str  # type: ignore[import-untyped]
 
@@ -206,6 +207,72 @@ def wifi_packets() -> list:
     return pkts
 
 
+# A branch office surveyed twice, a week apart, for comparing captures.
+BR_STAFF = "00:3a:9a:b0:00:01"
+BR_GUEST = "00:3a:9a:b0:00:02"
+BR_CAMS = "00:3a:9a:b0:00:03"
+BR_ROGUE = "02:0c:29:66:6e:01"  # a soft AP broadcasting the staff network's name
+BR_LAPTOP = "f0:18:98:60:00:01"
+BR_PHONE = "a4:c3:f0:60:00:02"
+BR_CAM_DOOR = "00:40:8c:60:00:03"
+BR_CAM_YARD = "00:40:8c:60:00:04"
+BR_PRINTER = "00:17:c8:60:00:05"
+BR_TABLET = "dc:a9:04:60:00:06"
+BR_RANDOM_A = "da:a1:19:3c:5e:71"  # a phone's randomized MAC...
+BR_RANDOM_B = "6e:4f:02:9b:d3:28"  # ...and the one it rotated to
+
+
+def _assoc(sta: str, ap: str, ssid: str, freq: int, signal: int) -> RadioTap:
+    return (
+        RadioTap(dBm_AntSignal=signal, ChannelFrequency=freq)
+        / Dot11(type=0, subtype=0, addr1=ap, addr2=sta, addr3=ap)
+        / Dot11AssoReq()
+        / Dot11Elt(ID="SSID", info=ssid.encode())
+    )
+
+
+def _probe(sta: str, ssid: str, freq: int, signal: int) -> RadioTap:
+    return (
+        RadioTap(dBm_AntSignal=signal, ChannelFrequency=freq)
+        / Dot11(type=0, subtype=4, addr1="ff:ff:ff:ff:ff:ff", addr2=sta, addr3="ff:ff:ff:ff:ff:ff")
+        / Dot11ProbeReq()
+        / Dot11Elt(ID="SSID", info=ssid.encode())
+    )
+
+
+def branch_baseline_packets() -> list:
+    return [
+        _beacon(BR_STAFF, "Branch-Staff", 36, 5180, -41, RSN_8021X),
+        _beacon(BR_GUEST, "Branch-Guest", 6, 2437, -52, RSN_PSK),
+        _beacon(BR_CAMS, "Branch-Cams", 11, 2462, -63, RSN_PSK),
+        _assoc(BR_LAPTOP, BR_STAFF, "Branch-Staff", 5180, -47),
+        _assoc(BR_PRINTER, BR_STAFF, "Branch-Staff", 5180, -58),
+        _assoc(BR_PHONE, BR_GUEST, "Branch-Guest", 2437, -55),
+        _assoc(BR_CAM_DOOR, BR_CAMS, "Branch-Cams", 2462, -66),
+        _assoc(BR_CAM_YARD, BR_CAMS, "Branch-Cams", 2462, -71),
+        _probe(BR_RANDOM_A, "Pixel-7-Hotspot", 2437, -60),
+        _assoc(BR_RANDOM_A, BR_GUEST, "Branch-Guest", 2437, -59),
+    ]
+
+
+def branch_later_packets() -> list:
+    """The same branch a week later: something of every kind has changed."""
+    return [
+        _beacon(BR_STAFF, "Branch-Staff", 36, 5180, -42, RSN_8021X),
+        _beacon(BR_GUEST, "Branch-Guest", 6, 2437, -50, RSN_PSK),
+        _beacon(BR_CAMS, "Branch-Cams", 11, 2462, -64, RSN_PSK),
+        _beacon(BR_ROGUE, "Branch-Staff", 1, 2412, -49, None),  # open, same name: rogue
+        _assoc(BR_LAPTOP, BR_GUEST, "Branch-Guest", 2437, -48),  # moved staff -> guest
+        _assoc(BR_PHONE, BR_GUEST, "Branch-Guest", 2437, -54),  # unchanged
+        _assoc(BR_CAM_DOOR, BR_CAMS, "Branch-Cams", 2462, -65),  # unchanged
+        _probe(BR_CAM_YARD, "Branch-Cams", 2462, -74),  # still here, no longer joined
+        _assoc(BR_TABLET, BR_STAFF, "Branch-Staff", 5180, -45),  # new
+        _probe(BR_RANDOM_B, "Pixel-7-Hotspot", 2437, -61),  # the phone, new random MAC
+        _assoc(BR_RANDOM_B, BR_GUEST, "Branch-Guest", 2437, -58),
+        # The printer isn't heard at all.
+    ]
+
+
 def kismet_netxml() -> str:
     return """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE detection-run SYSTEM "http://kismetwireless.net/kismet-3.1.0.dtd">
@@ -342,6 +409,13 @@ def write_all(dest: Path | None = None) -> Path:
     with PcapNgWriter(str(wifi)) as writer:
         for pkt in _timed(wifi_packets(), offset=45.0):
             writer.write(pkt)
+    for name, pkts, offset in (
+        ("branch-baseline.pcapng", branch_baseline_packets(), 0.0),
+        ("branch-later.pcapng", branch_later_packets(), 7 * 24 * 3600.0),  # a week later
+    ):
+        with PcapNgWriter(str(dest / name)) as writer:
+            for pkt in _timed(pkts, offset=offset):
+                writer.write(pkt)
     (dest / "kismet-walk.netxml").write_text(kismet_netxml(), encoding="utf-8")
     (dest / "kismet-aps.csv").write_text(kismet_csv(), encoding="utf-8")
     (dest / "airodump-ng.csv").write_text(airodump_csv(), encoding="utf-8")

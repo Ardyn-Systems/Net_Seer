@@ -60,7 +60,7 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 - **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS).
 - Each capture becomes its own map and joins the **Surveys** tab.
-- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
+- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Compare with a baseline…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. **Restore bundled samples** brings hidden samples back.
 - First visit: the bundled campus survey opens automatically. An empty map shows a welcome card with **Open survey** and **Try the campus sample**.
 - Problems (unsupported file, empty capture, decode warnings) show up as a message at the top of the window.
 - **Size:** installed copies open captures of any size, streaming them from disk. A big file shows progress (percent read, packets, devices); **Stop and show map** draws what's been read, **Cancel** discards it. The online copy takes up to 20 MB per file.
@@ -73,10 +73,12 @@ The **Maps** tab lists every map. Click a row to switch. Right-click a row, or u
 
 | Map | Menu |
 | --- | --- |
-| Survey and blank maps | **Rename…**, **Merge into…**, **Delete map…** |
+| Survey and blank maps | **Rename…**, **Merge into…**, **Compare with a baseline…**, **Delete map…** |
+| Comparison maps | **Rename…**, **Merge into…**, **Delete map…** |
 | Unwanted | **Rename…**, **Save to files and empty…** |
 
 - **New blank map** asks for a name and starts an empty canvas.
+- **Compare surveys…** maps what changed between a baseline and later surveys (see [Compare surveys](#compare-surveys)).
 - **Merge into…** copies this map's devices, links, names, and notes into the map you pick. Clashing IDs get a suffix (`~2`). This map stays as it is.
 - **Delete map…** asks first, and you can undo it right after.
 - Unwanted always sits at the bottom of the list and can't be deleted or merged.
@@ -94,6 +96,32 @@ The **Maps** tab lists every map. Click a row to switch. Right-click a row, or u
 Esc cancels a drag. The list scrolls by itself when you drag near its top or bottom.
 
 ---
+
+## Compare surveys
+
+**Maps** → **Compare surveys…** (or **Compare with a baseline…** on a map or survey, or **Compare…** on the timeline).
+
+| Field | What it does |
+| --- | --- |
+| **Baseline** | The earlier survey or map. Unopened surveys are listed too |
+| **Compare with** | A later survey. **Add another survey** for up to five; each gets its own map |
+| **From** / **To** | Compare only part of a capture's timeline; **Whole capture** resets. Two windows of one capture work |
+
+The result is a **Comparison** map of every device from both, with a ring and a line under the name:
+
+| Ring | Line | Means |
+| --- | --- | --- |
+| Red | − Left … | Still here, but no longer on a Wi-Fi network, access point, subnet, or VLAN it was on |
+| Red, dashed | − No longer seen | In the baseline only |
+| Green | + Joined … / + New device | Now on a network it wasn't on / in the later survey only |
+| Blue | Δ … | Moved networks, roamed, randomized MAC rotated, possible rogue access point (a new BSSID using a known SSID), access point name, security, or channel changed, address, type, or services changed |
+| none (faded) | | No change |
+
+- Gone links are red and dashed; new links are green. **Details** lists every change.
+- A vanished random MAC and a new one are paired as one device when they probe the same networks, use the same access point, or share an address.
+- **Layers** → **Changes** shows the counts and **Show unchanged devices** (off leaves only changes).
+- Names, captions, and notes carry over. Undo removes the comparison maps.
+- Try it with the bundled **Branch Wi-Fi: baseline** and **Branch Wi-Fi: a week later**.
 
 ## Unwanted (holding area)
 
@@ -145,6 +173,7 @@ Shown under the map when a capture records times (pcap, pcapng, Kismet logs).
 | Chart | How many devices were active in each slice of the capture |
 | Two handles | Pick a window: only devices and links heard during it stay on the map; nothing moves |
 | **New map from this window** | A separate map of just that time: devices and links heard in it (plus ones you added), activity trimmed to the window, names and notes carried over, fresh layout. Undoable; the original is unchanged |
+| **Compare…** | Compare this window with a baseline survey or another window (see [Compare surveys](#compare-surveys)) |
 | **Show all** / **×** | Whole capture again / hide the timeline (the clock button by the zoom controls reopens it) |
 
 - Sightings within a minute of each other are one stretch of activity. Details show **First seen**, **Last seen**, and **Active**.

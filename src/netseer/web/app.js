@@ -455,6 +455,7 @@ function serializeMap(map) {
     positions: map.positions || {},
     positionsMode: map.positionsMode || "subnet",
     layoutPositions: map.layoutPositions || {},
+    hideUnchanged: Boolean(map.hideUnchanged),
   };
 }
 
@@ -557,6 +558,7 @@ function normalizeMap(m) {
     positions: m.positions && typeof m.positions === "object" ? m.positions : {},
     positionsMode: typeof m.positionsMode === "string" ? m.positionsMode : "subnet",
     layoutPositions: isPlainObject(m.layoutPositions) ? m.layoutPositions : {},
+    hideUnchanged: Boolean(m.hideUnchanged),
   };
 }
 
@@ -1334,21 +1336,8 @@ function mapFromTimeWindow() {
   const src = getMap(state.activeMapId);
   if (!win || !src || !state.graph) return;
   const [a, b] = win;
-  const clip = (item) => {
-    const copy = cloneData(item);
-    if (hasSeen(copy)) copy.seen = copy.seen.map(([s, e]) => [Math.max(s, a), Math.min(e, b)]).filter(([s, e]) => s <= e);
-    return copy;
-  };
-  const devices = state.graph.nodes.filter((n) => isDeviceNode(n) && (!hasSeen(n) || seenIn(n, win)));
-  const kept = new Set(devices.map((n) => n.id));
-  const nets = state.graph.nodes.filter((n) => !isDeviceNode(n));
-  const linkOk = (l) => (!hasSeen(l) || seenIn(l, win)) && (kept.has(l.source) || kept.has(l.target));
-  // A subnet or VLAN stays if any of its devices does.
-  const keptNets = nets.filter((n) => (n.extra?.members || []).some((m) => kept.has(m)) || state.graph.links.some((l) => linkOk(l) && (l.source === n.id || l.target === n.id)));
-  keptNets.forEach((n) => kept.add(n.id));
-  const nodes = [...devices, ...keptNets].map(clip);
-  for (const n of nodes) if (Array.isArray(n.extra?.members)) n.extra.members = n.extra.members.filter((m) => kept.has(m));
-  const links = state.graph.links.filter((l) => linkOk(l) && kept.has(l.source) && kept.has(l.target)).map(clip);
+  const { nodes, links } = sliceGraph(state.graph, win);
+  const devices = nodes.filter((n) => isDeviceNode(n));
   if (!devices.length) {
     toast("Nothing was heard in this window, so there's nothing to put on a new map.", { timeout: 3500 });
     return;
@@ -1374,6 +1363,342 @@ function mapFromTimeWindow() {
   markSessionDirty();
   showMap(id);
   toast(`Made “${name}” with ${plural(devices.length, "device")} from the time window.`, { undo: true, timeout: 5000 });
+}
+
+/* ---------- Compare surveys ---------- */
+
+// A baseline survey and one or more later ones (whole, or a window of their timeline) make a
+// map of what changed: red left or disappeared, green joined or new, blue anything else.
+const CHANGE_COLORS = { gone: "#e5484d", detached: "#e5484d", new: "#30a46c", attached: "#30a46c", changed: "#3e8ef7" };
+const CHANGE_GROUPS = [
+  { key: "left", name: "Left or no longer seen", statuses: ["detached", "gone"], color: CHANGE_COLORS.gone, mark: "−" },
+  { key: "joined", name: "Joined or new", statuses: ["attached", "new"], color: CHANGE_COLORS.new, mark: "+" },
+  { key: "changed", name: "Other changes", statuses: ["changed"], color: CHANGE_COLORS.changed, mark: "Δ" },
+];
+const COMPARE_STEPS = 1000;
+const compare = { cache: new Map() };
+
+const isComparison = (map) => map?.kind === "compare";
+const vis = (node, on) => node?.classList.toggle("hidden", !on);
+const changeOf = (item) => item?.extra?.change || null;
+
+// Just what was heard in a time window: the same cut "New map from this window" makes.
+function sliceGraph(graph, win) {
+  if (!win) return graph;
+  const [a, b] = win;
+  const clip = (item) => {
+    const copy = cloneData(item);
+    if (hasSeen(copy)) copy.seen = copy.seen.map(([s, e]) => [Math.max(s, a), Math.min(e, b)]).filter(([s, e]) => s <= e);
+    return copy;
+  };
+  const devices = graph.nodes.filter((n) => isDeviceNode(n) && (!hasSeen(n) || seenIn(n, win)));
+  const kept = new Set(devices.map((n) => n.id));
+  const nets = graph.nodes.filter((n) => !isDeviceNode(n));
+  const linkOk = (l) => (!hasSeen(l) || seenIn(l, win)) && (kept.has(l.source) || kept.has(l.target));
+  // A subnet or VLAN stays if any of its devices does.
+  const keptNets = nets.filter((n) => (n.extra?.members || []).some((m) => kept.has(m)) || graph.links.some((l) => linkOk(l) && (l.source === n.id || l.target === n.id)));
+  keptNets.forEach((n) => kept.add(n.id));
+  const nodes = [...devices, ...keptNets].map(clip);
+  for (const n of nodes) if (Array.isArray(n.extra?.members)) n.extra.members = n.extra.members.filter((m) => kept.has(m));
+  const links = graph.links.filter((l) => linkOk(l) && kept.has(l.source) && kept.has(l.target)).map(clip);
+  return { ...graph, nodes, links, meta: { ...(graph.meta || {}), time_start: a, time_end: b } };
+}
+
+function graphSpan(graph) {
+  let start = Infinity;
+  let end = -Infinity;
+  for (const item of [...(graph?.nodes || []).filter(isDeviceNode), ...(graph?.links || [])]) {
+    for (const [s, e] of item.seen || []) {
+      if (s < start) start = s;
+      if (e > end) end = e;
+    }
+  }
+  return Number.isFinite(start) && end - start >= TL_MIN_SECONDS ? { start, end } : null;
+}
+
+function compareChoices() {
+  const maps = state.maps.filter((m) => m.kind !== "unwanted" && !isComparison(m) && mapNodeCount(m) > 0);
+  const opened = new Set(maps.map((m) => m.id));
+  const surveys = state.surveys.filter((s) => !opened.has(`map:${s.id}`) && s.id !== "empty-capture");
+  return [
+    ...maps.map((m) => ({ value: `m|${m.id}`, label: `${m.name} · ${plural(mapNodeCount(m), "device")}` })),
+    ...surveys.map((s) => ({ value: `s|${s.id}`, label: `${s.name} (not opened yet)` })),
+  ];
+}
+
+async function compareSource(value) {
+  if (compare.cache.has(value)) return compare.cache.get(value);
+  const [type, id] = [value.slice(0, 1), value.slice(2)];
+  let src = null;
+  if (type === "m") {
+    const map = getMap(id);
+    if (map) src = { name: map.name, graph: map.graph, mapId: map.id, window: map.timeWindow || null };
+  } else {
+    const item = state.surveys.find((s) => s.id === id);
+    if (item) {
+      const loaded = await surveySource(item);
+      src = { name: item.name, graph: loaded.graph, mapId: getMap(loaded.id) ? loaded.id : null, window: null };
+    }
+  }
+  if (src) {
+    src.span = graphSpan(src.graph);
+    compare.cache.set(value, src);
+  }
+  return src;
+}
+
+function compareRow(role, preset = {}) {
+  const row = document.createElement("fieldset");
+  row.className = "compare-row";
+  row.dataset.role = role;
+  const options = compareChoices()
+    .map((c) => `<option value="${escapeHtml(c.value)}">${escapeHtml(c.label)}</option>`)
+    .join("");
+  row.innerHTML = `
+    <legend>${role === "baseline" ? "Baseline" : "Compare with"}</legend>
+    <div class="compare-pick">
+      <select class="compare-source" aria-label="${role === "baseline" ? "Baseline survey" : "Later survey"}">
+        <option value="">Choose a survey or map…</option>${options}
+      </select>
+      ${role === "later" ? '<button type="button" class="icon-btn compare-remove" aria-label="Remove this survey" title="Remove"><svg class="icon"><use href="#i-x" /></svg></button>' : ""}
+    </div>
+    <div class="compare-time hidden">
+      <div class="compare-time-head"><span class="compare-time-label"></span><button type="button" class="link-btn compare-whole">Whole capture</button></div>
+      <label class="compare-slider"><span>From</span><input type="range" class="compare-from" min="0" max="${COMPARE_STEPS}" step="1" value="0" /></label>
+      <label class="compare-slider"><span>To</span><input type="range" class="compare-to" min="0" max="${COMPARE_STEPS}" step="1" value="${COMPARE_STEPS}" /></label>
+    </div>
+    <p class="hint compare-note hidden"></p>`;
+  const select = row.querySelector(".compare-source");
+  const from = row.querySelector(".compare-from");
+  const to = row.querySelector(".compare-to");
+  const at = (v, span) => span.start + ((span.end - span.start) * Number(v)) / COMPARE_STEPS;
+  const step = (t, span) => Math.round(((t - span.start) / (span.end - span.start)) * COMPARE_STEPS);
+  const syncLabel = () => {
+    const span = row._src?.span;
+    if (!span) return;
+    const whole = Number(from.value) <= 0 && Number(to.value) >= COMPARE_STEPS;
+    row._win = whole ? null : [at(from.value, span), at(to.value, span)];
+    const [a, b] = row._win || [span.start, span.end];
+    row.querySelector(".compare-time-label").textContent = `${whole ? "Whole capture: " : ""}${formatTime(a, { date: true })} – ${formatTime(b, { date: true })} (${formatDuration(b - a)})`;
+    row.querySelector(".compare-whole").classList.toggle("hidden", whole);
+  };
+  const load = async (win) => {
+    row._src = null;
+    row._win = null;
+    vis(row.querySelector(".compare-time"), false);
+    const note = row.querySelector(".compare-note");
+    vis(note, false);
+    if (!select.value) return;
+    try {
+      row._src = await compareSource(select.value);
+    } catch (err) {
+      fail(err);
+      return;
+    }
+    const span = row._src?.span;
+    if (!span) {
+      note.textContent = "This survey has no times, so all of it is compared.";
+      vis(note, true);
+      return;
+    }
+    const w = win === undefined ? row._src.window : win;
+    from.value = String(w ? Math.max(0, step(w[0], span)) : 0);
+    to.value = String(w ? Math.min(COMPARE_STEPS, step(w[1], span)) : COMPARE_STEPS);
+    vis(row.querySelector(".compare-time"), true);
+    syncLabel();
+  };
+  select.addEventListener("change", () => {
+    el("compare-error").classList.add("hidden");
+    load();
+  });
+  for (const [input, other, low] of [[from, to, true], [to, from, false]]) {
+    input.addEventListener("input", () => {
+      // The handles can't cross.
+      if (low ? Number(input.value) > Number(other.value) : Number(input.value) < Number(other.value)) input.value = other.value;
+      syncLabel();
+    });
+  }
+  row.querySelector(".compare-whole").addEventListener("click", () => {
+    from.value = "0";
+    to.value = String(COMPARE_STEPS);
+    syncLabel();
+  });
+  row.querySelector(".compare-remove")?.addEventListener("click", () => {
+    row.remove();
+    syncCompareRows();
+  });
+  if (preset.value && [...select.options].some((o) => o.value === preset.value)) {
+    select.value = preset.value;
+    load(preset.window);
+  }
+  return row;
+}
+
+function syncCompareRows() {
+  const laters = el("compare-rows").querySelectorAll('.compare-row[data-role="later"]');
+  laters.forEach((r) => vis(r.querySelector(".compare-remove"), laters.length > 1));
+  el("compare-add").disabled = laters.length >= 5;
+}
+
+function openCompareDialog({ later = null } = {}) {
+  if (compareChoices().length < 1) {
+    toast("Open a survey first, then compare it with another.", { timeout: 3000 });
+    return;
+  }
+  compare.cache.clear();
+  const rows = el("compare-rows");
+  rows.innerHTML = "";
+  rows.appendChild(compareRow("baseline"));
+  rows.appendChild(compareRow("later", later || {}));
+  el("compare-error").classList.add("hidden");
+  syncCompareRows();
+  el("compare-dialog").showModal();
+  rows.querySelector(".compare-source").focus();
+}
+
+function compareSourceFor(kind, id) {
+  return kind === "map" ? { value: `m|${id}`, window: getMap(id)?.timeWindow || null } : getMap(`map:${id}`) && mapNodeCount(getMap(`map:${id}`)) ? { value: `m|map:${id}` } : { value: `s|${id}` };
+}
+
+function windowLabel(src, win) {
+  return win ? `${src.name} (${formatTime(win[0])}–${formatTime(win[1])})` : src.name;
+}
+
+async function runCompare() {
+  const rows = [...el("compare-rows").querySelectorAll(".compare-row")];
+  const [base, ...laters] = rows;
+  const error = (msg) => {
+    el("compare-error").textContent = msg;
+    el("compare-error").classList.remove("hidden");
+  };
+  if (!base._src) return error("Choose a baseline.");
+  const picked = laters.filter((r) => r._src);
+  if (!picked.length) return error("Choose a survey to compare with the baseline.");
+  const same = picked.find((r) => r.querySelector(".compare-source").value === base.querySelector(".compare-source").value && JSON.stringify(r._win) === JSON.stringify(base._win));
+  if (same) return error("That's the baseline itself. Pick another survey, or a different time window.");
+  el("compare-dialog").close();
+  const baseGraph = sliceGraph(base._src.graph, base._win);
+  const baseName = windowLabel(base._src, base._win);
+  const made = [];
+  setBusy(true, "Comparing…");
+  try {
+    for (const row of picked) {
+      const laterName = windowLabel(row._src, row._win);
+      const result = await parseResponse(
+        await fetch("/api/compare", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ baseline: baseGraph, later: sliceGraph(row._src.graph, row._win), baseline_name: baseName, later_name: laterName }),
+        })
+      );
+      made.push({ result, name: `Changes: ${baseName} → ${laterName}`, baseMap: base._src.mapId, laterMap: row._src.mapId });
+    }
+  } catch (err) {
+    setBusy(false);
+    fail(err);
+    return;
+  }
+  setBusy(false);
+  const stamp = Date.now().toString(36);
+  const ids = made.map((_, i) => `map:compare-${stamp}-${i}`);
+  snapshotUndo("compare surveys", ids);
+  made.forEach(({ result, name, baseMap, laterMap }, i) => {
+    upsertMap({ id: ids[i], name, kind: "compare", sourceId: null, captures: [], graph: { ...result, title: name } });
+    // Names, captions, and notes you gave devices come along: from the later survey, or the
+    // baseline for devices only it has.
+    for (const n of result.nodes) {
+      const prev = changeOf(n)?.previous_id;
+      const has = (m) => m && Object.keys(m).length > 0;
+      const later = laterMap ? getDeviceMeta(n.id, laterMap) : null;
+      const meta = has(later) ? later : baseMap ? getDeviceMeta(prev || n.id, baseMap) : null;
+      if (has(meta)) metaCache[metaKey(ids[i], n.id)] = cloneData(meta);
+    }
+  });
+  markMetaDirty();
+  markSessionDirty();
+  showMap(ids[0]);
+  setTab("layers");
+  const counts = made[0].result.meta.comparison.devices;
+  const total = counts.gone + counts.detached + counts.new + counts.attached + counts.changed;
+  toast(
+    made.length > 1
+      ? `Made ${made.length} comparison maps. Showing the first: ${plural(total, "change")}.`
+      : total
+        ? `Found ${plural(total, "change")}: ${counts.gone + counts.detached} left, ${counts.new + counts.attached} joined, ${counts.changed} other.`
+        : "No changes found: every device is where it was.",
+    { undo: true, timeout: 6000 }
+  );
+}
+
+function bindCompareDialog() {
+  const dialog = el("compare-dialog");
+  el("compare-cancel").addEventListener("click", () => dialog.close());
+  el("compare-add").addEventListener("click", () => {
+    el("compare-rows").appendChild(compareRow("later"));
+    syncCompareRows();
+  });
+  el("compare-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    runCompare();
+  });
+  el("btn-compare").addEventListener("click", () => openCompareDialog());
+  el("tl-compare").addEventListener("click", () => {
+    const map = getMap(state.activeMapId);
+    if (map) openCompareDialog({ later: { value: `m|${map.id}`, window: map.timeWindow || null } });
+  });
+  el("change-unchanged").addEventListener("change", (e) => {
+    const map = getMap(state.activeMapId);
+    if (!map) return;
+    map.hideUnchanged = !e.target.checked;
+    markMapDirty(map.id);
+    renderMap({ fit: true });
+  });
+}
+
+// The short line under a changed device's name, so the map reads without the colours too.
+function changeTag(change) {
+  if (!change || change.status === "same") return "";
+  const reasons = (change.reasons || []).filter((r) => !/^New since|^Not seen in|^Same device as/.test(r));
+  const first = String(reasons[0] || "").replace(/Wi-Fi /g, "");
+  const short = (text) => (text.length > 30 ? `${text.slice(0, 29)}…` : text);
+  if (change.status === "gone") return "− No longer seen";
+  if (change.status === "new") return "+ New device";
+  if (change.status === "attached") return `+ ${short(first || "Joined")}`;
+  if (change.status === "detached") return `− ${short(first || "Left")}`;
+  if (/^MAC changed/.test(first)) return "Δ MAC changed";
+  if (/^Possible rogue/.test(first)) return "Δ Possible rogue AP";
+  if (/^Moved from .+ to /.test(first)) return `Δ ${short(`Moved to ${first.split(" to ").pop()}`)}`;
+  if (/^Roamed/.test(first)) return "Δ Roamed";
+  return `Δ ${short(first.includes(" from ") ? first.split(" from ")[0] : first.split(":")[0])}`;
+}
+
+function changeSection(item, { link = false } = {}) {
+  const change = changeOf(item);
+  if (!change || !isComparison(getMap(state.activeMapId))) return "";
+  if (link) {
+    const text = { removed: "Gone since the baseline", added: "New since the baseline", same: "In both surveys" }[change.status] || "";
+    return text ? `<div class="insp-section"><h3>Changes</h3><p class="change-line" style="--c: ${change.status === "removed" ? CHANGE_COLORS.gone : change.status === "added" ? CHANGE_COLORS.new : "var(--muted)"}">${escapeHtml(text)}</p></div>` : "";
+  }
+  const group = CHANGE_GROUPS.find((g) => g.statuses.includes(change.status));
+  const reasons = change.reasons?.length ? change.reasons : ["Nothing NetSeer can see changed."];
+  return `<div class="insp-section"><h3>Changes</h3><ul class="change-list" style="--c: ${group ? group.color : "var(--muted)"}">${reasons.map((r) => `<li>${escapeHtml(r)}</li>`).join("")}</ul></div>`;
+}
+
+function renderChangeLegend() {
+  const map = getMap(state.activeMapId);
+  const box = el("change-legend");
+  vis(box, isComparison(map));
+  if (!isComparison(map)) return;
+  const comp = map.graph?.meta?.comparison || {};
+  const counts = comp.devices || {};
+  el("change-from").textContent = `${comp.baseline || "Baseline"} → ${comp.later || "later survey"}`;
+  el("change-counts").innerHTML = [
+    ...CHANGE_GROUPS.map((g) => `<li><i class="change-swatch" style="--c: ${g.color}"></i><span>${escapeHtml(g.name)}</span><b>${g.statuses.reduce((s, k) => s + (counts[k] || 0), 0).toLocaleString()}</b></li>`),
+    `<li><i class="change-swatch same"></i><span>Unchanged</span><b>${(counts.same || 0).toLocaleString()}</b></li>`,
+    `<li><i class="change-line-sample removed"></i><span>Link gone</span><b>${(comp.links?.removed || 0).toLocaleString()}</b></li>`,
+    `<li><i class="change-line-sample added"></i><span>Link new</span><b>${(comp.links?.added || 0).toLocaleString()}</b></li>`,
+  ].join("");
+  el("change-unchanged").checked = !map.hideUnchanged;
 }
 
 function bindTimeline() {
@@ -2233,6 +2558,16 @@ function cyStyle(c) {
     { selector: "edge:selected", style: { width: 3, "line-color": c.select, "target-arrow-color": c.select, "source-arrow-color": c.select, opacity: 1 } },
     { selector: ".faded", style: { opacity: 0.16 } },
     { selector: ".time-out", style: { display: "none" } },
+    // Comparison maps: a coloured ring outside the device's own border, so its type still shows.
+    ...["gone", "detached", "new", "attached", "changed"].map((status) => ({
+      selector: `node[change = "${status}"]`,
+      style: { "outline-width": 4, "outline-offset": 3, "outline-color": CHANGE_COLORS[status], "outline-opacity": 0.95, "font-weight": 700 },
+    })),
+    { selector: 'node[change = "gone"]', style: { "border-style": "dashed", "background-opacity": 0.5 } },
+    { selector: 'node[change = "same"]', style: { opacity: 0.45 } },
+    { selector: 'edge[change = "same"]', style: { opacity: 0.45 } },
+    { selector: 'edge[change = "removed"]', style: { "line-color": CHANGE_COLORS.gone, "target-arrow-color": CHANGE_COLORS.gone, "line-style": "dashed", width: 3, opacity: 0.95 } },
+    { selector: 'edge[change = "added"]', style: { "line-color": CHANGE_COLORS.new, "target-arrow-color": CHANGE_COLORS.new, width: 3, opacity: 0.95 } },
     { selector: 'node[role = "group"]', style: { "font-size": 20, "text-margin-y": -10, "text-max-width": 300, color: c.nodeText } },
     {
       selector: 'node[role = "ring"]',
@@ -2270,6 +2605,8 @@ function cyStyle(c) {
 }
 
 function toElements(graph) {
+  const comparing = isComparison(getMap(state.activeMapId));
+  if (comparing && getMap(state.activeMapId).hideUnchanged) graph = { ...graph, nodes: graph.nodes.filter((n) => changeOf(n)?.status !== "same") };
   usePositionsFor(getMap(state.activeMapId), layoutMode());
   const { positions, parents, groups = [], annotations = [] } = arrangeLayout(graph, layoutMode());
   const saved = getMap(state.activeMapId)?.positions || {};
@@ -2282,13 +2619,18 @@ function toElements(graph) {
   const nodes = graph.nodes.map((raw) => {
     const n = overlayNode(raw);
     const data = { id: n.id, label: nodeLabel(raw), kind: n.kind, role: nodeRole(n) };
+    if (comparing && changeOf(raw)) {
+      data.change = changeOf(raw).status;
+      const tag = changeTag(changeOf(raw));
+      if (tag) data.label = `${data.label}\n${tag}`;
+    }
     if (parents.has(n.id)) data.parent = parents.get(n.id);
     return { data, position: { ...(saved[n.id] || positions.get(n.id) || { x: 0, y: 0 }) } };
   });
   const edges = graph.links
     .filter(linkIsShown)
     .filter((l) => nodeIds.has(l.source) && nodeIds.has(l.target))
-    .map((l) => ({ data: { id: l.id, source: l.source, target: l.target, label: edgeLabel(l), kind: l.kind, manual: isManualLink(l) ? 1 : 0 } }));
+    .map((l) => ({ data: { id: l.id, source: l.source, target: l.target, label: edgeLabel(l), kind: l.kind, manual: isManualLink(l) ? 1 : 0, ...(comparing && changeOf(l) ? { change: changeOf(l).status } : {}) } }));
   return extras.concat(nodes, edges);
 }
 
@@ -2301,6 +2643,7 @@ function renderMap({ fit = true } = {}) {
   // The timeline (when this map has times) takes the bottom of the stage; settle it before
   // the map measures itself and fits.
   renderTimeline();
+  renderChangeLegend();
   if (!state.graph?.nodes?.length) {
     syncZoomUi();
     return;
@@ -2560,7 +2903,7 @@ function updateHeader() {
 }
 
 function mapKindLabel(map) {
-  return map.kind === "unwanted" ? "Holding area" : map.kind === "blank" ? "Blank map" : map.kind === "window" ? "Time window" : "Survey";
+  return map.kind === "unwanted" ? "Holding area" : map.kind === "blank" ? "Blank map" : map.kind === "window" ? "Time window" : map.kind === "compare" ? "Comparison" : "Survey";
 }
 
 function updateEmptyState() {
@@ -2668,6 +3011,7 @@ function devicePanel(raw) {
         <input type="text" id="insp-caption" value="${escapeHtml(meta.extra || "")}" placeholder="${escapeHtml(autoCaption(overlayNode(raw)) ? `${autoCaption(overlayNode(raw))} (from the SSID)` : "Lobby, rack A1, 2nd floor")}" autocomplete="off" />
       </label>
     </div>
+    ${changeSection(raw)}
     <div class="insp-section">
       <h3>Identity</h3>
       <dl class="facts">
@@ -2843,6 +3187,7 @@ function linkPanel(link) {
         <p>${escapeHtml(kindName)}${isManualLink(link) ? "" : ` · ${escapeHtml(link.medium || "wired")}`}</p>
       </div>
     </div>
+    ${changeSection(link, { link: true })}
     <div class="insp-section"><dl class="facts">
       ${factRow(link.kind === "client-server" ? "Client" : "From", nodeName(link.source))}
       ${factRow(link.kind === "client-server" ? "Server" : "To", nodeName(link.target))}
@@ -3533,6 +3878,7 @@ function mapMenuItems(map) {
     items.push({ label: "Save to files and empty…", disabled: !mapNodeCount(map), onSelect: () => emptyUnwanted() });
   } else {
     items.push({ label: "Merge into…", disabled: mergeTargets(map.id).length === 0, onSelect: () => mergeMapDialog(map.id) });
+    if (!isComparison(map) && mapNodeCount(map)) items.push({ label: "Compare with a baseline…", onSelect: () => openCompareDialog({ later: compareSourceFor("map", map.id) }) });
     items.push("sep", { label: "Delete map…", danger: true, onSelect: () => deleteMap(map.id) });
   }
   return items;
@@ -3809,6 +4155,7 @@ function surveyMenuItems(item) {
   return [
     { label: "Open", onSelect: () => selectSurvey(item.id) },
     { label: "Merge into…", disabled: mergeTargets(ownMap).length === 0, onSelect: () => mergeSurveyDialog(item.id) },
+    { label: "Compare with a baseline…", disabled: item.id === "empty-capture", onSelect: () => openCompareDialog({ later: compareSourceFor("survey", item.id) }) },
     "sep",
     { label: "Remove from list", onSelect: () => removeSurvey(item.id) },
     { label: "Delete survey and its map…", danger: true, onSelect: () => deleteSurvey(item.id) },
@@ -5449,7 +5796,7 @@ const TOUR_STEPS = [
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
   { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map, and big ones (long wardrives) show their progress as they read." },
-  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and how devices are arranged: by network name, subnet, connection, location, channel, and more." },
+  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made, and Compare surveys maps what changed since a baseline. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and how devices are arranged: by network name, subnet, connection, location, channel, and more." },
   {
     target: "#sidebar",
     title: "Organize the sidebar",
@@ -6015,6 +6362,7 @@ async function init() {
   bindManualDialogs();
   bindDisconnectDialog();
   bindTimeline();
+  bindCompareDialog();
   bindEggTerminal();
   syncMatrixRain();
   el("loading-stop").addEventListener("click", stopReading);
