@@ -536,7 +536,9 @@ def main(argv: list[str] | None = None) -> int:
             server = ServerThread(port)
             server.start()
             wait_ready(port, server)
-        url = f"http://127.0.0.1:{port}/"
+        # The version in the address means a new version always loads its own page: the
+        # window can't show a copy it cached before an update.
+        url = f"http://127.0.0.1:{port}/?v={__version__}"
         log.info("Serving %s", url)
         # Watching the page only works for our own server; a reused one lives in another process.
         show(url, browser_only=args.browser, can_watch_page=server is not None)

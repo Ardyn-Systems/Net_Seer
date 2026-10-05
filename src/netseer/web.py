@@ -113,6 +113,20 @@ def _http_error(exc: Exception, status: int = 400) -> HTTPException:
 PRESENCE: dict[str, float | None] = {"last": None, "bye": None}
 
 
+@app.middleware("http")
+async def no_stale_pages(request: Request, call_next):
+    """The page and its files are checked with the server before every reuse.
+
+    Without this, the app window (WebView2) guesses how long a page stays fresh and can keep
+    showing the old one after an update. Checking is a cheap 304 when nothing changed.
+    """
+    response = await call_next(request)
+    path = request.url.path
+    if path == "/" or path == "/favicon.ico" or path.startswith("/static/"):
+        response.headers.setdefault("Cache-Control", "no-cache")
+    return response
+
+
 @app.post("/api/heartbeat", status_code=204)
 def heartbeat(bye: bool = False) -> Response:
     PRESENCE["bye" if bye else "last"] = time.monotonic()
