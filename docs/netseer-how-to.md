@@ -47,6 +47,7 @@ The **cog** in the top bar. A dot on it means a newer release is out.
 | **General** | Theme; **Scroll to zoom** speed (Gentle, Normal, Quick); **Show SSIDs under access points**; **Fade unrelated devices on hover** (off by default); **Time**: time zone (this computer, UTC, or any) and 12- or 24-hour clock |
 | **Your data** | Count of saved maps and devices; whether storage is protected from automatic cleanup, with **Protect my maps** if not; **Back up all maps** (one JSON file with maps, names, notes, edits, positions, and preferences); **Restore a backup…** (replaces what's saved here; asks first); **Clear all data…** (asks first) |
 | **Demo** | The sample captures, each with **Open** (or **Show** once opened); **Compare the branch office samples** opens a pair a week apart and sets up **Compare surveys** |
+| **Security** | The vulnerability data for the Security findings (bundled, or downloaded), with its date; **Update database** (installed copies, highlighted when you're online) downloads the latest from NVD, FIRST EPSS, and CISA, and looks up products seen in your captures that aren't recognized yet, sending only product names |
 | **Updates** | Version and install type; **Check for updates**; **Check when NetSeer opens** (off by default, at most once a day); the current release and any newer ones, each with **Release notes** and **Reinstall** or **Update**; older ones are folded under **Earlier versions**: pick one from the list for its **Release notes** and **Roll back**. In the desktop app these open the update wizard: release notes and an optional backup, then a download checked against GitHub's SHA-256, then **Restart and update** (NetSeer closes, installs, and reopens). From source, the button copies a `uv tool install --force` command for that version. The online copy updates itself and shows no list. |
 | **Help** | **Take the tour**, **Keyboard shortcuts**, the user guide, **Report a problem** (a new GitHub issue with your version filled in) |
 | **About** | Version, how NetSeer is running, links, and component licenses |
@@ -164,6 +165,16 @@ Copying, cutting, moving, or setting aside an **access point** also takes its as
 
 ---
 
+## Security
+
+Every device's **Details** has a **Security** section (also `POST /api/security/assess`). NetSeer reports only what the capture shows; it never scans.
+
+- **Findings** (certain, no percentage), each with severity and a fix: open/WEP Wi-Fi, WPS, Telnet, FTP, TFTP, SNMP v1/v2c, VNC, unencrypted mail/LDAP/MQTT, databases on the network, SMB, RDP, plain HTTP logins, TLS 1.0/1.1, SSL 3.0.
+- **Known vulnerabilities** from software versions in banners (SSH greeting, HTTP `Server`/`X-Powered-By`). Each CVE shows CVSS severity, **EPSS** (chance of exploitation in the next 30 days), and a **Known exploited** flag from CISA KEV. No version means no match — NetSeer never guesses from the maker. A distribution banner (Ubuntu, Debian, …) is noted, since those backport fixes without changing the version.
+- **Wi-Fi handshakes**: a captured WPA four-way handshake is listed on both the station and the access point, with which of messages 1–4 were seen. If enough was captured (message 2 plus 1 or 3) on a PSK network, it's flagged as crackable offline. WPA3-SAE and 802.1X handshakes are listed but not flagged. **Export** repackages the captured frames as a **pcap** or a **hashcat** `.hc22000` (`POST /api/security/handshake`), for testing your own network; no password is recovered by NetSeer.
+- **Layers → Security → Shade by security** tints each device by its most serious finding, with counts.
+- The data is bundled (works offline). **Settings → Security → Update database** refreshes it (highlighted when you're online, and more so when the data is old or when a capture shows a product NetSeer doesn't recognize yet). An update resolves such products against NVD and remembers them, so they match on future maps.
+
 ## Timeline
 
 Shown under the map when a capture records times (pcap, pcapng, Kismet logs).
@@ -196,6 +207,7 @@ Select one device to see:
 - **Name on map** and **Caption under the name** (shown as a second line on the map). **Use auto name** goes back to the inferred type.
 - **Identity**: IPs, MACs (TX / RX / DA / RA when the frames show them), maker (IEEE OUI), VLANs.
 - **Radio**: SSID, channel, frequency, signal range, security, GPS (when present).
+- **Security**: findings, known vulnerabilities (with EPSS), and captured Wi-Fi handshakes; see [Security](#security).
 - **Services** and **Routing** (OSPF, default gateway, DHCP, DNS).
 - **Notes** for anything you want to keep.
 - Actions: **Copy details**, **Export** (PDF, CSV, XML, plain text), **Move to**, **Set aside**, **Delete**.

@@ -157,6 +157,9 @@ def _apply_device(builder: GraphBuilder, row: tuple, counts: Counter) -> None:
                                    encryption=kismet_encryption(rec.get("dot11.advertisedssid.crypt_string")))
             elif rec.get("dot11.advertisedssid.cloaked"):
                 hidden = True
+            # Kismet records Wi-Fi Protected Setup details (state, version, device name) when advertised.
+            if any("wps" in str(k).lower() and v not in (None, 0, "", [], {}) for k, v in rec.items()):
+                builder._device(node_id)["extra"]["wps"] = True
         if hidden:
             builder._device(node_id)["extra"]["hidden_ssid"] = True
         counts["aps"] += 1

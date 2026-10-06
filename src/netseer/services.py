@@ -108,24 +108,54 @@ def node_service_caption(node) -> str:
     return " · ".join(str(s) for s in services[:4])
 
 
+TLS_VERSIONS = {0x0300: "SSL 3.0", 0x0301: "TLS 1.0", 0x0302: "TLS 1.1", 0x0303: "TLS 1.2", 0x0304: "TLS 1.3"}
+
+
+def _tls_server_version(head: bytes) -> str | None:
+    """The version a ServerHello settles on: what the server will actually speak."""
+    # Record header (5 bytes), then handshake type 2 = ServerHello, a 3-byte length, then the version.
+    if len(head) < 11 or head[5] != 0x02:
+        return None
+    version = int.from_bytes(head[9:11], "big")
+    if version == 0x0303:
+        # TLS 1.3 servers say 1.2 here and put the real version in the supported_versions extension.
+        return "TLS 1.3" if b"\x00\x2b\x00\x02\x03\x04" in head[43:] else "TLS 1.2"
+    return TLS_VERSIONS.get(version)
+
+
 def infer_service_from_payload(payload: bytes, sport: int | None, dport: int | None) -> tuple[str | None, dict[str, Any]]:
-    """Named application from payload bytes when dissectors already ran."""
+    """Named application from payload bytes when dissectors already ran.
+
+    Besides the service, the metadata can carry what the *sender* revealed about itself:
+    ``software`` (banners naming a product and version) and ``tls_version`` (from a ServerHello).
+    """
     meta: dict[str, Any] = {}
     if not payload:
         return None, meta
-    head = payload[:480]
+    head = payload[:1400]
     if head.startswith((b"GET ", b"POST ", b"HEAD ", b"PUT ", b"DELETE ", b"PATCH ", b"HTTP/1.", b"HTTP/2")):
+        software = []
         for line in head.split(b"\r\n"):
-            if line.lower().startswith(b"host:"):
+            low = line.lower()
+            if low.startswith(b"host:"):
                 meta["http_host"] = line.split(b":", 1)[1].strip().decode("utf-8", errors="replace")
-                break
+            elif head.startswith(b"HTTP/") and low.startswith((b"server:", b"x-powered-by:")):
+                value = line.split(b":", 1)[1].strip().decode("utf-8", errors="replace")[:200]
+                if value:
+                    software.append({"raw": value, "source": "HTTP Server header" if low.startswith(b"server:") else "HTTP X-Powered-By header"})
+        if software:
+            meta["software"] = software
         return "http", meta
     if head.startswith(b"SSH-"):
-        ident = head.split(b"\r\n", 1)[0].decode("utf-8", errors="replace")
+        ident = head.split(b"\r\n", 1)[0].split(b"\n", 1)[0].decode("utf-8", errors="replace")[:200]
         meta["ssh_ident"] = ident
+        meta["software"] = [{"raw": ident, "source": "SSH banner"}]
         return "ssh", meta
     # TLS record: content_type=0x16 handshake, version 3.x
     if len(head) >= 3 and head[0] == 0x16 and head[1] == 0x03:
+        version = _tls_server_version(head)
+        if version:
+            meta["tls_version"] = version
         if dport == 443 or sport == 443 or dport == 8443 or sport == 8443:
             return "https", meta
         return "tls", meta

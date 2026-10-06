@@ -11,6 +11,7 @@ import threading
 import time
 import uuid
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
@@ -20,6 +21,11 @@ from fastapi.staticfiles import StaticFiles
 from netseer import __version__, updater
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
 from netseer.compare import compare_graphs
+from netseer.security import assess_graph
+from netseer.security import discoverable as security_discoverable
+from netseer.security import fetch as vuln_fetch
+from netseer.security import handshake
+from netseer.security import vulndb
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError
 from netseer.exporters import (
     device_csv,
@@ -458,6 +464,104 @@ def _node_from_body(body: dict):
     if node is None:
         raise HTTPException(status_code=404, detail="Unknown device on this map.")
     return graph, node, title
+
+
+@app.post("/api/security/assess")
+def security_assess_api(body: dict):
+    """Findings and known vulnerabilities for each device on a map."""
+    try:
+        return assess_graph(body)
+    except UnsupportedSurveyError as exc:
+        raise _http_error(exc) from exc
+
+
+# One refresh of the vulnerability data at a time, in the background.
+VULN_JOB: dict[str, Any] = {"state": "idle", "step": "", "done": 0, "total": 0, "error": None, "stop": False}
+VULN_LOCK = threading.Lock()
+
+
+def _vuln_status() -> dict[str, Any]:
+    with VULN_LOCK:
+        return {k: v for k, v in VULN_JOB.items() if k != "stop"}
+
+
+@app.get("/api/security/database")
+def security_database_api():
+    db, _ = vulndb.load()
+    discovered = [d for d in (db.get("discovered") or []) if d.get("found")]
+    return {**vulndb.info(), "can_refresh": not hosted_mode(), "refresh": _vuln_status(), "discovered": discovered}
+
+
+@app.post("/api/security/handshake")
+def security_handshake_api(body: dict):
+    """Export a captured WPA handshake as a pcap or a hashcat 22000 file."""
+    fmt = str(body.get("format") or "pcap").lower()
+    hs = handshake.find_handshake(body, str(body.get("node_id") or ""), body.get("peer"))
+    if not hs:
+        raise HTTPException(status_code=404, detail="No captured handshake frames for this device.")
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", hs.get("essid") or hs["ap_mac"].replace(":", "")) or "handshake"
+    if fmt == "hc22000":
+        try:
+            text = handshake.build_hc22000(hs)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return Response(content=text, media_type="text/plain", headers={"Content-Disposition": f'attachment; filename="{safe}.hc22000"'})
+    return Response(
+        content=handshake.build_pcap(hs),
+        media_type="application/vnd.tcpdump.pcap",
+        headers={"Content-Disposition": f'attachment; filename="handshake-{safe}.pcap"'},
+    )
+
+
+@app.post("/api/security/discoverable")
+def security_discoverable_api(body: dict):
+    """Products seen in the given banners that a rebuild could newly look up."""
+    banners = body.get("banners")
+    if not isinstance(banners, list):
+        raise HTTPException(status_code=400, detail="Send the banners seen in your captures.")
+    return {"products": security_discoverable([str(b) for b in banners[:5000]])}
+
+
+def _run_vuln_refresh(extra_products: list[dict[str, str]]) -> None:
+    def progress(step: str, done: int, total: int) -> None:
+        with VULN_LOCK:
+            VULN_JOB.update(step=step, done=done, total=total)
+
+    try:
+        db = vuln_fetch.build(progress=progress, should_stop=lambda: VULN_JOB["stop"], extra_products=extra_products)
+        vulndb.write(vulndb.downloaded_path(), db)
+        with VULN_LOCK:
+            VULN_JOB.update(state="done", step="Done")
+    except vuln_fetch.Stopped:
+        with VULN_LOCK:
+            VULN_JOB.update(state="stopped", step="Stopped")
+    except Exception as exc:  # network trouble, a source down: say so, keep the data we had
+        log.warning("Vulnerability data refresh failed: %s", exc)
+        with VULN_LOCK:
+            VULN_JOB.update(state="error", error=f"Couldn't update the vulnerability data: {exc}")
+
+
+@app.post("/api/security/refresh")
+def security_refresh_api(body: dict | None = None):
+    if hosted_mode():
+        raise HTTPException(status_code=403, detail="This online copy uses the vulnerability data bundled with its version.")
+    # Products seen in the user's captures that aren't recognized yet, to look up as well.
+    banners = (body or {}).get("banners")
+    extra = security_discoverable([str(b) for b in banners[:5000]]) if isinstance(banners, list) else []
+    extra_products = [{"token": p["token"], "name": p["name"]} for p in extra[:25]]
+    with VULN_LOCK:
+        if VULN_JOB["state"] == "running":
+            raise HTTPException(status_code=409, detail="Already updating.")
+        VULN_JOB.update(state="running", step="Starting", done=0, total=0, error=None, stop=False)
+    threading.Thread(target=_run_vuln_refresh, args=(extra_products,), name="vulndb-refresh", daemon=True).start()
+    return _vuln_status()
+
+
+@app.post("/api/security/refresh/cancel")
+def security_refresh_cancel_api():
+    with VULN_LOCK:
+        VULN_JOB["stop"] = True
+    return _vuln_status()
 
 
 @app.post("/api/compare")
