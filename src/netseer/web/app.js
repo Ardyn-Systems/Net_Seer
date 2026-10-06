@@ -4412,7 +4412,7 @@ function securityHtml(result, db) {
           ? "A full handshake, but this network's security doesn't expose the password this way."
           : "Only part of the handshake was captured.";
       const exportRow = h.can_export
-        ? `<div class="hs-export"><span class="hint">Export for your own testing:</span>
+        ? `<div class="hs-export"><span class="hint">Export:</span>
             <button type="button" class="link-btn" data-hs-export="pcap" data-hs-peer="${escapeHtml(h.peer)}">pcap</button>${
               h.can_hashcat ? ` · <button type="button" class="link-btn" data-hs-export="hc22000" data-hs-peer="${escapeHtml(h.peer)}">hashcat</button>` : ""
             }</div>`
