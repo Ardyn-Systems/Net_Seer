@@ -4411,8 +4411,14 @@ function securityHtml(result, db) {
         : h.complete
           ? "A full handshake, but this network's security doesn't expose the password this way."
           : "Only part of the handshake was captured.";
+      const exportRow = h.can_export
+        ? `<div class="hs-export"><span class="hint">Export for your own testing:</span>
+            <button type="button" class="link-btn" data-hs-export="pcap" data-hs-peer="${escapeHtml(h.peer)}">pcap</button>${
+              h.can_hashcat ? ` · <button type="button" class="link-btn" data-hs-export="hc22000" data-hs-peer="${escapeHtml(h.peer)}">hashcat</button>` : ""
+            }</div>`
+        : "";
       return `<li><div class="hs-head">${h.crackable ? sevChip("high", "Crackable") : ""}<strong>With ${escapeHtml(h.peer_label)}</strong></div>
-        <p class="hint">${escapeHtml(label)}. ${escapeHtml(note)}</p></li>`;
+        <p class="hint">${escapeHtml(label)}. ${escapeHtml(note)}</p>${exportRow}</li>`;
     })
     .join("");
   const hsBlock = handshakes
@@ -4432,8 +4438,12 @@ async function loadDeviceSecurity(raw) {
   } else {
     box.innerHTML = '<h3>Security</h3><p class="hint">Checking…</p>';
     try {
-      const res = await assessNodes([overlayNode(raw)]);
+      // Assess the whole map, not just this device, so a handshake's frames (kept on the access
+      // point) are visible for export. Cached under the same key the map shading uses.
+      const res = await assessNodes((state.graph?.nodes || []).filter(isDeviceNode).map(overlayNode));
       if (seq !== security.seq || !el("insp-security")) return;
+      security.overlay = res;
+      security.overlayKey = overlayKeyNow();
       box.innerHTML = securityHtml(res.nodes[raw.id], res.database);
     } catch (err) {
       if (seq === security.seq) box.innerHTML = `<h3>Security</h3><p class="field-error">${escapeHtml(err.message || String(err))}</p>`;
@@ -4448,6 +4458,25 @@ async function loadDeviceSecurity(raw) {
       btn.remove();
     })
   );
+  box.querySelectorAll("[data-hs-export]").forEach((btn) => btn.addEventListener("click", () => exportHandshake(raw.id, btn.dataset.hsPeer, btn.dataset.hsExport)));
+}
+
+// Download a captured handshake as a pcap or hashcat file. The whole map goes in the request so
+// the server can find the frames (kept on the access point) and the network's beacon.
+async function exportHandshake(nodeId, peer, format) {
+  try {
+    const res = await fetch("/api/security/handshake", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nodes: (state.graph?.nodes || []).map(overlayNode), node_id: nodeId, peer, format }),
+    });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    const base = (displayName(nodeById(nodeId)) || "wifi").replace(/[^A-Za-z0-9._-]+/g, "_");
+    await download(res, format === "hc22000" ? `${base}.hc22000` : `handshake-${base}.pcap`);
+    toast(`Exported the handshake${format === "hc22000" ? " for hashcat" : ""}.`, { timeout: 2500 });
+  } catch (err) {
+    toast(err.message || String(err), { error: true });
+  }
 }
 
 /* The map shaded by each device's worst finding (Layers → Security). */

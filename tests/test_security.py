@@ -354,3 +354,82 @@ def test_refresh_passes_capture_products_to_build(monkeypatch):
         time.sleep(0.05)
     assert captured["extra"] == [{"token": "goahead-webs", "name": "GoAhead-Webs"}]
     webmod.VULN_JOB.update(state="idle")
+
+
+def _lab_graph():
+    from netseer.samples import files_for_sample
+    return ingest_files(files_for_sample("security-lab")).to_dict()
+
+
+def test_handshake_frames_and_beacon_are_kept_on_the_access_point():
+    g = _lab_graph()
+    ap = next(n for n in g["nodes"] if n["id"] == "mac:00:1b:2f:70:10:03")
+    sta = next(n for n in g["nodes"] if n["id"] == "mac:a4:c3:f0:70:20:01")
+    assert sorted((ap["extra"]["handshakes"]["a4:c3:f0:70:20:01"]["frames"]).keys()) == ["1", "2", "3", "4"]
+    assert ap["extra"].get("beacon")  # beacon kept for the ESSID
+    assert "frames" not in sta["extra"]["handshakes"]["00:1b:2f:70:10:03"]  # not duplicated on the station
+    res = assess_graph(g)["nodes"]
+    for nid in ("mac:00:1b:2f:70:10:03", "mac:a4:c3:f0:70:20:01"):
+        hs = res[nid]["handshakes"][0]
+        assert hs["can_export"] is True and hs["can_hashcat"] is True
+
+
+def test_export_pcap_round_trips_and_hc22000_is_well_formed():
+    from scapy.all import rdpcap
+    from scapy.layers.eap import EAPOL
+
+    from netseer.security.handshake import build_hc22000, build_pcap, find_handshake
+
+    g = _lab_graph()
+    for nid in ("mac:00:1b:2f:70:10:03", "mac:a4:c3:f0:70:20:01"):  # AP and station both export
+        hs = find_handshake(g, nid)
+        assert hs["essid"] == "Lab-Staff" and hs["ap_mac"] == "00:1b:2f:70:10:03" and hs["sta_mac"] == "a4:c3:f0:70:20:01"
+        pcap = build_pcap(hs)
+        assert pcap[:4] == b"\xd4\xc3\xb2\xa1"  # pcap magic
+        tmp = __import__("pathlib").Path(__import__("tempfile").mkdtemp()) / "hs.pcap"
+        tmp.write_bytes(pcap)
+        pk = rdpcap(str(tmp))
+        assert sum(1 for p in pk if p.haslayer(EAPOL)) == 4  # all four messages survive
+        parts = build_hc22000(hs).strip().split("*")
+        assert parts[0] == "WPA" and parts[1] == "02"
+        assert len(parts[2]) == 32 and len(parts[3]) == 12 and len(parts[4]) == 12 and len(parts[6]) == 64  # mic, macs, anonce
+        assert bytes.fromhex(parts[5]).decode() == "Lab-Staff"  # essid
+
+
+def test_export_needs_captured_frames():
+    from netseer.security.handshake import build_hc22000, find_handshake
+
+    # A handshake with only message 1: a pcap is possible, hashcat is not.
+    import pathlib
+    import tempfile
+
+    from scapy.all import PcapNgWriter
+
+    from netseer.generate_samples import _beacon, _eapol, RSN_PSK
+    path = pathlib.Path(tempfile.mkdtemp()) / "m1.pcapng"
+    with PcapNgWriter(str(path)) as w:
+        w.write(_beacon("00:1b:2f:70:10:03", "Lab-Staff", 11, 2462, -50, RSN_PSK))
+        w.write(_eapol(1))
+    g = ingest_files([(path.name, path.read_bytes())]).to_dict()
+    hs = find_handshake(g, "mac:00:1b:2f:70:10:03")
+    assert set(hs["frames"]) == {1}
+    import pytest
+
+    with pytest.raises(ValueError):
+        build_hc22000(hs)
+
+
+def test_handshake_export_api():
+    from fastapi.testclient import TestClient
+
+    import netseer.web as webmod
+
+    client = TestClient(webmod.app)
+    g = _lab_graph()
+    res = client.post("/api/security/handshake", json={**g, "node_id": "mac:a4:c3:f0:70:20:01", "format": "pcap"})
+    assert res.status_code == 200 and res.content[:4] == b"\xd4\xc3\xb2\xa1"
+    assert "handshake-Lab-Staff.pcap" in res.headers.get("content-disposition", "")
+    res = client.post("/api/security/handshake", json={**g, "node_id": "mac:00:1b:2f:70:10:03", "format": "hc22000"})
+    assert res.status_code == 200 and res.text.startswith("WPA*02*")
+    # A device with no handshake frames can't export.
+    assert client.post("/api/security/handshake", json={**g, "node_id": "mac:00:1b:2f:70:00:01"}).status_code == 404

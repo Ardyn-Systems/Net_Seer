@@ -199,12 +199,23 @@ def handshake_records(node: dict[str, Any], by_mac: dict[str, dict[str, Any]]) -
         label = str((peer_node or {}).get("label") or "")
         generic = label.lower() in ("access point", "wireless client", "host", "server", "router", "gateway", "")
         peer_label = peer if generic or label.lower() == str(peer).lower() else label
+        # The raw frames are kept on the access point; a station's live on its AP.
+        frames = entry.get("frames")
+        if not frames and peer_node:
+            for mymac in node.get("macs") or []:
+                f = ((peer_node.get("extra") or {}).get("handshakes") or {}).get(str(mymac).lower(), {}).get("frames")
+                if f:
+                    frames = f
+                    break
+        have = {int(k) for k in (frames or {})}
         record = {
             "peer": peer,
             "peer_label": peer_label,
             "messages": messages,
             "complete": messages == [1, 2, 3, 4],
             "crackable": crackable,
+            "can_export": bool(frames),
+            "can_hashcat": 2 in have and (1 in have or 3 in have),
         }
         finding = None
         if crackable:

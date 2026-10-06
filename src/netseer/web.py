@@ -24,6 +24,7 @@ from netseer.compare import compare_graphs
 from netseer.security import assess_graph
 from netseer.security import discoverable as security_discoverable
 from netseer.security import fetch as vuln_fetch
+from netseer.security import handshake
 from netseer.security import vulndb
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError
 from netseer.exporters import (
@@ -489,6 +490,27 @@ def security_database_api():
     db, _ = vulndb.load()
     discovered = [d for d in (db.get("discovered") or []) if d.get("found")]
     return {**vulndb.info(), "can_refresh": not hosted_mode(), "refresh": _vuln_status(), "discovered": discovered}
+
+
+@app.post("/api/security/handshake")
+def security_handshake_api(body: dict):
+    """Export a captured WPA handshake as a pcap or a hashcat 22000 file."""
+    fmt = str(body.get("format") or "pcap").lower()
+    hs = handshake.find_handshake(body, str(body.get("node_id") or ""), body.get("peer"))
+    if not hs:
+        raise HTTPException(status_code=404, detail="No captured handshake frames for this device.")
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "_", hs.get("essid") or hs["ap_mac"].replace(":", "")) or "handshake"
+    if fmt == "hc22000":
+        try:
+            text = handshake.build_hc22000(hs)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return Response(content=text, media_type="text/plain", headers={"Content-Disposition": f'attachment; filename="{safe}.hc22000"'})
+    return Response(
+        content=handshake.build_pcap(hs),
+        media_type="application/vnd.tcpdump.pcap",
+        headers={"Content-Disposition": f'attachment; filename="handshake-{safe}.pcap"'},
+    )
 
 
 @app.post("/api/security/discoverable")

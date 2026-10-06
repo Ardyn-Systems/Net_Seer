@@ -577,7 +577,11 @@ def _handle_eapol(builder: GraphBuilder, pkt: Any) -> bool:
     if message is None:
         return False
     bssid, sta, _ = _dot11_addrs(pkt[Dot11])
-    builder.observe_handshake(sta, bssid, message)
+    try:
+        frame = bytes(pkt[Dot11])  # the 802.11 frame, for exporting the handshake
+    except Exception:
+        frame = None
+    builder.observe_handshake(sta, bssid, message, frame)
     return True
 
 
@@ -623,6 +627,11 @@ def _handle_dot11(builder: GraphBuilder, pkt: Any) -> None:
             ap_id = builder.observe_mac(bssid, wireless=True)
             if ap_id:
                 builder.devices[ap_id]["extra"]["wps"] = True
+        if pkt.haslayer(Dot11Beacon):
+            try:
+                builder.observe_beacon_frame(bssid, bytes(pkt[Dot11]))
+            except Exception:
+                pass
     elif pkt.haslayer(Dot11ProbeReq):
         sta_id = builder.observe_mac(sta or getattr(dot11, "addr2", None), wireless=True)
         if sta_id:

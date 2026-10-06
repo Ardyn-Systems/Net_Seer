@@ -1627,3 +1627,4 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 .vdb-extra { margin: 0.4rem 0 0.2rem; font-size: 12.5px; }
 .vdb-extra.warn { color: var(--accent); font-weight: 600; }
 .vdb-extra.good { color: var(--muted); }
+.hs-export { margin-top: 0.3rem; font-size: 12.5px; display: flex; align-items: center; gap: 0.3rem; flex-wrap: wrap; }

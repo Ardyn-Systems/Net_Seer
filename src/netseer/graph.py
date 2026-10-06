@@ -381,8 +381,10 @@ class GraphBuilder:
             elif key == "handshakes" and isinstance(value, dict):
                 table = rec["extra"].setdefault("handshakes", {})
                 for peer, entry in value.items():
-                    msgs = set(table.get(peer, {}).get("messages") or []) | set(entry.get("messages") or [])
-                    table[peer] = {"messages": sorted(msgs)}
+                    have = table.get(peer) or {}
+                    msgs = set(have.get("messages") or []) | set(entry.get("messages") or [])
+                    frames = {**(entry.get("frames") or {}), **(have.get("frames") or {})}
+                    table[peer] = {"messages": sorted(msgs), **({"frames": frames} if frames else {})}
             else:
                 rec["extra"].setdefault(key, value)
         if rec["gps"] is None:
@@ -538,11 +540,12 @@ class GraphBuilder:
         if gps:
             rec["gps"] = gps
 
-    def observe_handshake(self, sta_mac: str | None, ap_mac: str | None, message: int) -> None:
+    def observe_handshake(self, sta_mac: str | None, ap_mac: str | None, message: int, frame: bytes | None = None) -> None:
         """One frame of a WPA 4-way handshake (message 1-4), kept on the station and the AP.
 
         A captured handshake lets someone try to recover a WPA/WPA2 pre-shared key offline, so it
-        is worth surfacing. Each side records which messages were seen with the other.
+        is worth surfacing. Each side records which messages were seen; the raw 802.11 frames are
+        kept once (on the access point) so the handshake can be exported.
         """
         sta = self.observe_mac(sta_mac, wireless=True)
         ap = self.observe_mac(ap_mac, wireless=True)
@@ -550,12 +553,22 @@ class GraphBuilder:
             return
         self.add_role(ap, "ap")
         self.add_role(sta, "station")
-        for owner, peer in ((sta, ap_mac), (ap, sta_mac)):
+        for owner, peer, keep_frames in ((sta, ap_mac, False), (ap, sta_mac, True)):
             key = str(peer).lower()
             table = self._device(owner)["extra"].setdefault("handshakes", {})
-            msgs = set(table.get(key, {}).get("messages") or [])
+            entry = table.get(key) or {}
+            msgs = set(entry.get("messages") or [])
             msgs.add(int(message))
-            table[key] = {"messages": sorted(msgs)}
+            entry["messages"] = sorted(msgs)
+            if keep_frames and frame:
+                entry.setdefault("frames", {}).setdefault(str(int(message)), frame.hex())
+            table[key] = entry
+
+    def observe_beacon_frame(self, bssid: str | None, frame: bytes | None) -> None:
+        """Keep one beacon per access point, so an exported handshake carries the network's name."""
+        node = self.observe_mac(bssid, wireless=True)
+        if node and frame:
+            self._device(node)["extra"].setdefault("beacon", frame.hex())
 
     def observe_software(self, node_id: str | None, entries: list[dict[str, Any]] | None) -> None:
         """Product banners the device sent about itself (raw text and where it came from)."""

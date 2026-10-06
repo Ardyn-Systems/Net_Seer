@@ -127,7 +127,7 @@ Every device's details include a **Security** section. NetSeer only reports what
   - its **EPSS** score — the estimated chance it is exploited in the wild in the next 30 days,
   - a **Known exploited** flag when it is on CISA's list.
   - They're ordered with the most likely to be exploited first. If a device only gives a product name with no version, NetSeer says so rather than guessing.
-- **Wi-Fi handshakes** are noted when a WPA four-way handshake between a device and its access point was captured. If enough was captured on a password network, it's flagged: someone with the capture could try the Wi-Fi password offline.
+- **Wi-Fi handshakes** are noted when a WPA four-way handshake between a device and its access point was captured. If enough was captured on a password network, it's flagged: someone with the capture could try the Wi-Fi password offline. **Export** it for your own testing as a **pcap** (opens in Wireshark, converts to anything) or a **hashcat** `.hc22000` file. This repackages frames already in your capture — it recovers no password itself; use it only on networks you're allowed to test.
 - **Shade the map by security:** in **Layers → Security**, turn on **Shade by security** to tint every device by its most serious finding (red for Critical down to blue for Low), with a count of each.
 
 The vulnerability data is bundled with NetSeer, so this works with no internet. Keep it current under **Settings → Security** (see [Settings](#settings-updates-and-the-tour)) — an update also looks up any product it saw in your captures that wasn't in the data yet, so unusual services get covered over time.
