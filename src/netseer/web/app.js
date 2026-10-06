@@ -4565,7 +4565,7 @@ function renderDiscoverable() {
   const found = (info?.discovered || []).filter((d) => d.found);
   if (security.discoverable?.length) {
     box.className = "vdb-extra warn";
-    box.textContent = `NetSeer saw ${plural(security.discoverable.length, "service")} in your captures it doesn't recognize yet (${names(security.discoverable)}). Rebuild to look ${security.discoverable.length > 1 ? "them" : "it"} up.`;
+    box.textContent = `NetSeer saw ${plural(security.discoverable.length, "service")} in your captures it doesn't recognize yet (${names(security.discoverable)}). Update the database to look ${security.discoverable.length > 1 ? "them" : "it"} up.`;
   } else if (found.length) {
     box.className = "vdb-extra good";
     box.textContent = `Looked up from your captures: ${names(found)}.`;
@@ -4603,12 +4603,12 @@ function syncRefreshButton() {
   btn.classList.toggle("attention", online && (stale || newServices));
   cta.classList.remove("hidden", "good", "warn");
   if (!online) {
-    cta.textContent = "Connect to the internet, then rebuild to get the latest vulnerability data.";
+    cta.textContent = "Connect to the internet, then update the database to get the latest vulnerability data.";
   } else if (stale) {
-    cta.textContent = `This data is ${plural(age, "day")} old. Rebuild now to check devices against the latest known vulnerabilities.`;
+    cta.textContent = `This data is ${plural(age, "day")} old. Update the database to check devices against the latest known vulnerabilities.`;
     cta.classList.add("warn");
   } else if (age != null) {
-    cta.textContent = age <= 1 ? "Your vulnerability data is up to date. Rebuild any time to refresh it." : `Your vulnerability data is ${plural(age, "day")} old. Rebuild any time to refresh it.`;
+    cta.textContent = age <= 1 ? "Your vulnerability data is up to date. Update it any time to refresh it." : `Your vulnerability data is ${plural(age, "day")} old. Update it any time to refresh it.`;
     cta.classList.add("good");
   } else {
     cta.classList.add("hidden");
