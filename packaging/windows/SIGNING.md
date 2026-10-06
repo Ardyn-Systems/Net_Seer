@@ -37,7 +37,7 @@ Signatures are SHA-256 and timestamped, so they stay valid after the certificate
 In PowerShell:
 
 ```powershell
-Get-AuthenticodeSignature .\NetSeer-Setup-0.5.3.exe | Format-List Status, SignerCertificate
+Get-AuthenticodeSignature .\NetSeer-Setup-0.6.0.exe | Format-List Status, SignerCertificate
 ```
 
 Or right-click the file → **Properties** → **Digital Signatures**.
