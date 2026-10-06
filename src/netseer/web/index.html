@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui27" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui28" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -538,6 +538,7 @@
               <div class="row-actions"><span id="vdb-step" class="hint"></span><button id="vdb-cancel" class="btn ghost small" type="button">Stop</button></div>
             </div>
             <p id="vdb-status" class="update-status" role="status" aria-live="polite"></p>
+            <p id="vdb-extra" class="vdb-extra hidden"></p>
             <dl id="vdb-facts" class="facts"></dl>
             <p class="hint"><strong>Rebuild now</strong> downloads the latest data from NVD (the U.S. National Vulnerability Database), FIRST (EPSS scores), and CISA (known exploited vulnerabilities), in a few minutes. It sends only the names of the products NetSeer knows, such as OpenSSH; nothing about you or your maps. Without rebuilding, the data is as current as your version of NetSeer.</p>
             <p id="vdb-hosted" class="hint hidden">This online copy uses the vulnerability data that came with its version. Installed copies can update it.</p>
@@ -676,6 +677,6 @@
         <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
       </div>
     </div>
-    <script src="/static/app.js?v=ui45"></script>
+    <script src="/static/app.js?v=ui46"></script>
   </body>
 </html>

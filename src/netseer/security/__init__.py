@@ -17,10 +17,12 @@ import re
 from typing import Any
 
 from netseer.security import vulndb
-from netseer.security.software import device_software
+from netseer.security.software import PRODUCTS, device_software, parse_banner
 from netseer.serialize import graph_from_dict
 
 SEVERITIES = ("critical", "high", "medium", "low")
+# Tokens that turn up in banners but name a protocol or label, not a product to look up.
+NOT_PRODUCTS = {"upnp", "http", "https", "mozilla", "webdav", "dav", "ssl", "tls", "ok", "unix", "win32", "win64"}
 # Distributions that fix flaws without changing the version a banner shows ("backports").
 DISTRO = re.compile(r"\b(ubuntu|debian|deb\d+u\d+|raspbian|el\d|centos|red ?hat|rhel|fedora|suse|amazon|alpine|freebsd)\b", re.I)
 RANK = {s: len(SEVERITIES) - i for i, s in enumerate(SEVERITIES)}
@@ -140,8 +142,13 @@ def assess_node(node: dict[str, Any], db: dict[str, Any], handshakes: list[tuple
     handshakes = handshakes or []
     findings = wifi_findings(node) + service_findings(node) + tls_findings(node) + [f for _, f in handshakes if f]
     findings.sort(key=lambda f: -RANK[f["severity"]])
+    aliases = db.get("aliases") or {}
     software = []
     for soft in device_software(node):
+        if not soft.cpes and soft.key in aliases:
+            # A product a rebuild looked up from a capture: link it to the CPEs it resolved to.
+            soft.cpes = tuple(aliases[soft.key].get("cpes") or ())
+            soft.name = aliases[soft.key].get("name") or soft.name
         vulns = vulndb.vulnerabilities(soft, db)
         software.append({
             "name": soft.name,
@@ -209,6 +216,28 @@ def handshake_records(node: dict[str, Any], by_mac: dict[str, dict[str, Any]]) -
             )
         out.append((record, finding))
     return out
+
+
+def discoverable(banners: list[str], db: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    """Products seen in banners that NetSeer can't match yet, so a rebuild can look them up.
+
+    A product qualifies when it names a version (needed to match a CVE) but isn't in the built-in
+    list or in the aliases a previous rebuild already resolved.
+    """
+    db = db if db is not None else vulndb.load()[0]
+    known_aliases = set((db.get("aliases") or {}).keys())
+    seen: dict[str, dict[str, Any]] = {}
+    for raw in banners or []:
+        for soft in parse_banner(str(raw), "banner"):
+            if soft.cpes or not soft.version or soft.key in PRODUCTS or soft.key in known_aliases or soft.key in NOT_PRODUCTS:
+                continue
+            entry = seen.setdefault(soft.key, {"token": soft.key, "name": soft.name, "versions": set(), "count": 0})
+            entry["versions"].add(soft.version)
+            entry["count"] += 1
+    return [
+        {"token": e["token"], "name": e["name"], "versions": sorted(e["versions"]), "count": e["count"]}
+        for e in sorted(seen.values(), key=lambda e: -e["count"])
+    ]
 
 
 def assess_graph(graph: dict[str, Any]) -> dict[str, Any]:

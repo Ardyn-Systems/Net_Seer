@@ -51,7 +51,7 @@ def test_banners_name_products_and_versions():
     [unknown] = parse_banner("GoAhead-Webs", "HTTP Server header")
     assert (unknown.name, unknown.version, unknown.cpes) == ("GoAhead-Webs", None, ())
     [cisco] = parse_banner("SSH-2.0-Cisco-1.25", "SSH banner")
-    assert cisco.cpes == () and cisco.version is None
+    assert cisco.cpes == () and cisco.version == "1.25" and cisco.key == "cisco"  # unknown, but a version to look up
 
 
 def test_version_order():
@@ -184,7 +184,7 @@ def test_security_api(monkeypatch):
     info = client.get("/api/security/database").json()
     assert info["can_refresh"] is True and info["refresh"]["state"] == "idle"
     # A refresh runs in the background and saves a downloaded copy.
-    monkeypatch.setattr(webmod.vuln_fetch, "build", lambda progress=None, should_stop=None: small_db(generated="2999-01-01T00:00:00Z"))
+    monkeypatch.setattr(webmod.vuln_fetch, "build", lambda progress=None, should_stop=None, extra_products=None: small_db(generated="2999-01-01T00:00:00Z"))
     assert client.post("/api/security/refresh").status_code == 200
     import time
 
@@ -288,3 +288,69 @@ def test_wpa3_handshake_is_recorded_but_not_crackable(tmp_path):
     sh = res["mac:a4:c3:f0:99:00:02"]["handshakes"][0]
     assert sh["complete"] is True and sh["crackable"] is False
     assert "wifi-handshake" not in {f["id"] for f in res["mac:a4:c3:f0:99:00:02"]["findings"]}
+
+
+def test_discoverable_finds_unknown_products_with_versions():
+    from netseer.security import discoverable
+
+    banners = [
+        "GoAhead-Webs/2.5.0",          # unknown, has a version -> discoverable
+        "Apache/2.4.49 (Unix)",        # known -> excluded
+        "nginx",                       # no version -> excluded
+        "RomPager/4.07 UPnP/1.0",      # RomPager known; UPnP is a protocol -> both excluded
+        "SSH-2.0-Foobar-3.1",          # unknown SSH product with a version
+    ]
+    found = {d["token"]: d for d in discoverable(banners, db={"products": {}})}
+    assert set(found) == {"goahead-webs", "foobar"}
+    assert found["goahead-webs"]["name"] == "GoAhead-Webs" and found["goahead-webs"]["versions"] == ["2.5.0"]
+    # Once an alias exists from a previous rebuild, it's no longer "discoverable".
+    assert discoverable(["GoAhead-Webs/2.5.0"], db={"products": {}, "aliases": {"goahead-webs": {"cpes": ["goahead:goahead_webserver"]}}}) == []
+
+
+def test_resolve_relation_rules():
+    from netseer.security.fetch import _related, _norm
+
+    assert _related("goaheadwebs", _norm("goahead_webserver"))  # shared leading run
+    assert _related("lighttpd", "lighttpd")
+    assert not _related("ab", "abcdef")  # too short
+    assert not _related("acme", "zeus")
+
+
+def test_aliases_let_a_rebuilt_product_match(tmp_path):
+    db = {
+        "products": {"goahead:goahead_webserver": [
+            {"id": "CVE-2021-42342", "summary": "GoAhead RCE", "cvss": 9.8, "severity": "CRITICAL", "epss": 0.5, "percentile": 0.9, "kev": False, "ranges": [["", False, "5.1.5", False]], "versions": []},
+        ]},
+        "aliases": {"goahead-webs": {"name": "GoAhead WebServer", "cpes": ["goahead:goahead_webserver"]}},
+    }
+    vulndb.write(vulndb.downloaded_path(), {**db, "generated": "2999-01-01T00:00:00Z"})
+    node = {"id": "mac:aa", "kind": "host", "label": "Relay", "extra": {"software": [{"raw": "GoAhead-Webs/2.5.0", "source": "HTTP Server header"}]}}
+    res = assess_graph({"nodes": [node], "links": []})["nodes"]["mac:aa"]
+    soft = res["software"][0]
+    assert soft["name"] == "GoAhead WebServer" and [v["id"] for v in soft["vulnerabilities"]] == ["CVE-2021-42342"]
+    assert res["worst"] == "critical"
+
+
+def test_refresh_passes_capture_products_to_build(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import netseer.web as webmod
+
+    captured = {}
+
+    def fake_build(progress=None, should_stop=None, extra_products=None):
+        captured["extra"] = extra_products
+        return small_db(generated="2999-01-01T00:00:00Z")
+
+    monkeypatch.setattr(webmod.vuln_fetch, "build", fake_build)
+    client = TestClient(webmod.app)
+    assert client.post("/api/security/discoverable", json={"banners": ["GoAhead-Webs/2.5.0", "nginx"]}).json()["products"][0]["token"] == "goahead-webs"
+    client.post("/api/security/refresh", json={"banners": ["GoAhead-Webs/2.5.0", "Apache/2.4.49"]})
+    import time
+
+    for _ in range(50):
+        if client.get("/api/security/database").json()["refresh"]["state"] in ("done", "error"):
+            break
+        time.sleep(0.05)
+    assert captured["extra"] == [{"token": "goahead-webs", "name": "GoAhead-Webs"}]
+    webmod.VULN_JOB.update(state="idle")

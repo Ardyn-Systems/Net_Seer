@@ -30,6 +30,7 @@ from netseer.brand import USER_AGENT
 from netseer.security.software import ALL_CPES
 
 NVD_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+NVD_CPE_URL = "https://services.nvd.nist.gov/rest/json/cpes/2.0"
 EPSS_URL = "https://epss.empiricalsecurity.com/epss_scores-current.csv.gz"
 KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
 PAGE = 2000
@@ -143,6 +144,58 @@ def fetch_product(cpe: str, *, api_key: str | None = None, pause: float | None =
             return entries
 
 
+def _norm(s: str) -> str:
+    return "".join(c for c in str(s).lower() if c.isalnum())
+
+
+def _related(token: str, product: str) -> bool:
+    """Whether a banner token and an NVD product name plausibly name the same thing."""
+    if len(token) < 3 or not product:
+        return False
+    if token in product or product in token:
+        return True
+    # A shared leading run handles "goahead-webs" vs "goahead_webserver", "lighttpd" vs "lighttpd".
+    lcp = 0
+    for a, b in zip(token, product):
+        if a != b:
+            break
+        lcp += 1
+    return lcp >= 4 and lcp / min(len(token), len(product)) >= 0.6
+
+
+def resolve_cpes(name: str, *, api_key: str | None = None) -> list[str]:
+    """Ask NVD what application a product name is, as up to two "vendor:product" keys.
+
+    Only keeps candidates whose product name clearly relates to the one seen, so a vague banner
+    doesn't pull in an unrelated product. Returns [] when nothing matches confidently.
+    """
+    headers = {"apiKey": api_key} if api_key else {}
+    token = _norm(name)
+    # NVD's keyword search is picky about separators: "GoAhead-Webs" finds nothing, but
+    # "GoAhead Webs" or "GoAhead" does. Try a few forms, keeping only related products.
+    import re
+
+    spaced = re.sub(r"[^A-Za-z0-9]+", " ", name).strip()
+    first = spaced.split(" ")[0] if spaced else name
+    for query_text in dict.fromkeys([name, spaced, first]):
+        if not query_text:
+            continue
+        query = urllib.parse.urlencode({"keywordSearch": query_text, "resultsPerPage": 80})
+        try:
+            data = json.loads(_get(f"{NVD_CPE_URL}?{query}", headers=headers, tries=3))
+        except Exception:
+            continue
+        counts: dict[tuple[str, str], int] = {}
+        for item in data.get("products") or []:
+            parts = str((item.get("cpe") or {}).get("cpeName") or "").split(":")
+            if len(parts) > 4 and parts[2] == "a":  # applications only, not OSes or hardware
+                counts[(parts[3], parts[4])] = counts.get((parts[3], parts[4]), 0) + 1
+        related = [vp for vp in sorted(counts, key=lambda k: -counts[k]) if _related(token, _norm(vp[1]))]
+        if related:
+            return [f"{v}:{p}" for v, p in related[:2]]
+    return []
+
+
 def fetch_epss(ids: set[str]) -> tuple[dict[str, tuple[float, float]], str]:
     raw = gzip.decompress(_get(EPSS_URL, timeout=180)).decode("utf-8", errors="replace")
     date = ""
@@ -168,15 +221,41 @@ def fetch_kev() -> tuple[set[str], str]:
     return {v.get("cveID") for v in data.get("vulnerabilities") or [] if v.get("cveID")}, str(data.get("dateReleased") or "")[:10]
 
 
-def build(progress: Progress | None = None, should_stop: Callable[[], bool] | None = None, cpes: tuple[str, ...] = ALL_CPES) -> dict[str, Any]:
-    """Everything, as a database ``vulndb.write`` can save."""
+def build(
+    progress: Progress | None = None,
+    should_stop: Callable[[], bool] | None = None,
+    cpes: tuple[str, ...] = ALL_CPES,
+    extra_products: list[dict[str, str]] | None = None,
+) -> dict[str, Any]:
+    """Everything, as a database ``vulndb.write`` can save.
+
+    ``extra_products`` is a list of ``{"token", "name"}`` for products seen in the user's captures
+    that NetSeer didn't recognize; each is resolved to a CPE via NVD and looked up like the rest,
+    and recorded in ``aliases`` so later assessments can match the same banner.
+    """
     api_key = os.environ.get("NVD_API_KEY") or None
-    total = len(cpes) + 2
+    extra_products = extra_products or []
+    total = len(cpes) + len(extra_products) + 2
     products: dict[str, list[dict[str, Any]]] = {}
     for i, cpe in enumerate(cpes):
         if progress:
             progress(f"Known vulnerabilities for {cpe.split(':')[1].replace('_', ' ')}", i, total)
         products[cpe] = fetch_product(cpe, api_key=api_key, should_stop=should_stop)
+    # Products seen in captures but not in the built-in list: resolve, then look up like the rest.
+    aliases: dict[str, dict[str, Any]] = {}
+    discovered: list[dict[str, Any]] = []
+    for j, ep in enumerate(extra_products):
+        if should_stop and should_stop():
+            raise Stopped
+        if progress:
+            progress(f"Looking up {ep['name']} (seen in your capture)", len(cpes) + j, total)
+        resolved = resolve_cpes(ep["name"], api_key=api_key)
+        for cpe in resolved:
+            if cpe not in products:
+                products[cpe] = fetch_product(cpe, api_key=api_key, should_stop=should_stop)
+        if resolved:
+            aliases[ep["token"]] = {"name": ep["name"], "cpes": resolved}
+        discovered.append({"token": ep["token"], "name": ep["name"], "cpes": resolved, "found": bool(resolved)})
     ids = {e["id"] for items in products.values() for e in items}
     if should_stop and should_stop():
         raise Stopped
@@ -193,9 +272,14 @@ def build(progress: Progress | None = None, should_stop: Callable[[], bool] | No
             e["kev"] = e["id"] in kev
     if progress:
         progress("Done", total, total)
-    return {
+    db = {
         "generated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "epss_date": epss_date,
         "kev_date": kev_date,
         "products": products,
     }
+    if aliases:
+        db["aliases"] = aliases
+    if discovered:
+        db["discovered"] = discovered
+    return db

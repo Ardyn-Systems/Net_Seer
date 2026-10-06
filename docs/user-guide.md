@@ -130,7 +130,7 @@ Every device's details include a **Security** section. NetSeer only reports what
 - **Wi-Fi handshakes** are noted when a WPA four-way handshake between a device and its access point was captured. If enough was captured on a password network, it's flagged: someone with the capture could try the Wi-Fi password offline.
 - **Shade the map by security:** in **Layers → Security**, turn on **Shade by security** to tint every device by its most serious finding (red for Critical down to blue for Low), with a count of each.
 
-The vulnerability data is bundled with NetSeer, so this works with no internet. Keep it current under **Settings → Security** (see [Settings](#settings-updates-and-the-tour)).
+The vulnerability data is bundled with NetSeer, so this works with no internet. Keep it current under **Settings → Security** (see [Settings](#settings-updates-and-the-tour)) — a rebuild also looks up any product it saw in your captures that wasn't in the data yet, so unusual services get covered over time.
 
 To try it, open **Settings → Demo** and open **Small office: security check**.
 
@@ -340,7 +340,7 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 **Demo.** Sample captures to try NetSeer with; see [Open your captures](#open-your-captures).
 
-**Security.** Shows the vulnerability data NetSeer uses for the Security findings, and when it was built. **Rebuild now** downloads the latest from NVD, FIRST (EPSS), and CISA in a few minutes; it sends only product names, nothing about you or your maps. On an installed copy the button lights up when you're online — brightest when the data is getting old — and is held back with a reason when you're offline. Without rebuilding, the data is as current as your version of NetSeer.
+**Security.** Shows the vulnerability data NetSeer uses for the Security findings, and when it was built. **Rebuild now** downloads the latest from NVD, FIRST (EPSS), and CISA in a few minutes; it sends only product names, nothing about you or your maps. It also looks up products NetSeer saw in your captures but didn't recognize — when it finds one, it says so ("NetSeer saw 1 service it doesn't recognize yet…") and the button lights up. On an installed copy the button also brightens when the data is getting old, and is held back with a reason when you're offline. Without rebuilding, the data is as current as your version of NetSeer.
 
 ![Settings, Security: the vulnerability data in use and a highlighted Rebuild now button](images/settings-security.png)
 

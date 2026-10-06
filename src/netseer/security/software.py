@@ -66,24 +66,28 @@ def parse_banner(raw: str, source: str) -> list[Software]:
         # SSH-2.0-OpenSSH_9.6p1 Ubuntu-3ubuntu13, SSH-2.0-dropbear_2020.81, SSH-2.0-libssh_0.9.6
         soft = text.split("-", 2)[2] if text.count("-") >= 2 else ""
         m = re.match(r"([A-Za-z][A-Za-z0-9.]*?)[_\-]" + _VERSION, soft)
-        name = (m.group(1) if m else soft.split()[0] if soft else "").lower()
-        version = m.group(2) if m else None
-        product = PRODUCTS.get(name)
-        if product:
-            found.append(Software(name, product.name, version, text, source, product.cpes))
+        if m:  # a product with a version, known or not
+            word = m.group(1)
+            product = PRODUCTS.get(word.lower())
+            found.append(Software(word.lower(), product.name if product else word, m.group(2), text, source, product.cpes if product else ()))
         elif soft:
-            found.append(Software("", soft.split()[0], None, text, source))
+            word = soft.split()[0]
+            product = PRODUCTS.get(word.lower())
+            found.append(Software(word.lower(), product.name if product else word, None, text, source, product.cpes if product else ()))
         return found
     for m in _TOKEN.finditer(text):
         name, version = m.group(1).lower(), m.group(2)
         product = PRODUCTS.get(name)
         if product:
             found.append(Software(name, product.name, version, text, source, product.cpes))
+        else:
+            # A product NetSeer doesn't know yet, but with a version a rebuild could look up.
+            found.append(Software(name, m.group(1), version, text, source, ()))
     if not found and text:
-        # A product NetSeer can't match, or one that hides its version ("nginx", "GoAhead-Webs").
+        # A lone product name with no version ("nginx", "GoAhead-Webs").
         word = text.split()[0].split("/")[0]
         product = PRODUCTS.get(word.lower())
-        found.append(Software(word.lower() if product else "", product.name if product else word, None, text, source, product.cpes if product else ()))
+        found.append(Software(word.lower(), product.name if product else word, None, text, source, product.cpes if product else ()))
     return found
 
 

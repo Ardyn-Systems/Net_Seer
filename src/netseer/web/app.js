@@ -4335,7 +4335,7 @@ async function mergeSurveyDialog(surveyId) {
 // database. The server does the matching; this draws it.
 const SECURITY_COLORS = { critical: "#d6293e", high: "#f2711c", medium: "#e0a800", low: "#4c8dff" };
 const SECURITY_NAMES = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
-const security = { seq: 0, overlay: null, overlayKey: null, loading: false, poll: null, dbInfo: null };
+const security = { seq: 0, overlay: null, overlayKey: null, loading: false, poll: null, dbInfo: null, discoverable: [] };
 
 const epssText = (epss) => {
   if (epss == null) return "unknown";
@@ -4534,7 +4534,44 @@ async function renderSecurityPane() {
   show("vdb-online", info.can_refresh);
   show("vdb-hosted", !info.can_refresh);
   security.dbInfo = info;
+  // Which products from the user's own captures a rebuild could newly look up.
+  security.discoverable = [];
+  if (info.can_refresh && navigator.onLine && info.refresh?.state !== "running") {
+    try {
+      security.discoverable = (await parseResponse(await fetch("/api/security/discoverable", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ banners: securityBanners() }) }))).products || [];
+    } catch {
+      /* preview only; the rebuild still looks them up */
+    }
+  }
   showRefresh(info.refresh);
+}
+
+// Distinct product banners NetSeer saw across every map, to look up on a rebuild.
+function securityBanners() {
+  const set = new Set();
+  for (const m of state.maps) for (const n of m.graph?.nodes || []) for (const s of (n.extra || {}).software || []) if (s.raw) set.add(String(s.raw));
+  return [...set];
+}
+
+function renderDiscoverable() {
+  const box = el("vdb-extra");
+  const info = security.dbInfo;
+  const running = info?.refresh?.state === "running";
+  const names = (list) => list.map((d) => d.name).join(", ");
+  if (running) {
+    box.classList.add("hidden");
+    return;
+  }
+  const found = (info?.discovered || []).filter((d) => d.found);
+  if (security.discoverable?.length) {
+    box.className = "vdb-extra warn";
+    box.textContent = `NetSeer saw ${plural(security.discoverable.length, "service")} in your captures it doesn't recognize yet (${names(security.discoverable)}). Rebuild to look ${security.discoverable.length > 1 ? "them" : "it"} up.`;
+  } else if (found.length) {
+    box.className = "vdb-extra good";
+    box.textContent = `Looked up from your captures: ${names(found)}.`;
+  } else {
+    box.classList.add("hidden");
+  }
 }
 
 // How stale the data is, in whole days (from whichever copy is in use).
@@ -4560,8 +4597,10 @@ function syncRefreshButton() {
   const online = navigator.onLine;
   const age = vulndbAgeDays(info);
   const stale = age != null && age >= VULNDB_STALE_DAYS;
+  const newServices = (security.discoverable || []).length > 0;
   btn.disabled = !online;
-  btn.classList.toggle("attention", online && stale);
+  // The button invites a click when there's something to gain: old data, or services to look up.
+  btn.classList.toggle("attention", online && (stale || newServices));
   cta.classList.remove("hidden", "good", "warn");
   if (!online) {
     cta.textContent = "Connect to the internet, then rebuild to get the latest vulnerability data.";
@@ -4574,6 +4613,7 @@ function syncRefreshButton() {
   } else {
     cta.classList.add("hidden");
   }
+  renderDiscoverable();
 }
 
 function showRefresh(job) {
@@ -4624,7 +4664,8 @@ function bindSecurity() {
   });
   el("vdb-update").addEventListener("click", async () => {
     try {
-      showRefresh(await parseResponse(await fetch("/api/security/refresh", { method: "POST" })));
+      // Send the banners we've seen so the rebuild also looks up products NetSeer doesn't know.
+      showRefresh(await parseResponse(await fetch("/api/security/refresh", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ banners: securityBanners() }) })));
     } catch (err) {
       el("vdb-status").textContent = err.message || String(err);
     }

@@ -282,11 +282,12 @@ LAB_WEB = "00:25:90:70:00:20"  # intranet: Apache 2.4.49, OpenSSL 1.0.2k, PHP 7.
 LAB_CAM = "00:40:8c:70:00:30"  # IP camera: RomPager 4.07, Telnet
 LAB_PRINTER = "00:17:c8:70:00:40"  # printer: SNMP
 LAB_NEW = "00:25:90:70:00:50"  # a well-kept server, for contrast
+LAB_IOT = "b0:4e:26:70:00:60"  # a smart relay running a server NetSeer doesn't know yet
 LAB_PC = "f0:18:98:70:01:00"
 RSN_SAE = bytes.fromhex("0100000fac040100000fac040100000fac080000")
 WPS_IE = bytes.fromhex("0050f204104a000110104400010210470010") + bytes(16)
 
-_LAB_IPS = {LAB_GW: "10.20.0.1", LAB_FILES: "10.20.0.10", LAB_WEB: "10.20.0.20", LAB_CAM: "10.20.0.30", LAB_PRINTER: "10.20.0.40", LAB_NEW: "10.20.0.50", LAB_PC: "10.20.0.100"}
+_LAB_IPS = {LAB_GW: "10.20.0.1", LAB_FILES: "10.20.0.10", LAB_WEB: "10.20.0.20", LAB_CAM: "10.20.0.30", LAB_PRINTER: "10.20.0.40", LAB_NEW: "10.20.0.50", LAB_IOT: "10.20.0.60", LAB_PC: "10.20.0.100"}
 
 
 def _lab_reply(mac: str, sport: int, payload: bytes, proto=TCP) -> Ether:
@@ -334,6 +335,9 @@ def security_lab_packets() -> list:
         # A well-kept server: current OpenSSH, TLS 1.3
         _lab_reply(LAB_NEW, 22, b"SSH-2.0-OpenSSH_10.5\r\n"),
         _lab_reply(LAB_NEW, 443, _server_hello(0x0303, tls13=True)),
+        # A service NetSeer doesn't recognize out of the box: a rebuild can look it up.
+        _lab_ask(LAB_IOT, 80, _http_get("10.20.0.60", "/")),
+        _lab_reply(LAB_IOT, 80, http(b"GoAhead-Webs/2.5.0")),
     ]
     return pkts
 

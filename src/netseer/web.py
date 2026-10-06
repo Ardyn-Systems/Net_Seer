@@ -22,6 +22,7 @@ from netseer import __version__, updater
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
 from netseer.compare import compare_graphs
 from netseer.security import assess_graph
+from netseer.security import discoverable as security_discoverable
 from netseer.security import fetch as vuln_fetch
 from netseer.security import vulndb
 from netseer.detect import EmptySurveyError, UnsupportedSurveyError
@@ -485,16 +486,27 @@ def _vuln_status() -> dict[str, Any]:
 
 @app.get("/api/security/database")
 def security_database_api():
-    return {**vulndb.info(), "can_refresh": not hosted_mode(), "refresh": _vuln_status()}
+    db, _ = vulndb.load()
+    discovered = [d for d in (db.get("discovered") or []) if d.get("found")]
+    return {**vulndb.info(), "can_refresh": not hosted_mode(), "refresh": _vuln_status(), "discovered": discovered}
 
 
-def _run_vuln_refresh() -> None:
+@app.post("/api/security/discoverable")
+def security_discoverable_api(body: dict):
+    """Products seen in the given banners that a rebuild could newly look up."""
+    banners = body.get("banners")
+    if not isinstance(banners, list):
+        raise HTTPException(status_code=400, detail="Send the banners seen in your captures.")
+    return {"products": security_discoverable([str(b) for b in banners[:5000]])}
+
+
+def _run_vuln_refresh(extra_products: list[dict[str, str]]) -> None:
     def progress(step: str, done: int, total: int) -> None:
         with VULN_LOCK:
             VULN_JOB.update(step=step, done=done, total=total)
 
     try:
-        db = vuln_fetch.build(progress=progress, should_stop=lambda: VULN_JOB["stop"])
+        db = vuln_fetch.build(progress=progress, should_stop=lambda: VULN_JOB["stop"], extra_products=extra_products)
         vulndb.write(vulndb.downloaded_path(), db)
         with VULN_LOCK:
             VULN_JOB.update(state="done", step="Done")
@@ -508,14 +520,18 @@ def _run_vuln_refresh() -> None:
 
 
 @app.post("/api/security/refresh")
-def security_refresh_api():
+def security_refresh_api(body: dict | None = None):
     if hosted_mode():
         raise HTTPException(status_code=403, detail="This online copy uses the vulnerability data bundled with its version.")
+    # Products seen in the user's captures that aren't recognized yet, to look up as well.
+    banners = (body or {}).get("banners")
+    extra = security_discoverable([str(b) for b in banners[:5000]]) if isinstance(banners, list) else []
+    extra_products = [{"token": p["token"], "name": p["name"]} for p in extra[:25]]
     with VULN_LOCK:
         if VULN_JOB["state"] == "running":
             raise HTTPException(status_code=409, detail="Already updating.")
         VULN_JOB.update(state="running", step="Starting", done=0, total=0, error=None, stop=False)
-    threading.Thread(target=_run_vuln_refresh, name="vulndb-refresh", daemon=True).start()
+    threading.Thread(target=_run_vuln_refresh, args=(extra_products,), name="vulndb-refresh", daemon=True).start()
     return _vuln_status()
 
 

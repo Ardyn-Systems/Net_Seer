@@ -1624,3 +1624,6 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 .btn.attention { box-shadow: 0 0 0 1px var(--accent), 0 0 12px var(--accent-soft); animation: vdb-pulse 1.8s ease-in-out infinite; }
 @keyframes vdb-pulse { 0%, 100% { box-shadow: 0 0 0 1px var(--accent), 0 0 10px var(--accent-soft); } 50% { box-shadow: 0 0 0 1px var(--accent), 0 0 18px var(--accent); } }
 @media (prefers-reduced-motion: reduce) { .btn.attention { animation: none; } }
+.vdb-extra { margin: 0.4rem 0 0.2rem; font-size: 12.5px; }
+.vdb-extra.warn { color: var(--accent); font-weight: 600; }
+.vdb-extra.good { color: var(--muted); }
