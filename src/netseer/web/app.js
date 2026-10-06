@@ -4335,7 +4335,7 @@ async function mergeSurveyDialog(surveyId) {
 // database. The server does the matching; this draws it.
 const SECURITY_COLORS = { critical: "#d6293e", high: "#f2711c", medium: "#e0a800", low: "#4c8dff" };
 const SECURITY_NAMES = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
-const security = { seq: 0, overlay: null, overlayKey: null, loading: false, poll: null };
+const security = { seq: 0, overlay: null, overlayKey: null, loading: false, poll: null, dbInfo: null };
 
 const epssText = (epss) => {
   if (epss == null) return "unknown";
@@ -4533,7 +4533,47 @@ async function renderSecurityPane() {
     : "";
   show("vdb-online", info.can_refresh);
   show("vdb-hosted", !info.can_refresh);
+  security.dbInfo = info;
   showRefresh(info.refresh);
+}
+
+// How stale the data is, in whole days (from whichever copy is in use).
+function vulndbAgeDays(info) {
+  const gen = info?.in_use?.generated;
+  const t = gen ? Date.parse(gen.length <= 10 ? `${gen}T12:00:00Z` : gen) : NaN;
+  return Number.isFinite(t) ? Math.floor((Date.now() - t) / 86400000) : null;
+}
+
+// The rebuild button is the call to action: bright and inviting when online (brighter still when
+// the data is old), and clearly held back with a reason when offline or already current.
+const VULNDB_STALE_DAYS = 14;
+
+function syncRefreshButton() {
+  const info = security.dbInfo;
+  const btn = el("vdb-update");
+  const cta = el("vdb-cta");
+  if (!info || !info.can_refresh || info.refresh?.state === "running") {
+    btn?.classList.remove("attention");
+    if (cta) cta.classList.add("hidden");
+    return;
+  }
+  const online = navigator.onLine;
+  const age = vulndbAgeDays(info);
+  const stale = age != null && age >= VULNDB_STALE_DAYS;
+  btn.disabled = !online;
+  btn.classList.toggle("attention", online && stale);
+  cta.classList.remove("hidden", "good", "warn");
+  if (!online) {
+    cta.textContent = "Connect to the internet, then rebuild to get the latest vulnerability data.";
+  } else if (stale) {
+    cta.textContent = `This data is ${plural(age, "day")} old. Rebuild now to check devices against the latest known vulnerabilities.`;
+    cta.classList.add("warn");
+  } else if (age != null) {
+    cta.textContent = age <= 1 ? "Your vulnerability data is up to date. Rebuild any time to refresh it." : `Your vulnerability data is ${plural(age, "day")} old. Rebuild any time to refresh it.`;
+    cta.classList.add("good");
+  } else {
+    cta.classList.add("hidden");
+  }
 }
 
 function showRefresh(job) {
@@ -4556,6 +4596,7 @@ function showRefresh(job) {
   } else status.textContent = "";
   clearInterval(security.poll);
   if (running) security.poll = setInterval(pollRefresh, 1200);
+  syncRefreshButton();
 }
 
 async function pollRefresh() {
@@ -4589,6 +4630,12 @@ function bindSecurity() {
     }
   });
   el("vdb-cancel").addEventListener("click", () => fetch("/api/security/refresh/cancel", { method: "POST" }));
+  // Keep the button's invitation honest as the connection comes and goes.
+  const onConnectivity = () => {
+    if (el("settings-dialog").open && !el("vdb-online").classList.contains("hidden")) syncRefreshButton();
+  };
+  window.addEventListener("online", onConnectivity);
+  window.addEventListener("offline", onConnectivity);
 }
 
 /* ---------- Demo (Settings) ---------- */

@@ -1617,3 +1617,10 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 .sec-handshakes li { padding: 0.4rem 0.55rem; border: 1px solid var(--line); border-radius: 8px; }
 .sec-handshakes p { margin: 0.25rem 0 0; }
 .hs-head { display: flex; align-items: center; gap: 0.4rem; font-size: 13px; }
+
+.vdb-cta { margin: 0.5rem 0 0.2rem; font-size: 12.5px; color: var(--muted); }
+.vdb-cta.good { color: var(--muted); }
+.vdb-cta.warn { color: var(--accent); font-weight: 600; }
+.btn.attention { box-shadow: 0 0 0 1px var(--accent), 0 0 12px var(--accent-soft); animation: vdb-pulse 1.8s ease-in-out infinite; }
+@keyframes vdb-pulse { 0%, 100% { box-shadow: 0 0 0 1px var(--accent), 0 0 10px var(--accent-soft); } 50% { box-shadow: 0 0 0 1px var(--accent), 0 0 18px var(--accent); } }
+@media (prefers-reduced-motion: reduce) { .btn.attention { animation: none; } }

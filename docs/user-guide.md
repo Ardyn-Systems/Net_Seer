@@ -340,9 +340,9 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 **Demo.** Sample captures to try NetSeer with; see [Open your captures](#open-your-captures).
 
-**Security.** Shows the vulnerability data NetSeer uses for the Security findings, and when it was built. **Update now** (installed copies only) downloads the latest from NVD, FIRST (EPSS), and CISA in a few minutes; it sends only product names, nothing about you or your maps. Without updating, the data is as current as your version of NetSeer.
+**Security.** Shows the vulnerability data NetSeer uses for the Security findings, and when it was built. **Rebuild now** downloads the latest from NVD, FIRST (EPSS), and CISA in a few minutes; it sends only product names, nothing about you or your maps. On an installed copy the button lights up when you're online — brightest when the data is getting old — and is held back with a reason when you're offline. Without rebuilding, the data is as current as your version of NetSeer.
 
-![Settings, Security: the vulnerability data in use and an Update now button](images/settings-security.png)
+![Settings, Security: the vulnerability data in use and a highlighted Rebuild now button](images/settings-security.png)
 
 **Your data.** Shows how many maps and devices are saved in this browser.
 
