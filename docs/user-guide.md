@@ -11,17 +11,17 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 3. [Read the map](#read-the-map)
 4. [Inspect a device](#inspect-a-device)
 5. [Inspect a link](#inspect-a-link)
-6. [Look at a time window](#look-at-a-time-window)
-7. [Find a device](#find-a-device)
-8. [Select, copy, and move devices](#select-copy-and-move-devices)
-9. [Work with several maps](#work-with-several-maps)
-10. [Compare surveys for changes](#compare-surveys-for-changes)
-11. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
-12. [Show and hide layers](#show-and-hide-layers)
-13. [Export diagrams and files](#export-diagrams-and-files)
-14. [Create a PDF report](#create-a-pdf-report)
-15. [Change the theme](#change-the-theme)
-16. [Keyboard shortcuts](#keyboard-shortcuts)
+6. [Check security](#check-security)
+7. [Look at a time window](#look-at-a-time-window)
+8. [Find a device](#find-a-device)
+9. [Select, copy, and move devices](#select-copy-and-move-devices)
+10. [Work with several maps](#work-with-several-maps)
+11. [Compare surveys for changes](#compare-surveys-for-changes)
+12. [Add what the capture didn't show](#add-what-the-capture-didnt-show)
+13. [Show and hide layers](#show-and-hide-layers)
+14. [Export diagrams and files](#export-diagrams-and-files)
+15. [Create a PDF report](#create-a-pdf-report)
+16. [Change the theme](#change-the-theme)
 17. [Settings, updates, and the tour](#settings-updates-and-the-tour)
 18. [Where your work is saved](#where-your-work-is-saved)
 19. [Troubleshooting](#troubleshooting)
@@ -97,6 +97,7 @@ Click a device to see what NetSeer found.
 - **Radio** (for wireless devices) shows SSIDs, channel, frequency, signal range, security, and GPS.
 - **Services** and **Routing** show what it serves and what NetSeer learned from OSPF, DHCP, and DNS.
 - **Notes** keeps anything you want to remember: asset tags, site notes, contacts.
+- **Security** lists what NetSeer found about the device's safety. See [Check security](#check-security).
 - **Click any value** to copy it.
 
 The buttons below copy a text summary of the device, export it, move it to another map, set it aside, or delete it from this map.
@@ -112,6 +113,26 @@ Open **All extracted fields** for every value the parser found. Change any of th
 Click a line to see what it represents: the two ends, how many frames were seen, VLANs, and the services involved. For web traffic NetSeer also shows the HTTP host name it saw. **Remove this link** (in the details, or by right-clicking the line) takes it off the map without moving either device; you can undo it.
 
 ![Details for an HTTP link from a host to a server, with the HTTP host intranet.hq.local](images/link-details.png)
+
+## Check security
+
+Every device's details include a **Security** section. NetSeer only reports what the capture actually shows; it never scans or probes anything.
+
+![A server's Security section: a Critical badge, a finding, and Apache with CVEs showing severity, EPSS likelihood, and a "known exploited" flag](images/security-details.png)
+
+- **Findings** are things the capture shows directly, each with a severity (Critical, High, Medium, Low), why it matters, and how to fix it. Examples: an **open** or **WEP** Wi-Fi network, **WPS** left on, **Telnet** or **FTP**, **SNMP** with a default community, a database reachable on the network, or **TLS 1.0/1.1**. These are certain, so they carry no percentage.
+- **Software it revealed** lists products and versions a device announced in a banner (an SSH greeting, an HTTP `Server` header). When the version is known, NetSeer lists the matching vulnerabilities, each with:
+  - its **CVE** number (click to read it on NVD),
+  - its **severity** and CVSS score,
+  - its **EPSS** score — the estimated chance it is exploited in the wild in the next 30 days,
+  - a **Known exploited** flag when it is on CISA's list.
+  - They're ordered with the most likely to be exploited first. If a device only gives a product name with no version, NetSeer says so rather than guessing.
+- **Wi-Fi handshakes** are noted when a WPA four-way handshake between a device and its access point was captured. If enough was captured on a password network, it's flagged: someone with the capture could try the Wi-Fi password offline.
+- **Shade the map by security:** in **Layers → Security**, turn on **Shade by security** to tint every device by its most serious finding (red for Critical down to blue for Low), with a count of each.
+
+The vulnerability data is bundled with NetSeer, so this works with no internet. Keep it current under **Settings → Security** (see [Settings](#settings-updates-and-the-tour)).
+
+To try it, open **Settings → Demo** and open **Small office: security check**.
 
 ## Look at a time window
 
@@ -318,6 +339,10 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 **General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn SSIDs under access points and hover fading on or off. **Time** sets the time zone and 12- or 24-hour clock used for capture times on the timeline and in Details.
 
 **Demo.** Sample captures to try NetSeer with; see [Open your captures](#open-your-captures).
+
+**Security.** Shows the vulnerability data NetSeer uses for the Security findings, and when it was built. **Update now** (installed copies only) downloads the latest from NVD, FIRST (EPSS), and CISA in a few minutes; it sends only product names, nothing about you or your maps. Without updating, the data is as current as your version of NetSeer.
+
+![Settings, Security: the vulnerability data in use and an Update now button](images/settings-security.png)
 
 **Your data.** Shows how many maps and devices are saved in this browser.
 

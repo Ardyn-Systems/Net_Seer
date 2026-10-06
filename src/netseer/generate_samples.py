@@ -29,6 +29,8 @@ from scapy.layers.dot11 import (  # type: ignore[import-untyped]
     Dot11Elt,
     Dot11ProbeReq,
 )
+from scapy.layers.eap import EAPOL  # type: ignore[import-untyped]
+from scapy.layers.l2 import SNAP  # type: ignore[import-untyped]
 from scapy.utils import PcapNgWriter, mac2str  # type: ignore[import-untyped]
 
 from netseer.brand import USER_AGENT
@@ -273,6 +275,99 @@ def branch_later_packets() -> list:
     ]
 
 
+# A small office with the usual problems, for trying Security.
+LAB_GW = "00:1b:2f:70:00:01"  # router: Telnet, an old web admin, TLS 1.0
+LAB_FILES = "00:25:90:70:00:10"  # file server: OpenSSH 7.4, FTP, SMB
+LAB_WEB = "00:25:90:70:00:20"  # intranet: Apache 2.4.49, OpenSSL 1.0.2k, PHP 7.4.3
+LAB_CAM = "00:40:8c:70:00:30"  # IP camera: RomPager 4.07, Telnet
+LAB_PRINTER = "00:17:c8:70:00:40"  # printer: SNMP
+LAB_NEW = "00:25:90:70:00:50"  # a well-kept server, for contrast
+LAB_PC = "f0:18:98:70:01:00"
+RSN_SAE = bytes.fromhex("0100000fac040100000fac040100000fac080000")
+WPS_IE = bytes.fromhex("0050f204104a000110104400010210470010") + bytes(16)
+
+_LAB_IPS = {LAB_GW: "10.20.0.1", LAB_FILES: "10.20.0.10", LAB_WEB: "10.20.0.20", LAB_CAM: "10.20.0.30", LAB_PRINTER: "10.20.0.40", LAB_NEW: "10.20.0.50", LAB_PC: "10.20.0.100"}
+
+
+def _lab_reply(mac: str, sport: int, payload: bytes, proto=TCP) -> Ether:
+    """A packet from a lab device back to the PC."""
+    layer = proto(sport=sport, dport=51000 + sport % 1000) if proto is UDP else TCP(sport=sport, dport=51000 + sport % 1000, flags="PA")
+    return Ether(src=mac, dst=LAB_PC) / IP(src=_LAB_IPS[mac], dst=_LAB_IPS[LAB_PC]) / layer / Raw(load=payload)
+
+
+def _lab_ask(mac: str, dport: int, payload: bytes, proto=TCP) -> Ether:
+    layer = proto(sport=51000 + dport % 1000, dport=dport) if proto is UDP else TCP(sport=51000 + dport % 1000, dport=dport, flags="PA")
+    return Ether(src=LAB_PC, dst=mac) / IP(src=_LAB_IPS[LAB_PC], dst=_LAB_IPS[mac]) / layer / Raw(load=payload)
+
+
+def _server_hello(version: int, tls13: bool = False) -> bytes:
+    ext = b"\x00\x2b\x00\x02\x03\x04" if tls13 else b""
+    body = b"\x02" + b"\x00\x00\x46" + version.to_bytes(2, "big") + bytes(32) + b"\x00" + b"\x13\x01" + b"\x00" + len(ext).to_bytes(2, "big") + ext
+    return b"\x16\x03\x03" + len(body).to_bytes(2, "big") + body
+
+
+def security_lab_packets() -> list:
+    pkts = [Ether(src=mac, dst="ff:ff:ff:ff:ff:ff") / ARP(op=2, hwsrc=mac, psrc=ip, pdst=ip) for mac, ip in _LAB_IPS.items()]
+    http = lambda server: b"HTTP/1.1 200 OK\r\nServer: " + server + b"\r\nContent-Type: text/html\r\n\r\n<html></html>"  # noqa: E731
+    pkts += [
+        # Router
+        _lab_ask(LAB_GW, 80, _http_get("192.168.0.1", "/login.cgi")),
+        _lab_reply(LAB_GW, 80, http(b"lighttpd/1.4.35")),
+        _lab_ask(LAB_GW, 23, b"\xff\xfd\x18\xff\xfd\x20"),
+        _lab_reply(LAB_GW, 23, b"\xff\xfb\x01\r\nlogin: "),
+        _lab_reply(LAB_GW, 443, _server_hello(0x0301)),
+        # File server
+        _lab_reply(LAB_FILES, 22, b"SSH-2.0-OpenSSH_7.4\r\n"),
+        _lab_ask(LAB_FILES, 21, b"USER backup\r\n"),
+        _lab_reply(LAB_FILES, 21, b"220 (vsFTPd 3.0.2)\r\n"),
+        _lab_ask(LAB_FILES, 445, b"\x00\x00\x00\x54\xfeSMB"),
+        # Intranet web server
+        _lab_ask(LAB_WEB, 80, _http_get("intranet.lab.local")),
+        _lab_reply(LAB_WEB, 80, b"HTTP/1.1 200 OK\r\nServer: Apache/2.4.49 (Unix) OpenSSL/1.0.2k\r\nX-Powered-By: PHP/7.4.3\r\n\r\n<html></html>"),
+        # Camera
+        _lab_ask(LAB_CAM, 80, _http_get("10.20.0.30", "/")),
+        _lab_reply(LAB_CAM, 80, http(b"RomPager/4.07 UPnP/1.0")),
+        _lab_reply(LAB_CAM, 23, b"\xff\xfb\x01(none) login: "),
+        # Printer
+        _lab_ask(LAB_PRINTER, 161, b"\x30\x26\x02\x01\x01\x04\x06public", UDP),
+        _lab_reply(LAB_PRINTER, 161, b"\x30\x30\x02\x01\x01\x04\x06public", UDP),
+        # A well-kept server: current OpenSSH, TLS 1.3
+        _lab_reply(LAB_NEW, 22, b"SSH-2.0-OpenSSH_10.5\r\n"),
+        _lab_reply(LAB_NEW, 443, _server_hello(0x0303, tls13=True)),
+    ]
+    return pkts
+
+
+LAB_STAFF_AP = "00:1b:2f:70:10:03"
+LAB_STAFF_STA = "a4:c3:f0:70:20:01"
+# key_info for each message of a WPA2 4-way handshake (version 2, pairwise key).
+_KEY_INFO = {1: 0x008A, 2: 0x010A, 3: 0x13CA, 4: 0x030A}
+
+
+def _eapol(msg: int, freq: int = 2462) -> RadioTap:
+    from_ap = msg in (1, 3)
+    bssid, sta = LAB_STAFF_AP, LAB_STAFF_STA
+    dot11 = Dot11(type=2, subtype=0, FCfield=2 if from_ap else 1,
+                  addr1=sta if from_ap else bssid, addr2=bssid if from_ap else sta, addr3=bssid)
+    nonce = bytes(32) if msg in (2, 4) else bytes([msg]) + bytes(31)
+    body = bytes([2]) + _KEY_INFO[msg].to_bytes(2, "big") + (16).to_bytes(2, "big") + msg.to_bytes(8, "big") + nonce + bytes(16) + bytes(8) + bytes(8) + bytes(16) + (0).to_bytes(2, "big")
+    return RadioTap(dBm_AntSignal=-52, ChannelFrequency=freq) / dot11 / LLC() / SNAP(code=0x888E) / EAPOL(version=2, type=3) / Raw(load=body)
+
+
+def security_lab_wifi_packets() -> list:
+    old = _beacon("00:1b:2f:70:10:02", "OldCam-AP", 1, 2412, -58, None) / Dot11Elt(ID=221, info=WPS_IE)
+    old[Dot11Beacon].cap = "ESS+privacy"  # privacy bit with no WPA/RSN: WEP
+    return [
+        _beacon("00:1b:2f:70:10:01", "Lab-Guest", 6, 2437, -47, None),
+        old,
+        _beacon(LAB_STAFF_AP, "Lab-Staff", 11, 2462, -52, RSN_PSK) / Dot11Elt(ID=221, info=WPS_IE),
+        _beacon("00:1b:2f:70:10:04", "Lab-Secure", 36, 5180, -44, RSN_SAE),
+        # A laptop joining Lab-Staff, with the full 4-way handshake captured.
+        _assoc(LAB_STAFF_STA, LAB_STAFF_AP, "Lab-Staff", 2462, -55),
+        *(_eapol(m) for m in (1, 2, 3, 4)),
+    ]
+
+
 def kismet_netxml() -> str:
     return """<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE detection-run SYSTEM "http://kismetwireless.net/kismet-3.1.0.dtd">
@@ -416,6 +511,10 @@ def write_all(dest: Path | None = None) -> Path:
         with PcapNgWriter(str(dest / name)) as writer:
             for pkt in _timed(pkts, offset=offset):
                 writer.write(pkt)
+    wrpcap(str(dest / "security-lab.pcap"), _timed(security_lab_packets()))
+    with PcapNgWriter(str(dest / "security-lab-wifi.pcapng")) as writer:
+        for pkt in _timed(security_lab_wifi_packets()):
+            writer.write(pkt)
     (dest / "kismet-walk.netxml").write_text(kismet_netxml(), encoding="utf-8")
     (dest / "kismet-aps.csv").write_text(kismet_csv(), encoding="utf-8")
     (dest / "airodump-ng.csv").write_text(airodump_csv(), encoding="utf-8")

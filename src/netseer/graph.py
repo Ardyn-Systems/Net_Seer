@@ -374,7 +374,17 @@ class GraphBuilder:
         rec["ports"] = _merge_port_records(rec.get("ports") or [], src.get("ports") or [])
         rec["routing"].update(src.get("routing") or {})
         for key, value in (src.get("extra") or {}).items():
-            rec["extra"].setdefault(key, value)
+            if key in ("software", "tls_versions") and isinstance(value, list) and isinstance(rec["extra"].get(key), list):
+                for item in value:
+                    if item not in rec["extra"][key]:
+                        rec["extra"][key].append(item)
+            elif key == "handshakes" and isinstance(value, dict):
+                table = rec["extra"].setdefault("handshakes", {})
+                for peer, entry in value.items():
+                    msgs = set(table.get(peer, {}).get("messages") or []) | set(entry.get("messages") or [])
+                    table[peer] = {"messages": sorted(msgs)}
+            else:
+                rec["extra"].setdefault(key, value)
         if rec["gps"] is None:
             rec["gps"] = src.get("gps")
         if src.get("signal_dbm") is not None:
@@ -527,6 +537,40 @@ class GraphBuilder:
             _merge_unique(rec["encryption"], [encryption])
         if gps:
             rec["gps"] = gps
+
+    def observe_handshake(self, sta_mac: str | None, ap_mac: str | None, message: int) -> None:
+        """One frame of a WPA 4-way handshake (message 1-4), kept on the station and the AP.
+
+        A captured handshake lets someone try to recover a WPA/WPA2 pre-shared key offline, so it
+        is worth surfacing. Each side records which messages were seen with the other.
+        """
+        sta = self.observe_mac(sta_mac, wireless=True)
+        ap = self.observe_mac(ap_mac, wireless=True)
+        if not sta or not ap or sta == ap:
+            return
+        self.add_role(ap, "ap")
+        self.add_role(sta, "station")
+        for owner, peer in ((sta, ap_mac), (ap, sta_mac)):
+            key = str(peer).lower()
+            table = self._device(owner)["extra"].setdefault("handshakes", {})
+            msgs = set(table.get(key, {}).get("messages") or [])
+            msgs.add(int(message))
+            table[key] = {"messages": sorted(msgs)}
+
+    def observe_software(self, node_id: str | None, entries: list[dict[str, Any]] | None) -> None:
+        """Product banners the device sent about itself (raw text and where it came from)."""
+        if not node_id or not entries:
+            return
+        rec = self._device(node_id)
+        have = rec["extra"].setdefault("software", [])
+        for entry in entries:
+            if entry.get("raw") and not any(h.get("raw") == entry["raw"] for h in have):
+                have.append({"raw": str(entry["raw"]), "source": str(entry.get("source") or "banner")})
+
+    def observe_tls(self, node_id: str | None, version: str | None) -> None:
+        if not node_id or not version:
+            return
+        _merge_unique(self._device(node_id)["extra"].setdefault("tls_versions", []), [version])
 
     def observe_service(self, node_id: str, service: str | None) -> None:
         if not service:

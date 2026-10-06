@@ -22,6 +22,7 @@ from scapy.all import (  # type: ignore[import-untyped]
     conf,
 )
 from scapy.config import conf  # type: ignore[import-untyped]
+from scapy.layers.eap import EAPOL  # type: ignore[import-untyped]
 from scapy.utils import PcapReader, RawPcapReader  # type: ignore[import-untyped]  # noqa: F401
 
 from netseer.graph import GraphBuilder
@@ -127,11 +128,12 @@ def _akm_types(body: bytes, oui: bytes) -> set[int] | None:
 
 
 def _encryption_from_elements(elements: dict[int, list[bytes]], cap) -> str | None:
-    privacy = False
-    try:
-        privacy = bool(cap and (int(cap) & 0x10))
-    except (TypeError, ValueError):
-        privacy = "privacy" in str(cap).lower()
+    if isinstance(cap, int):
+        # The capability field as sent (little-endian): privacy is bit 4.
+        privacy = bool(cap & 0x10)
+    else:
+        # Scapy's decoded flags number their bits differently (privacy is 0x1000), so go by name.
+        privacy = "privacy" in str(cap or "").lower()
     rsn = elements.get(48)
     vendors = elements.get(221) or []
     wpa_ie = next((v for v in vendors if v.startswith(WPA_OUI + b"\x01")), None)
@@ -416,6 +418,8 @@ def _handle_packet(builder: GraphBuilder, pkt: Any) -> None:
 
     if pkt.haslayer(Dot11):
         _handle_dot11(builder, pkt)
+        if pkt.haslayer(EAPOL) and _handle_eapol(builder, pkt):
+            return  # a handshake frame carries nothing else of interest
 
     if pkt.haslayer(ARP):
         arp = pkt[ARP]
@@ -442,6 +446,8 @@ def _handle_packet(builder: GraphBuilder, pkt: Any) -> None:
         proto = "udp"
 
     service, metadata = _infer_packet_service(pkt, sport, dport)
+    software = metadata.pop("software", None)
+    tls_version = metadata.pop("tls_version", None)
 
     if pkt.haslayer(Dot11) and src_ip:
         # Only the source address (SA) owns src_ip. SA is the station for
@@ -469,6 +475,8 @@ def _handle_packet(builder: GraphBuilder, pkt: Any) -> None:
 
     src_id = builder.ip_to_device.get(src_ip or "")
     dst_id = builder.ip_to_device.get(dst_ip or "")
+    builder.observe_software(src_id, software)
+    builder.observe_tls(src_id, tls_version)
 
     if pkt.haslayer(DHCP) and pkt.haslayer(BOOTP):
         bootp = pkt[BOOTP]
@@ -542,6 +550,37 @@ def _try_stp(builder: GraphBuilder, pkt: Any, src_mac: str | None) -> None:
     builder.observe_stp(node_id, **info)
 
 
+def _eapol_message(pkt: Any) -> int | None:
+    """Which of the 4-way handshake's messages this EAPOL-Key frame is (1-4), or None."""
+    if not pkt.haslayer(EAPOL) or int(getattr(pkt[EAPOL], "type", -1)) != 3:  # type 3 = EAPOL-Key
+        return None
+    body = bytes(pkt[EAPOL].payload)
+    if len(body) < 3:
+        return None
+    ki = int.from_bytes(body[1:3], "big")
+    pairwise, install, ack, mic, secure = ki & 0x08, ki & 0x40, ki & 0x80, ki & 0x100, ki & 0x200
+    if not pairwise:  # group-key handshake, not the 4-way PTK handshake
+        return None
+    if ack and mic:
+        return 3
+    if ack:
+        return 1
+    if mic and secure:
+        return 4
+    if mic:
+        return 2
+    return None
+
+
+def _handle_eapol(builder: GraphBuilder, pkt: Any) -> bool:
+    message = _eapol_message(pkt)
+    if message is None:
+        return False
+    bssid, sta, _ = _dot11_addrs(pkt[Dot11])
+    builder.observe_handshake(sta, bssid, message)
+    return True
+
+
 def _handle_dot11(builder: GraphBuilder, pkt: Any) -> None:
     dot11 = pkt[Dot11]
     roles = _dot11_address_roles(dot11)
@@ -579,6 +618,11 @@ def _handle_dot11(builder: GraphBuilder, pkt: Any) -> None:
             encryption=enc,
             signal_dbm=signal,
         )
+        # Wi-Fi Protected Setup advertises itself in a Microsoft vendor element (type 4).
+        if any(v.startswith(WPA_OUI + b"\x04") for v in elements.get(221) or []):
+            ap_id = builder.observe_mac(bssid, wireless=True)
+            if ap_id:
+                builder.devices[ap_id]["extra"]["wps"] = True
     elif pkt.haslayer(Dot11ProbeReq):
         sta_id = builder.observe_mac(sta or getattr(dot11, "addr2", None), wireless=True)
         if sta_id:

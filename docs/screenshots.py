@@ -425,6 +425,24 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.mouse.move(5, 5)
         shots.save("compare-map", full=True)
 
+        # Security: the small-office sample's intranet server, with CVEs and EPSS.
+        page.evaluate("() => openDemo('security-lab')")
+        page.wait_for_function("() => state.activeMapId === 'map:security-lab' && state.cy && state.cy.nodes().length > 5")
+        page.wait_for_timeout(300)
+        web = page.evaluate("() => state.graph.nodes.find(n => (n.extra.software || []).some(s => (s.raw || '').includes('Apache'))).id")
+        page.evaluate("(id) => selectNodes([id])", web)
+        page.wait_for_selector("#insp-security .sec-soft")
+        page.wait_for_function("() => !el('insp-security').textContent.includes('Checking')")
+        page.evaluate("() => el('insp-security').scrollIntoView({ block: 'start' })")
+        shots.save("security-details", selectors=["#inspector"], pad=0)
+        page.evaluate("() => selectNodes([])")
+        page.click("#btn-settings")
+        page.click('.settings-nav [data-pane="security"]')
+        page.wait_for_function("() => el('vdb-inuse').textContent && el('vdb-inuse').textContent !== '\\u2026'")
+        page.mouse.move(5, 5)
+        shots.save("settings-security", selectors=["#settings-dialog"], pad=0)
+        page.evaluate("() => el('settings-dialog').close()")
+
         browser.close()
         return shots.taken
 

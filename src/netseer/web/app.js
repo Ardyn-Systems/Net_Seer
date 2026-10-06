@@ -50,7 +50,7 @@ const state = {
   suppressSelect: false,
   server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
-  prefs: { layout: "ssid", layoutPicked: false, timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null },
+  prefs: { layout: "ssid", layoutPicked: false, timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null, securityShade: false },
 };
 
 /* ---------- Small helpers ---------- */
@@ -580,10 +580,12 @@ function setDeviceMeta(nodeId, patch, mapId = state.activeMapId) {
   const next = { ...prev, ...patch };
   if (patch.fields && prev.fields) next.fields = { ...prev.fields, ...patch.fields };
   metaCache[key] = next;
+  if (patch.fields) state.metaVersion = (state.metaVersion || 0) + 1;
   markMetaDirty();
 }
 
 function clearFieldOverride(nodeId, fieldKey) {
+  state.metaVersion = (state.metaVersion || 0) + 1;
   const key = metaKey(state.activeMapId, nodeId);
   const prev = metaCache[key] || {};
   const fields = { ...(prev.fields || {}) };
@@ -2632,6 +2634,15 @@ function cyStyle(c) {
       style: { "background-color": CHANGE_COLORS[status], "background-opacity": 0.3, "font-weight": 700 },
     })),
     { selector: 'node[change = "gone"]', style: { "border-style": "dashed" } },
+    // Layers → Security: the same see-through fill, by each device's most serious finding.
+    ...["critical", "high", "medium", "low"].map((sev) => ({
+      selector: `node[security = "${sev}"]`,
+      style: { "background-color": SECURITY_COLORS[sev], "background-opacity": 0.3 },
+    })),
+    ...[["host", c.host], ["server", c.server], ["gateway", c.gateway], ["ap", c.ap], ["wireless", c.wireless]].map(([role, color]) => ({
+      selector: `node[security][role = "${role}"]:selected`,
+      style: { "background-opacity": 0.75, "background-blacken": 0, "border-color": color, "border-width": role === "gateway" ? 3 : role === "ap" ? 2.5 : 2, "underlay-opacity": 0 },
+    })),
     ...[["host", c.host], ["server", c.server], ["gateway", c.gateway], ["ap", c.ap], ["wireless", c.wireless], ["vlan", c.vlan], ["subnet", c.subnet]].map(([role, color]) => ({
       selector: `node[change][change != "same"][role = "${role}"]:selected`,
       style: { "background-opacity": 0.75, "background-blacken": 0, "border-color": color, "border-width": role === "gateway" ? 3 : role === "ap" ? 2.5 : 2, "underlay-opacity": 0 },
@@ -2701,6 +2712,10 @@ function toElements(graph) {
   const nodes = graph.nodes.map((raw) => {
     const n = overlayNode(raw);
     const data = { id: n.id, label: nodeLabel(raw), kind: n.kind, role: nodeRole(n) };
+    if (!comparing && state.prefs.securityShade && security.overlayKey === overlayKeyNow()) {
+      const worst = security.overlay?.nodes?.[n.id]?.worst;
+      if (worst) data.security = worst;
+    }
     if (comparing && changeOf(raw)) {
       data.change = changeOf(raw).status;
       const tag = changeTag(changeOf(raw));
@@ -2726,6 +2741,7 @@ function renderMap({ fit = true } = {}) {
   // the map measures itself and fits.
   renderTimeline();
   renderChangeLegend();
+  refreshSecurityOverlay();
   if (!state.graph?.nodes?.length) {
     syncZoomUi();
     return;
@@ -3123,6 +3139,7 @@ function devicePanel(raw) {
     }
     ${n.services?.length || ports.length ? `<div class="insp-section"><h3>Services</h3>${chips([...new Set([...ports, ...(n.services || []).filter((s) => !ports.some((p) => p.startsWith(s)))])])}</div>` : ""}
     ${routing ? `<div class="insp-section"><h3>Routing</h3><dl class="facts">${routing}</dl></div>` : ""}
+    <div class="insp-section insp-security" id="insp-security"></div>
     <div class="insp-section">
       <label class="field-label">Notes
         <textarea id="insp-notes" rows="3" placeholder="Inventory tag, site notes, anything worth keeping">${escapeHtml(meta.notes || "")}</textarea>
@@ -3145,6 +3162,7 @@ function devicePanel(raw) {
 }
 
 function bindDevicePanel(raw) {
+  loadDeviceSecurity(raw);
   const nameInput = el("insp-name-input");
   nameInput.addEventListener("input", () => {
     setDeviceMeta(raw.id, { name: nameInput.value });
@@ -4310,6 +4328,269 @@ async function mergeSurveyDialog(surveyId) {
   if (destId) mergeSurveyInto(surveyId, destId);
 }
 
+/* ---------- Security ---------- */
+
+// Findings come from what the capture shows (open Wi-Fi, Telnet, old TLS); known vulnerabilities
+// come from software versions in banners, matched offline against the bundled (or downloaded)
+// database. The server does the matching; this draws it.
+const SECURITY_COLORS = { critical: "#d6293e", high: "#f2711c", medium: "#e0a800", low: "#4c8dff" };
+const SECURITY_NAMES = { critical: "Critical", high: "High", medium: "Medium", low: "Low" };
+const security = { seq: 0, overlay: null, overlayKey: null, loading: false, poll: null };
+
+const epssText = (epss) => {
+  if (epss == null) return "unknown";
+  const p = epss * 100;
+  return p < 0.1 ? "<0.1%" : `${p >= 10 ? p.toFixed(0) : p.toFixed(1)}%`;
+};
+const sevChip = (sev, text) => `<span class="sev" style="--c: ${SECURITY_COLORS[sev] || "var(--muted)"}">${escapeHtml(text || SECURITY_NAMES[sev] || sev)}</span>`;
+const cvssSev = (s) => String(s || "").toLowerCase();
+
+async function assessNodes(nodes) {
+  return parseResponse(
+    await fetch("/api/security/assess", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nodes, links: [] }),
+    })
+  );
+}
+
+function databaseLine(db) {
+  if (!db || db.source === "none") return "No vulnerability data is available.";
+  const when = db.generated ? formatTime(Date.parse(db.generated) / 1000, { date: true }).split(",").slice(0, 2).join(",") : "";
+  return `Vulnerability data from NVD, FIRST EPSS, and CISA KEV, ${db.source === "downloaded" ? "downloaded" : "bundled"} ${escapeHtml(when)}.`;
+}
+
+function cveItem(v) {
+  const sev = cvssSev(v.severity);
+  return `<li>
+      <div class="cve-head"><a href="https://nvd.nist.gov/vuln/detail/${encodeURIComponent(v.id)}" target="_blank" rel="noopener">${escapeHtml(v.id)}</a>
+        ${sev ? sevChip(sev, `${SECURITY_NAMES[sev] || v.severity}${v.cvss != null ? ` ${Number(v.cvss).toFixed(1)}` : ""}`) : ""}
+        <span class="epss" title="EPSS: FIRST's estimate of the chance this is exploited in the wild in the next 30 days">EPSS ${epssText(v.epss)}</span>
+        ${v.kev ? '<span class="kev" title="On CISA\'s list of vulnerabilities known to be exploited">Known exploited</span>' : ""}</div>
+      ${v.summary ? `<p>${escapeHtml(v.summary)}</p>` : ""}
+    </li>`;
+}
+
+const CVE_PREVIEW = 4;
+
+function securityHtml(result, db) {
+  const head = `<h3>Security ${result?.worst ? sevChip(result.worst) : ""}</h3>`;
+  if (!result) {
+    return `${head}<p class="hint">No security findings. NetSeer checks Wi-Fi security, the services a device offers, TLS versions, and software versions in banners against known vulnerabilities.</p><p class="hint sec-db">${databaseLine(db)}</p>`;
+  }
+  const findings = result.findings.length
+    ? `<ul class="sec-findings">${result.findings
+        .map((f) => `<li><details><summary>${sevChip(f.severity)} ${escapeHtml(f.title)}</summary>
+            <p>${escapeHtml(f.why)}</p><p><strong>Fix:</strong> ${escapeHtml(f.fix)}</p>${f.evidence ? `<p class="hint">${escapeHtml(f.evidence)}</p>` : ""}</details></li>`)
+        .join("")}</ul>`
+    : "";
+  const software = result.software
+    .map((s, i) => {
+      const n = s.vulnerabilities.length;
+      const status = n
+        ? `${plural(n, "known vulnerability", "known vulnerabilities")}`
+        : !s.version
+          ? "Version not shown, so it can't be checked for known vulnerabilities"
+          : !s.known
+            ? "Not in NetSeer's vulnerability data"
+            : "No known vulnerabilities for this version";
+      const distro = s.distro ? `<p class="hint sec-note">${escapeHtml(s.distro)} often fixes vulnerabilities without changing the version number, so some of these may already be patched. Check the device's updates.</p>` : "";
+      const list = n
+        ? `<ol class="sec-cves" data-soft="${i}">${s.vulnerabilities.slice(0, CVE_PREVIEW).map(cveItem).join("")}</ol>${n > CVE_PREVIEW ? `<button type="button" class="link-btn" data-sec-more="${i}">Show all ${n}</button>` : ""}`
+        : "";
+      return `<div class="sec-soft"><div class="sec-soft-head"><strong>${escapeHtml(s.label)}</strong> <small>${escapeHtml(s.source)}</small></div>
+        <p class="hint">${status}</p>${distro}${list}</div>`;
+    })
+    .join("");
+  const handshakes = (result.handshakes || [])
+    .map((h) => {
+      const label = `Message${h.messages.length > 1 ? "s" : ""} ${h.messages.join(", ")} of 4`;
+      const note = h.crackable
+        ? "Enough was captured to try the Wi-Fi password offline."
+        : h.complete
+          ? "A full handshake, but this network's security doesn't expose the password this way."
+          : "Only part of the handshake was captured.";
+      return `<li><div class="hs-head">${h.crackable ? sevChip("high", "Crackable") : ""}<strong>With ${escapeHtml(h.peer_label)}</strong></div>
+        <p class="hint">${escapeHtml(label)}. ${escapeHtml(note)}</p></li>`;
+    })
+    .join("");
+  const hsBlock = handshakes
+    ? `<h4 class="sec-sub">Wi-Fi handshake${result.handshakes.length > 1 ? "s" : ""} captured</h4><ul class="sec-handshakes">${handshakes}</ul>`
+    : "";
+  return `${head}${findings}${hsBlock}${software ? `<h4 class="sec-sub">Software it revealed</h4>${software}` : ""}<p class="hint sec-db">${databaseLine(db)}</p>`;
+}
+
+// Fills the Security section of a device's details.
+async function loadDeviceSecurity(raw) {
+  const box = el("insp-security");
+  if (!box) return;
+  const seq = ++security.seq;
+  const cached = security.overlay?.nodes?.[raw.id];
+  if (cached !== undefined && security.overlayKey === overlayKeyNow()) {
+    box.innerHTML = securityHtml(cached, security.overlay.database);
+  } else {
+    box.innerHTML = '<h3>Security</h3><p class="hint">Checking…</p>';
+    try {
+      const res = await assessNodes([overlayNode(raw)]);
+      if (seq !== security.seq || !el("insp-security")) return;
+      box.innerHTML = securityHtml(res.nodes[raw.id], res.database);
+    } catch (err) {
+      if (seq === security.seq) box.innerHTML = `<h3>Security</h3><p class="field-error">${escapeHtml(err.message || String(err))}</p>`;
+      return;
+    }
+  }
+  box.querySelectorAll("[data-sec-more]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const res = security.overlay?.nodes?.[raw.id] ? { nodes: security.overlay.nodes } : await assessNodes([overlayNode(raw)]);
+      const soft = res.nodes[raw.id].software[Number(btn.dataset.secMore)];
+      box.querySelector(`.sec-cves[data-soft="${btn.dataset.secMore}"]`).innerHTML = soft.vulnerabilities.map(cveItem).join("");
+      btn.remove();
+    })
+  );
+}
+
+/* The map shaded by each device's worst finding (Layers → Security). */
+const overlayKeyNow = () => `${state.activeMapId}|${state.graphVersion}|${state.metaVersion || 0}`;
+
+async function refreshSecurityOverlay() {
+  const map = getMap(state.activeMapId);
+  renderSecurityLegend();
+  if (!state.prefs.securityShade || !state.graph?.nodes?.length || isComparison(map)) {
+    state.cy?.nodes("[security]").removeData("security");
+    return;
+  }
+  const key = overlayKeyNow();
+  if (security.overlayKey !== key) {
+    security.loading = true;
+    renderSecurityLegend();
+    try {
+      const res = await assessNodes(state.graph.nodes.filter(isDeviceNode).map(overlayNode));
+      security.overlay = res;
+      security.overlayKey = key;
+    } catch (err) {
+      fail(err);
+      return;
+    } finally {
+      security.loading = false;
+    }
+  }
+  applySecurityOverlay();
+}
+
+function applySecurityOverlay() {
+  const cy = state.cy;
+  if (!cy || !security.overlay || security.overlayKey !== overlayKeyNow() || !state.prefs.securityShade || isComparison(getMap(state.activeMapId))) return;
+  cy.batch(() => {
+    cy.nodes("[security]").removeData("security");
+    for (const [id, r] of Object.entries(security.overlay.nodes)) if (r.worst) cy.getElementById(id).data("security", r.worst);
+  });
+  renderSecurityLegend();
+}
+
+function renderSecurityLegend() {
+  const map = getMap(state.activeMapId);
+  const on = Boolean(state.prefs.securityShade);
+  el("security-toggle").checked = on;
+  const comparing = isComparison(map);
+  el("security-toggle").disabled = comparing;
+  el("security-row").classList.toggle("is-disabled", comparing);
+  el("security-note").textContent = comparing ? "Comparison maps use shading to show changes." : "Shade devices by their most serious finding";
+  const box = el("security-counts");
+  if (!on || comparing) {
+    box.innerHTML = "";
+    return;
+  }
+  if (security.loading || security.overlayKey !== overlayKeyNow()) {
+    box.innerHTML = '<li class="hint">Checking…</li>';
+    return;
+  }
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 };
+  for (const r of Object.values(security.overlay?.nodes || {})) if (r.worst) counts[r.worst] += 1;
+  const devices = (state.graph?.nodes || []).filter(isDeviceNode).length;
+  const flagged = Object.values(counts).reduce((s, n) => s + n, 0);
+  box.innerHTML = [
+    ...Object.entries(counts).map(([sev, n]) => `<li><i class="change-swatch" style="--c: ${SECURITY_COLORS[sev]}"></i><span>${SECURITY_NAMES[sev]}</span><b>${n.toLocaleString()}</b></li>`),
+    `<li><i class="change-swatch same"></i><span>Nothing found</span><b>${Math.max(0, devices - flagged).toLocaleString()}</b></li>`,
+  ].join("");
+}
+
+/* Settings → Security: the vulnerability data, and updating it. */
+async function renderSecurityPane() {
+  let info;
+  try {
+    info = await parseResponse(await fetch("/api/security/database"));
+  } catch (err) {
+    el("vdb-status").textContent = err.message || String(err);
+    return;
+  }
+  const use = info.in_use;
+  el("vdb-inuse").textContent = !use ? "None" : info.active === "downloaded" ? "Downloaded" : "Bundled with this version";
+  const date = (iso) => (iso ? formatTime(Date.parse(iso.length <= 10 ? `${iso}T12:00:00Z` : iso) / 1000, { date: true }).split(",").slice(0, 2).join(",") : "unknown");
+  el("vdb-detail").textContent = use ? `${use.vulnerabilities.toLocaleString()} known vulnerabilities in ${use.products} products, updated ${date(use.generated)}` : "";
+  el("vdb-facts").innerHTML = use
+    ? `${factRow("Exploit likelihood (EPSS)", date(use.epss_date))}${factRow("Known exploited (CISA)", date(use.kev_date))}${info.bundled ? factRow("Bundled copy", date(info.bundled.generated)) : ""}${info.downloaded ? factRow("Downloaded copy", date(info.downloaded.generated)) : ""}`
+    : "";
+  show("vdb-online", info.can_refresh);
+  show("vdb-hosted", !info.can_refresh);
+  showRefresh(info.refresh);
+}
+
+function showRefresh(job) {
+  const running = job?.state === "running";
+  show("vdb-progress", running);
+  el("vdb-update").disabled = running;
+  if (running) {
+    el("vdb-step").textContent = job.step || "Starting…";
+    el("vdb-bar").style.width = `${job.total ? Math.round((job.done / job.total) * 100) : 3}%`;
+  }
+  const status = el("vdb-status");
+  status.className = "update-status";
+  if (job?.state === "error") {
+    status.textContent = job.error;
+    status.classList.add("bad");
+  } else if (job?.state === "stopped") status.textContent = "Update stopped. The data you had is still in use.";
+  else if (job?.state === "done") {
+    status.textContent = "Vulnerability data updated.";
+    status.classList.add("good");
+  } else status.textContent = "";
+  clearInterval(security.poll);
+  if (running) security.poll = setInterval(pollRefresh, 1200);
+}
+
+async function pollRefresh() {
+  try {
+    const info = await parseResponse(await fetch("/api/security/database"));
+    const before = el("vdb-progress").classList.contains("hidden");
+    showRefresh(info.refresh);
+    if (info.refresh.state !== "running" && !before) {
+      // New data: forget what was matched against the old.
+      security.overlayKey = null;
+      renderSecurityPane();
+      refreshSecurityOverlay();
+      if (state.selection.length === 1 && el("insp-security")) loadDeviceSecurity(nodeById(state.selection[0]));
+    }
+  } catch {
+    /* the next poll tries again */
+  }
+}
+
+function bindSecurity() {
+  el("security-toggle").addEventListener("change", (e) => {
+    state.prefs.securityShade = e.target.checked;
+    savePrefs();
+    refreshSecurityOverlay();
+  });
+  el("vdb-update").addEventListener("click", async () => {
+    try {
+      showRefresh(await parseResponse(await fetch("/api/security/refresh", { method: "POST" })));
+    } catch (err) {
+      el("vdb-status").textContent = err.message || String(err);
+    }
+  });
+  el("vdb-cancel").addEventListener("click", () => fetch("/api/security/refresh/cancel", { method: "POST" }));
+}
+
 /* ---------- Demo (Settings) ---------- */
 
 // The sample captures, opened on request: none are loaded until you pick one.
@@ -4784,7 +5065,7 @@ function loadPrefs() {
   }
   if (typeof prefs.timeZone === "string") state.prefs.timeZone = prefs.timeZone;
   if (["auto", "12", "24"].includes(prefs.clock)) state.prefs.clock = prefs.clock;
-  for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
+  for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered", "securityShade"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
   // Version 2 turned hover fading off by default; earlier copies saved it as on without asking.
   if (!(prefs.prefsVersion >= 2)) state.prefs.hoverFade = false;
   state.prefs.prefsVersion = 2;
@@ -4988,6 +5269,7 @@ function showSettingsPane(name) {
   if (name === "data") refreshDataSummary();
   if (name === "updates") renderUpdates();
   if (name === "demo") renderDemo();
+  if (name === "security") renderSecurityPane();
 }
 
 function renderSettings() {
@@ -5964,7 +6246,7 @@ const TOUR_STEPS = [
   {
     target: "#inspector",
     title: "Details",
-    text: "Select a device to see everything NetSeer found: addresses, radio, services, and routing. Rename it, add notes, or connect or disconnect it from another device using something you know (a port label, a diagram).",
+    text: "Select a device to see everything NetSeer found: addresses, radio, services, routing, and a Security check with any known vulnerabilities. Rename it, add notes, or connect or disconnect it from another device using something you know (a port label, a diagram).",
     before: selectTourDevice,
   },
   { target: "#btn-export", title: "Export", text: "Save the map as a draw.io or Visio diagram, or create a PDF report with just the parts you need." },
@@ -6960,6 +7242,7 @@ async function init() {
   bindTimeline();
   bindCompareDialog();
   bindDemo();
+  bindSecurity();
   bindEggTerminal();
   syncThemeBackdrop();
   el("loading-stop").addEventListener("click", stopReading);

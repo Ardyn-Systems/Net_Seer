@@ -70,6 +70,13 @@ SAMPLES: list[dict[str, Any]] = [
         "files": ["branch-later.pcapng"],
     },
     {
+        "id": "security-lab",
+        "name": "Small office: security check (pcap)",
+        "kind": "pcap",
+        "summary": "Old servers, Telnet, an open and a WEP network: something for every Security finding.",
+        "files": ["security-lab.pcap", "security-lab-wifi.pcapng"],
+    },
+    {
         "id": "empty-capture",
         "name": "Empty capture (pcap)",
         "kind": "pcap",

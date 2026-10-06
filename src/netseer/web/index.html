@@ -15,7 +15,7 @@
     <link rel="icon" type="image/svg+xml" href="/static/logo-small.svg" />
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
-    <link rel="stylesheet" href="/static/styles.css?v=ui24" />
+    <link rel="stylesheet" href="/static/styles.css?v=ui26" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
   </head>
   <body>
@@ -122,6 +122,14 @@
               <span>Show unchanged devices<small>Faded, for context</small></span>
               <input id="change-unchanged" type="checkbox" role="switch" checked />
             </label>
+          </div>
+          <div id="security-layer" class="change-legend">
+            <h3 class="section-title">Security</h3>
+            <label class="switch-row" id="security-row">
+              <span>Shade by security<small id="security-note">Shade devices by their most serious finding</small></span>
+              <input id="security-toggle" type="checkbox" role="switch" />
+            </label>
+            <ul id="security-counts" class="change-counts"></ul>
           </div>
           <h3 class="section-title">Arrange devices</h3>
           <select id="layout-select" class="layout-select" aria-label="Arrange devices"></select>
@@ -449,6 +457,7 @@
           <button role="tab" type="button" data-pane="general" aria-selected="true">General</button>
           <button role="tab" type="button" data-pane="data" aria-selected="false">Your data</button>
           <button role="tab" type="button" data-pane="demo" aria-selected="false">Demo</button>
+          <button role="tab" type="button" data-pane="security" aria-selected="false">Security</button>
           <button role="tab" type="button" data-pane="updates" aria-selected="false">Updates<span id="updates-badge" class="nav-badge hidden">New</span></button>
           <button role="tab" type="button" data-pane="help" aria-selected="false">Help</button>
           <button role="tab" type="button" data-pane="about" aria-selected="false">About</button>
@@ -511,6 +520,26 @@
               <button id="demo-compare" class="btn primary small" type="button">Compare the branch office samples</button>
             </div>
             <ol id="demo-list" class="release-list"></ol>
+          </section>
+
+          <section class="settings-pane hidden" data-pane="security" role="tabpanel">
+            <h3>Vulnerability data</h3>
+            <p class="hint">Each device's <strong>Security</strong> details match the software versions it revealed against known vulnerabilities, with no internet needed: the data comes with NetSeer. Each vulnerability shows its severity, and its EPSS score: FIRST's estimate of the chance it's exploited in the wild in the next 30 days.</p>
+            <div class="version-card">
+              <div>
+                <strong id="vdb-inuse">&hellip;</strong>
+                <span id="vdb-detail" class="hint"></span>
+              </div>
+              <div id="vdb-online"><button id="vdb-update" class="btn" type="button">Update now</button></div>
+            </div>
+            <div id="vdb-progress" class="hidden">
+              <div class="progress" role="progressbar" aria-labelledby="vdb-step" aria-valuemin="0" aria-valuemax="100"><div id="vdb-bar"></div></div>
+              <div class="row-actions"><span id="vdb-step" class="hint"></span><button id="vdb-cancel" class="btn ghost small" type="button">Stop</button></div>
+            </div>
+            <p id="vdb-status" class="update-status" role="status" aria-live="polite"></p>
+            <dl id="vdb-facts" class="facts"></dl>
+            <p class="hint"><strong>Update now</strong> downloads the latest data from NVD (the U.S. National Vulnerability Database), FIRST (EPSS scores), and CISA (known exploited vulnerabilities), in a few minutes. It sends only the names of the products NetSeer knows, such as OpenSSH; nothing about you or your maps. Without updating, the data is as current as your version of NetSeer.</p>
+            <p id="vdb-hosted" class="hint hidden">This online copy uses the vulnerability data that came with its version. Installed copies can update it.</p>
           </section>
 
           <section class="settings-pane hidden" data-pane="updates" role="tabpanel">
@@ -646,6 +675,6 @@
         <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
       </div>
     </div>
-    <script src="/static/app.js?v=ui42"></script>
+    <script src="/static/app.js?v=ui44"></script>
   </body>
 </html>
