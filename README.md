@@ -24,7 +24,7 @@ NetSeer reads capture files you give it; it doesn't sniff live traffic. The desk
 - [Build the desktop apps](#build-the-desktop-apps)
 - [Update and uninstall](#update-and-uninstall)
 
-Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) · [How to](docs/netseer-how-to.md) (every control, briefly) · [Install and use on Debian/Ubuntu](docs/netseer-install-and-use.md) (step-by-step).
+Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) · [How to](docs/netseer-how-to.md) (every control, briefly) · [Install and use on Debian/Ubuntu](docs/netseer-install-and-use.md) (step-by-step) · [Architecture](docs/architecture.md) (how the pieces fit, with diagrams).
 
 ## Get NetSeer
 
