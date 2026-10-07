@@ -2,5 +2,5 @@
 
 from netseer.brand import PRODUCT_NAME
 
-__version__ = "0.6.2"
+__version__ = "0.6.3"
 __all__ = ["PRODUCT_NAME"]
