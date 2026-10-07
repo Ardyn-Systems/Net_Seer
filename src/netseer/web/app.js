@@ -17,6 +17,7 @@ const THEMES = [
   { id: "midnight", name: "Midnight", note: "Low-glare navy", swatch: ["#0b1220", "#2dd4bf", "#fbbf24", "#38bdf8"] },
   { id: "daylight", name: "Daylight", note: "Light, good for printing", swatch: ["#f4f5f7", "#2563eb", "#0d9488", "#d97706"] },
   { id: "blueprint", name: "Blueprint", note: "Engineering grid", swatch: ["#0f2a4a", "#ffffff", "#ffd479", "#8fd3ff"] },
+  { id: "retrowave", name: "Retrowave", note: "Soft synthwave", swatch: ["#1d1830", "#e089c4", "#7fe0d0", "#f0c879"] },
 ];
 
 const LAYERS = [

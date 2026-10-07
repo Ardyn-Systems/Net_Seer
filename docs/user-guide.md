@@ -305,11 +305,11 @@ The footer estimates the number of pages before you create the PDF, and NetSeer 
 
 Click the palette button in the top bar.
 
-![Theme menu with Terrain, Midnight, Daylight, and Blueprint](images/theme-menu.png)
+![Theme menu with Terrain, Midnight, Daylight, Blueprint, and Retrowave](images/theme-menu.png)
 
-![The same map in the Terrain, Midnight, Daylight, and Blueprint themes](images/themes.png)
+![The same map in the Terrain, Midnight, Daylight, Blueprint, and Retrowave themes](images/themes.png)
 
-**Terrain** is the default, with a topographic map behind your network. **Daylight** works best for screenshots, projectors, and printing. Themes change the app only; exported files keep their own colours.
+**Terrain** is the default, with a topographic map behind your network. **Daylight** works best for screenshots, projectors, and printing. **Retrowave** is a soft synthwave look — muted plum with a faint neon grid, kept easy on the eyes. Themes change the app only; exported files keep their own colours.
 
 ## Keyboard shortcuts
 

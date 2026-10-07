@@ -360,7 +360,7 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("theme-menu", selectors=["#btn-theme", "body > .menu"], pad=20)
         shots.reset()
         frames = []
-        for theme in ("terrain", "midnight", "daylight", "blueprint"):
+        for theme in ("terrain", "midnight", "daylight", "blueprint", "retrowave"):
             page.evaluate("(t) => applyTheme(t)", theme)
             page.wait_for_timeout(400)
             frames.append(page.screenshot())
@@ -473,15 +473,17 @@ def save_report_pages(pdf: bytes) -> None:
 def save_theme_grid(frames: list[bytes]) -> None:
     from PIL import Image, ImageDraw, ImageFont
 
-    names = ["Terrain", "Midnight", "Daylight", "Blueprint"]
+    names = ["Terrain", "Midnight", "Daylight", "Blueprint", "Retrowave"]
+    cols = 2
+    rows = (len(frames) + cols - 1) // cols
     w, h = VIEWPORT["width"] // 2, VIEWPORT["height"] // 2
     gap = 12
-    grid = Image.new("RGB", (w * 2 + gap * 3, h * 2 + gap * 3), "#15140f")
+    grid = Image.new("RGB", (w * cols + gap * (cols + 1), h * rows + gap * (rows + 1)), "#15140f")
     draw = ImageDraw.Draw(grid)
     font = ImageFont.load_default(size=20)
     for i, raw in enumerate(frames):
         img = Image.open(io.BytesIO(raw)).convert("RGB").resize((w, h), Image.LANCZOS)
-        x, y = gap + (i % 2) * (w + gap), gap + (i // 2) * (h + gap)
+        x, y = gap + (i % cols) * (w + gap), gap + (i // cols) * (h + gap)
         grid.paste(img, (x, y))
         draw.rounded_rectangle((x + 12, y + h - 48, x + 142, y + h - 12), radius=8, fill="#15140f", outline="#e0a84a")
         draw.text((x + 26, y + h - 42), names[i], fill="#efe8d8", font=font)
