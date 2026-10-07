@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="470" viewBox="0 0 820 470" role="img" aria-label="NetSeer security subsystem: offline assessment, optional online database refresh, and handshake export">
+<style>
+.box{stroke-width:1}
+.t{font:600 14px 'Segoe UI',system-ui,sans-serif}
+.s{font:12px 'Segoe UI',system-ui,sans-serif}
+.lh{font:600 13px 'Segoe UI',system-ui,sans-serif;fill:#44464d}
+.lbl{font:12px 'Segoe UI',system-ui,sans-serif;fill:#55585f}
+.ln{stroke:#9aa0aa;stroke-width:1.5;fill:none}
+.pur-b{fill:#EEEDFE;stroke:#534AB7}.pur-t{fill:#26215C}.pur-s{fill:#3C3489}
+.gray-b{fill:#F1EFE8;stroke:#888780}.gray-t{fill:#2C2C2A}.gray-s{fill:#5F5E5A}
+.amb-b{fill:#FAEEDA;stroke:#BA7517}.amb-t{fill:#412402}.amb-s{fill:#854F0B}
+.teal-b{fill:#E1F5EE;stroke:#1D9E75}.teal-t{fill:#085041}.teal-s{fill:#0F6E56}
+.blu-b{fill:#E6F1FB;stroke:#185FA5}.blu-t{fill:#042C53}.blu-s{fill:#0C447C}
+@media (prefers-color-scheme:dark){.lh{fill:#c6cad2}.lbl{fill:#aeb2bb}.ln{stroke:#6f7580}}
+</style>
+<defs><marker id="a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+
+<text class="lh" x="30" y="38">Assessment · works offline</text>
+<rect class="box gray-b" x="30" y="58" width="168" height="60" rx="8"/>
+<text class="t gray-t" x="114" y="80" text-anchor="middle" dominant-baseline="central">Device banners</text>
+<text class="s gray-s" x="114" y="100" text-anchor="middle" dominant-baseline="central">+ Wi-Fi security</text>
+<rect class="box pur-b" x="226" y="58" width="168" height="60" rx="8"/>
+<text class="t pur-t" x="310" y="80" text-anchor="middle" dominant-baseline="central">software.py</text>
+<text class="s pur-s" x="310" y="100" text-anchor="middle" dominant-baseline="central">product &#8594; CPE</text>
+<rect class="box pur-b" x="422" y="58" width="168" height="60" rx="8"/>
+<text class="t pur-t" x="506" y="80" text-anchor="middle" dominant-baseline="central">vulndb match</text>
+<text class="s pur-s" x="506" y="100" text-anchor="middle" dominant-baseline="central">CPE &#8594; CVEs</text>
+<rect class="box amb-b" x="618" y="58" width="168" height="60" rx="8"/>
+<text class="t amb-t" x="702" y="80" text-anchor="middle" dominant-baseline="central">Findings</text>
+<text class="s amb-s" x="702" y="100" text-anchor="middle" dominant-baseline="central">EPSS% · CVSS · KEV</text>
+
+<line class="ln" x1="198" y1="88" x2="218" y2="88" marker-end="url(#a)"/>
+<line class="ln" x1="394" y1="88" x2="414" y2="88" marker-end="url(#a)"/>
+<line class="ln" x1="590" y1="88" x2="610" y2="88" marker-end="url(#a)"/>
+
+<rect class="box blu-b" x="406" y="150" width="200" height="56" rx="8"/>
+<text class="t blu-t" x="506" y="170" text-anchor="middle" dominant-baseline="central">Vulnerability DB</text>
+<text class="s blu-s" x="506" y="190" text-anchor="middle" dominant-baseline="central">bundled, or downloaded</text>
+<line class="ln" x1="506" y1="148" x2="506" y2="120" marker-end="url(#a)"/>
+<text class="lbl" x="518" y="134" dominant-baseline="central">.json.gz on disk</text>
+
+<text class="lh" x="30" y="236">Update database · online, optional</text>
+<rect class="box teal-b" x="30" y="256" width="150" height="60" rx="8"/>
+<text class="t teal-t" x="105" y="278" text-anchor="middle" dominant-baseline="central">Update database</text>
+<text class="s teal-s" x="105" y="298" text-anchor="middle" dominant-baseline="central">the button</text>
+<rect class="box pur-b" x="210" y="256" width="150" height="60" rx="8"/>
+<text class="t pur-t" x="285" y="278" text-anchor="middle" dominant-baseline="central">fetch.py</text>
+<text class="s pur-s" x="285" y="298" text-anchor="middle" dominant-baseline="central">names only</text>
+<rect class="box gray-b" x="390" y="256" width="220" height="60" rx="8"/>
+<text class="t gray-t" x="500" y="278" text-anchor="middle" dominant-baseline="central">Vulnerability sources</text>
+<text class="s gray-s" x="500" y="298" text-anchor="middle" dominant-baseline="central">NVD · FIRST EPSS · CISA KEV</text>
+<rect class="box blu-b" x="640" y="256" width="150" height="60" rx="8"/>
+<text class="t blu-t" x="715" y="278" text-anchor="middle" dominant-baseline="central">Downloaded DB</text>
+<text class="s blu-s" x="715" y="298" text-anchor="middle" dominant-baseline="central">replaces bundled</text>
+
+<line class="ln" x1="180" y1="286" x2="202" y2="286" marker-end="url(#a)"/>
+<line class="ln" x1="360" y1="286" x2="382" y2="286" marker-end="url(#a)"/>
+<line class="ln" x1="610" y1="286" x2="632" y2="286" marker-end="url(#a)"/>
+
+<text class="lh" x="30" y="352">Handshake export</text>
+<rect class="box gray-b" x="30" y="372" width="200" height="60" rx="8"/>
+<text class="t gray-t" x="130" y="394" text-anchor="middle" dominant-baseline="central">Captured handshake</text>
+<text class="s gray-s" x="130" y="414" text-anchor="middle" dominant-baseline="central">EAPOL frames in capture</text>
+<rect class="box pur-b" x="270" y="372" width="160" height="60" rx="8"/>
+<text class="t pur-t" x="350" y="394" text-anchor="middle" dominant-baseline="central">handshake.py</text>
+<text class="s pur-s" x="350" y="414" text-anchor="middle" dominant-baseline="central">builds export</text>
+<rect class="box amb-b" x="470" y="372" width="220" height="60" rx="8"/>
+<text class="t amb-t" x="580" y="394" text-anchor="middle" dominant-baseline="central">Handshake export</text>
+<text class="s amb-s" x="580" y="414" text-anchor="middle" dominant-baseline="central">.pcap or .hc22000</text>
+
+<line class="ln" x1="230" y1="402" x2="262" y2="402" marker-end="url(#a)"/>
+<line class="ln" x1="430" y1="402" x2="462" y2="402" marker-end="url(#a)"/>
+
+<rect class="box teal-b" x="40" y="444" width="12" height="12" rx="3"/><text class="lbl" x="58" y="450" dominant-baseline="central">action</text>
+<rect class="box pur-b" x="190" y="444" width="12" height="12" rx="3"/><text class="lbl" x="208" y="450" dominant-baseline="central">module</text>
+<rect class="box amb-b" x="340" y="444" width="12" height="12" rx="3"/><text class="lbl" x="358" y="450" dominant-baseline="central">output</text>
+<rect class="box blu-b" x="480" y="444" width="12" height="12" rx="3"/><text class="lbl" x="498" y="450" dominant-baseline="central">data store</text>
+<rect class="box gray-b" x="640" y="444" width="12" height="12" rx="3"/><text class="lbl" x="658" y="450" dominant-baseline="central">input</text>
+</svg>
