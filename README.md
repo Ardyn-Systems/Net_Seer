@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/netseer/web/logo.svg" alt="NetSeer logo" width="128" />
+  <img src="docs/images/netseer-logo.png" alt="NetSeer" width="460" />
 </p>
 
 <h1 align="center">NetSeer</h1>
