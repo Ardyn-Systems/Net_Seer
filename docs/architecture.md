@@ -4,6 +4,10 @@ NetSeer turns a network capture into a map you can read. This page is the in-dep
 pieces that make that happen — the browser front end, the FastAPI back end, the parsers and
 exporters, and the few outside services it talks to for vulnerability data and updates.
 
+> **Looking ahead:** two design docs cover where NetSeer is going — the
+> [integration API](integration-api.md) (companion apps like WaveTop pushing captures and live
+> wardrive views) and the [Electron migration plan](electron-migration.md) (a richer desktop shell).
+
 The same program runs three ways, and the architecture is identical in all of them; only *where*
 the back end runs changes:
 
