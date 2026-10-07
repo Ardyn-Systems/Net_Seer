@@ -178,6 +178,53 @@
   --shadow: 0 10px 30px rgba(3, 14, 30, 0.5);
 }
 
+[data-theme="retrowave"] {
+  color-scheme: dark;
+  /* Synthwave at dusk, turned down: muted plum and soft neon, no harsh glow. */
+  --bg: #1d1830;
+  --panel: #241d3b;
+  --raised: #2c2447;
+  --hover: #352c54;
+  --line: #3d3360;
+  --line-strong: #534578;
+  --text: #ece6f5;
+  --muted: #b3a6cf;
+  --faint: #8678a3;
+  --accent: #e089c4;
+  --accent-hover: #ec9fd3;
+  --on-accent: #2a0f24;
+  --accent-soft: rgba(224, 137, 196, 0.14);
+  --danger: #f08a8a;
+  --danger-soft: rgba(240, 138, 138, 0.14);
+  --canvas: #181324;
+  /* A faint outrun grid: warm horizon lines, cool verticals. */
+  --canvas-image:
+    linear-gradient(rgba(224, 137, 196, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(127, 212, 224, 0.05) 1px, transparent 1px);
+  --canvas-size: 44px 44px;
+  --node-fill: #221b38;
+  --node-text: #ece6f5;
+  --edge-text: #c9bbe0;
+  --node-host: #7fe0d0;
+  --node-server: #8fb8ff;
+  --node-gateway: #e089c4;
+  --node-ap: #f0c879;
+  --node-wireless: #f3d79a;
+  --node-subnet: #8678a3;
+  --node-vlan: #b89ae0;
+  --group-fill: #6d5f94;
+  --edge-l2: #7fe0d0;
+  --edge-l3: #a9d98f;
+  --edge-service: #8fb8ff;
+  --edge-wireless: #f0c879;
+  --edge-vlan: #b89ae0;
+  --edge-subnet: #534578;
+  --edge-bridge: #ef9ac4;
+  --edge-manual: #d79af0;
+  --select: #f3b9de;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
 /* ---------- Base ---------- */
 
 * { box-sizing: border-box; }
@@ -1397,6 +1444,12 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 }
 [data-theme="matrix"] body { font-family: ui-monospace, "Cascadia Mono", Consolas, monospace; }
 [data-theme="matrix"] .map, [data-theme="darkside"] .map, [data-theme="neon"] .map { background: transparent; }
+
+/* The badge takes on each secret theme's colour, with a matching glow. */
+.brand-mark { transition: filter 0.25s ease; }
+[data-theme="matrix"] .brand-mark { filter: hue-rotate(82deg) saturate(1.5) brightness(1.08) drop-shadow(0 0 5px rgba(0, 255, 65, 0.55)); }
+[data-theme="neon"] .brand-mark { filter: hue-rotate(255deg) saturate(1.6) brightness(1.05) drop-shadow(0 0 6px rgba(255, 47, 214, 0.6)); }
+[data-theme="darkside"] .brand-mark { filter: grayscale(0.4) sepia(0.85) saturate(5) hue-rotate(-42deg) brightness(0.98) drop-shadow(0 0 5px rgba(255, 42, 42, 0.55)); }
 
 [data-theme="neon"] {
   color-scheme: dark;

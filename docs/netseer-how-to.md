@@ -33,6 +33,7 @@ Click the **palette** button in the top bar and pick one:
 | **Midnight** | Low-glare navy with a dot grid |
 | **Daylight** | Light and crisp; best for screenshots, projectors, and printing |
 | **Blueprint** | Engineering drawing on a blue grid |
+| **Retrowave** | Soft synthwave: muted plum with a faint neon grid, easy on the eyes |
 
 Your choice is remembered in this browser. Themes change the app and the on-screen map only; draw.io, Visio, and PDF exports keep their own fixed colors. **Settings** → **General** has the same choices.
 

@@ -136,7 +136,7 @@ From the frames and survey rows, NetSeer extracts:
   - **draw.io** and **Visio** (`.vsdx`, `.vdx`), laid out like the map on screen, with subnets as containers
   - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it
   - per-device **PDF, CSV, XML, or text**
-- **Four themes:** Terrain (the default, over a topographic map), Midnight, Daylight (good for printing), and Blueprint.
+- **Five themes:** Terrain (the default, over a topographic map), Midnight, Daylight (good for printing), Blueprint, and Retrowave (soft synthwave).
 - **Settings** (the cog): scroll-zoom speed, back up and restore all your maps, one-click updates (or roll back to an earlier release) in the desktop app, a one-minute guided tour, and an About page.
 
 The [user guide](docs/user-guide.md) walks through all of it with screenshots; the [How to](docs/netseer-how-to.md) lists every control and keyboard shortcut.
