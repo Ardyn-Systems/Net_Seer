@@ -74,7 +74,15 @@ NetSeer picks the best window it can find:
 1. An installed **Chrome, Chromium, Edge, Brave, or Vivaldi** in app mode: its own window with no browser toolbar, and its own profile so your maps stay put.
 2. Otherwise your **default browser**. Maps are then saved in that browser, and NetSeer quits by itself a couple of minutes after you close the tab.
 
-The AppImage is built on Ubuntu 22.04 and runs on that or newer (Debian 12, Fedora 36+, and similar). If you'd rather not use AppImages, the `.tar.gz` has the same program: unpack it and run `NetSeer/NetSeer`.
+The AppImage is built on Ubuntu 22.04 and runs on that or newer (Debian 12, Fedora 36+, and similar). Everything else it needs is bundled; you only need a web browser, which your desktop already has.
+
+AppImages need **FUSE** to run. Many current distros don't ship the older `libfuse2` it expects, so if you see a `dlopen(): error loading libfuse.so.2` or "AppImages require FUSE to run" message, either install `libfuse2` (`sudo apt install libfuse2` on Debian/Ubuntu) or run it without FUSE:
+
+```bash
+./NetSeer-*-x86_64.AppImage --appimage-extract-and-run
+```
+
+If you'd rather skip AppImages entirely, the **`.tar.gz`** has the same program with no FUSE dependency: unpack it and run `NetSeer/NetSeer`.
 
 ### Linux server, Kali, or Raspberry Pi (from source)
 
