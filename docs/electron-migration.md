@@ -23,9 +23,11 @@ the web UI are unchanged.
 > by the web UI — the top bar is the drag region, with themed minimize / maximize-restore / close
 > controls wired to the shell over a locked-down preload bridge; edge-resize, Aero Snap, and
 > double-click-to-maximize come free from Electron. It appears only in the Electron shell (gated on
-> `window.netseerShell`), so the browser, hosted, and pywebview builds are untouched. Still in
-> Phase 2: a system tray, a native application menu, and `netseer://` deep links. Then making
-> Electron the default desktop build (Phase 5).
+> `window.netseerShell`), so the browser, hosted, and pywebview builds are untouched. It also adds a
+> **system tray** (show/hide/quit, single-instance), a **native application menu** (standard
+> edit/view/window roles whose accelerators work even while the bar is hidden, plus Help links), and
+> a **`netseer://` deep link** that focuses NetSeer and forwards the URL to the UI — the handoff a
+> companion app like WaveTop uses. Then making Electron the default desktop build (Phase 5).
 
 ## Goals and non-goals
 

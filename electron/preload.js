@@ -7,6 +7,8 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("netseerShell", {
   kind: "electron",
   platform: process.platform,
+  // A netseer:// link was opened; the page can route it (focus is already handled in the shell).
+  onDeepLink: (callback) => ipcRenderer.on("deeplink", (_event, url) => callback(url)),
   window: {
     minimize: () => ipcRenderer.send("window:minimize"),
     toggleMaximize: () => ipcRenderer.send("window:toggle-maximize"),

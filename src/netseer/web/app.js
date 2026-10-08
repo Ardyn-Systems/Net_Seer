@@ -7616,6 +7616,8 @@ function setupWindowChrome() {
   const sync = (max) => document.documentElement.classList.toggle("win-maximized", !!max);
   Promise.resolve(w.isMaximized()).then(sync).catch(() => {});
   w.onMaximizeChange(sync);
+  // A netseer:// link brought us to the front; the shell handled focus, acknowledge it here.
+  if (shell.onDeepLink) shell.onDeepLink(() => toast("NetSeer opened from a link", { timeout: 2500 }));
 }
 
 async function init() {
