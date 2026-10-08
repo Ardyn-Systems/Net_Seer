@@ -25,7 +25,7 @@ Below about 1180 px wide the details panel slides in from the right when you sel
 
 ## Themes
 
-Click the **palette** button in the top bar and pick one:
+Open **Settings** → **General** → **Theme** and pick one:
 
 | Theme | Feel |
 | --- | --- |

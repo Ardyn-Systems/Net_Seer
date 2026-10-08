@@ -192,25 +192,6 @@ function applyTheme(id) {
   syncThemeBackdrop();
 }
 
-function openThemeMenu(anchor) {
-  const active = currentTheme();
-  openMenu(
-    anchor,
-    [
-      { heading: "Theme" },
-      ...themeList().map((t) => ({
-        theme: t,
-        checked: t.id === active,
-        onSelect: () => {
-          applyTheme(t.id);
-          toast(`${t.name} theme`, { timeout: 1500 });
-        },
-      })),
-    ],
-    { align: "right" }
-  );
-}
-
 /* ---------- Floating menus ---------- */
 
 let openMenuState = null;
@@ -246,17 +227,9 @@ function buildMenu(items) {
     btn.setAttribute("role", item.checked != null ? "menuitemradio" : "menuitem");
     if (item.danger) btn.classList.add("danger");
     if (item.disabled) btn.disabled = true;
-    if (item.theme) {
-      btn.classList.add("theme-option");
-      btn.setAttribute("aria-checked", String(Boolean(item.checked)));
-      btn.innerHTML = `<span class="theme-swatch">${item.theme.swatch.map((c) => `<i style="background:${c}"></i>`).join("")}</span>
-        <span class="theme-name">${escapeHtml(item.theme.name)}<small>${escapeHtml(item.theme.note)}</small></span>
-        <svg class="icon check"><path d="m5 12 5 5 9-10"/></svg>`;
-    } else {
-      btn.innerHTML = `<span>${escapeHtml(item.label)}</span>${item.hint ? `<small>${escapeHtml(item.hint)}</small>` : ""}${
-        item.kbd ? `<kbd>${escapeHtml(item.kbd)}</kbd>` : ""
-      }`;
-    }
+    btn.innerHTML = `<span>${escapeHtml(item.label)}</span>${item.hint ? `<small>${escapeHtml(item.hint)}</small>` : ""}${
+      item.kbd ? `<kbd>${escapeHtml(item.kbd)}</kbd>` : ""
+    }`;
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
       closeMenu();
@@ -6641,8 +6614,7 @@ const TOUR_STEPS = [
     before: selectTourDevice,
   },
   { target: "#btn-export", title: "Export", text: "Save the map as a draw.io or Visio diagram, or create a PDF report with just the parts you need." },
-  { target: "#btn-theme", title: "Themes", text: "Choose from four looks. Daylight works best for printing and projectors." },
-  { target: "#btn-settings", title: "Settings and help", text: "Back up your maps, check for updates, go back to an older version, and replay this tour from here." },
+  { target: "#btn-settings", title: "Settings and help", text: "Pick a theme, back up your maps, check for updates, go back to an older version, and replay this tour from here." },
 ];
 
 const tour = { active: false, i: 0, pickedId: null };
@@ -6797,7 +6769,6 @@ function bindUi() {
       { label: "Report…", hint: "PDF", onSelect: openReportDialog },
     ])
   );
-  el("btn-theme").addEventListener("click", (e) => openThemeMenu(e.currentTarget));
   el("btn-settings").addEventListener("click", () => openSettings());
   el("map-title").addEventListener("click", () => state.activeMapId && renameMap(state.activeMapId));
   el("btn-sidebar").addEventListener("click", () => el("sidebar").classList.toggle("open"));
