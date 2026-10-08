@@ -111,11 +111,15 @@ Each phase is shippable and reversible; pywebview stays the default until parity
      attached to releases).
   2. **Prove it** end to end across one real release pair (cut 0.x, then 0.x+1, and confirm an
      installed Electron 0.x updates itself).
-  3. **Promote the download:** rename the Electron artifacts to the canonical names, point the README
-     download table at them, and label the pywebview builds "classic".
-  4. **Teach the UI about the shell:** when running under Electron, Settings → Updates uses the
-     Electron updater (or points to GitHub) instead of the pywebview install flow.
-  5. **Retire pywebview** once the Electron build has ridden a couple of releases cleanly.
+  3. **Promote the download** — *done*. The README recommends the Electron build and labels the
+     pywebview builds "classic". (The Electron artifacts keep the `NetSeer-Electron-*` names for now;
+     taking over the plain `NetSeer-*` names waits for step 5, since the classic app's own updater
+     still looks for those.)
+  4. **Teach the UI about the shell** — *done*. Under Electron, Settings → Updates drops the pywebview
+     install flow and uses the Electron updater (a *Check for updates* button over the preload bridge,
+     plus a link to Releases).
+  5. **Retire pywebview** once the Electron build has ridden a couple of releases cleanly — then the
+     Electron artifacts take the canonical `NetSeer-*` names.
 
 ## Packaging, signing, and updates
 

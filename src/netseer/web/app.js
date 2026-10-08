@@ -5661,6 +5661,7 @@ function renderSettings() {
     repo: repoUrl(),
     guide: repoUrl("/blob/main/docs/user-guide.md"),
     issue: repoUrl(`/issues/new?body=${encodeURIComponent(`\n\n---\nNetSeer ${version}, ${runningAs()}`)}`),
+    releases: repoUrl("/releases"),
   };
   document.querySelectorAll("#settings-dialog [data-link]").forEach((a) => (a.href = links[a.dataset.link]));
 }
@@ -5943,11 +5944,18 @@ function updateHowText() {
 
 function renderUpdates() {
   const hosted = state.server.mode === "hosted";
-  show("updates-local", !hosted);
+  // The Electron app updates itself (electron-updater), so it skips the pywebview install flow.
+  const electron = window.netseerShell?.kind === "electron";
+  show("updates-electron", electron && !hosted);
+  show("updates-local", !hosted && !electron);
   show("updates-hosted", hosted);
-  show("updates-check", !hosted);
+  show("updates-check", !hosted && !electron);
   if (hosted) {
     setUpdateStatus("This online copy is always the newest version.", "good");
+    return;
+  }
+  if (electron) {
+    setUpdateStatus("NetSeer updates itself automatically.", "good");
     return;
   }
   el("updates-how").textContent = updateHowText();
@@ -7618,6 +7626,13 @@ function setupWindowChrome() {
   w.onMaximizeChange(sync);
   // A netseer:// link brought us to the front; the shell handled focus, acknowledge it here.
   if (shell.onDeepLink) shell.onDeepLink(() => toast("NetSeer opened from a link", { timeout: 2500 }));
+  // Settings → Updates uses the Electron updater; the result comes back as a native dialog.
+  if (shell.checkForUpdates) {
+    el("updates-electron-check").addEventListener("click", () => {
+      shell.checkForUpdates();
+      setUpdateStatus("Checking for updates…");
+    });
+  }
 }
 
 async function init() {

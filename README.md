@@ -30,13 +30,15 @@ Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) ·
 
 | You're on | Get | How it opens |
 | --- | --- | --- |
-| Windows 10 or 11 | `NetSeer-Setup-<version>.exe`, or the portable `.zip` | Its own window (Edge WebView2) |
-| Linux desktop | `NetSeer-<version>-x86_64.AppImage`, or the `.tar.gz` | Its own window (see below) |
+| Windows 10 or 11 | **`NetSeer-Electron-Setup-<version>.exe`**, or the classic `NetSeer-Setup-<version>.exe` | Its own window |
+| Linux desktop | **`NetSeer-Electron-<version>-x86_64.AppImage`**, or the classic `NetSeer-<version>-x86_64.AppImage` | Its own window (see below) |
 | Linux server, Kali, Raspberry Pi | Install from source with `uv` or `pipx` | A browser, locally or over SSH |
 | macOS | From source | A browser |
 | Anywhere, nothing to install | **[netseer.onrender.com](https://netseer.onrender.com)** | Your browser |
 
 Download the Windows and Linux builds from [Releases](https://github.com/ardyn-systems/NetSeer/releases).
+
+**Two desktop builds.** The **Electron** build (recommended) has a frameless window with a custom title bar, a system tray, and **updates itself**. The **classic** build runs on the operating system's built-in web view (Edge WebView2 on Windows, WebKitGTK on Linux) and is a smaller download. Both are the same NetSeer — pick whichever you prefer.
 
 ### Try it online
 
@@ -55,13 +57,22 @@ Put your own public copy online for free on Render, the same way the one above r
 
 ### Windows
 
-Run **NetSeer-Setup-&lt;version&gt;.exe**. It installs for your user only (no admin prompt), adds a Start menu shortcut, and shows up under **Settings → Apps** for uninstalling. Or unzip the **portable** build anywhere and run `NetSeer.exe`.
+**Electron build (recommended).** Run **NetSeer-Electron-Setup-&lt;version&gt;.exe** — a per-user install (no admin prompt), with a frameless window, a system tray, and automatic updates. Or unzip the portable **NetSeer-Electron-&lt;version&gt;-x64.zip** and run `NetSeer.exe`.
 
-NetSeer opens in its own window using Microsoft Edge WebView2, which comes with Windows 10 and 11. If WebView2 is missing, it opens in your default browser instead.
+**Classic build.** Run **NetSeer-Setup-&lt;version&gt;.exe** (or the portable `.zip`). It opens in its own window using Microsoft Edge WebView2, which comes with Windows 10 and 11, and falls back to your browser if WebView2 is missing.
 
-Until the builds are code-signed ([how to set that up](packaging/windows/SIGNING.md)), Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info** → **Run anyway**.
+Either way, until the builds are code-signed ([how to set that up](packaging/windows/SIGNING.md)), Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info** → **Run anyway**.
 
 ### Linux desktop (AppImage)
+
+**Electron build (recommended)** opens in its own native window and updates itself:
+
+```bash
+chmod +x NetSeer-Electron-*-x86_64.AppImage
+./NetSeer-Electron-*-x86_64.AppImage
+```
+
+**Classic build** uses a browser you already have as its window:
 
 ```bash
 chmod +x NetSeer-*-x86_64.AppImage
@@ -69,20 +80,20 @@ chmod +x NetSeer-*-x86_64.AppImage
 ./NetSeer-*-x86_64.AppImage --install   # optional: add NetSeer to your app menu
 ```
 
-NetSeer picks the best window it can find:
+The classic build picks the best window it can find:
 
 1. An installed **Chrome, Chromium, Edge, Brave, or Vivaldi** in app mode: its own window with no browser toolbar, and its own profile so your maps stay put.
 2. Otherwise your **default browser**. Maps are then saved in that browser, and NetSeer quits by itself a couple of minutes after you close the tab.
 
-The AppImage is built on Ubuntu 22.04 and runs on that or newer (Debian 12, Fedora 36+, and similar). Everything else it needs is bundled; you only need a web browser, which your desktop already has.
+Both AppImages are built on Ubuntu 22.04 and run on that or newer (Debian 12, Fedora 36+, and similar); everything they need is bundled.
 
-AppImages need **FUSE** to run. Many current distros don't ship the older `libfuse2` it expects, so if you see a `dlopen(): error loading libfuse.so.2` or "AppImages require FUSE to run" message, either install `libfuse2` (`sudo apt install libfuse2` on Debian/Ubuntu) or run it without FUSE:
+AppImages need **FUSE** to run. Many current distros don't ship the older `libfuse2` they expect, so if you see a `dlopen(): error loading libfuse.so.2` or "AppImages require FUSE to run" message, either install `libfuse2` (`sudo apt install libfuse2` on Debian/Ubuntu) or run it without FUSE:
 
 ```bash
 ./NetSeer-*-x86_64.AppImage --appimage-extract-and-run
 ```
 
-If you'd rather skip AppImages entirely, the **`.tar.gz`** has the same program with no FUSE dependency: unpack it and run `NetSeer/NetSeer`.
+To skip AppImages entirely, the classic build's **`.tar.gz`** has the same program with no FUSE dependency: unpack it and run `NetSeer/NetSeer`.
 
 ### Linux server, Kali, or Raspberry Pi (from source)
 

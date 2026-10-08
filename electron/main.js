@@ -305,6 +305,7 @@ ipcMain.on("window:toggle-maximize", (e) => {
 });
 ipcMain.on("window:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 ipcMain.handle("window:is-maximized", (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized());
+ipcMain.on("updates:check", () => checkForUpdatesNow());
 
 function failFast(message) {
   log("ERROR:", message);
