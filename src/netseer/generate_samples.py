@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+from datetime import datetime, timezone
 from pathlib import Path
 
 from scapy.all import (  # type: ignore[import-untyped]
@@ -499,6 +501,66 @@ def _timed(pkts: list, offset: float = 0.0) -> list:
     return pkts
 
 
+def wigle_wardrive() -> str:
+    """A short WiGLE wardrive: a drive past a few access points, Bluetooth gadgets, and a cell tower.
+
+    Each transmitter is heard from several points along the route with the signal rising and falling
+    by distance, so the geo map shows real tracks and a signal-weighted estimated location per device.
+    """
+    # Access points at fixed real locations (near the Kismet sample's area).
+    aps = [
+        ("aa:bb:cc:00:00:01", 37.77470, -122.41980, "Blue Bottle", 6, 2437, "[WPA2-PSK-CCMP][RSN-PSK-CCMP][ESS]"),
+        ("aa:bb:cc:00:00:02", 37.77455, -122.41930, "CityWiFi-Free", 11, 2462, "[ESS]"),
+        ("aa:bb:cc:00:00:03", 37.77500, -122.41905, "Printer_5G", 149, 5745, "[WPA2-PSK-CCMP][RSN-PSK-CCMP][ESS][WPS]"),
+        ("aa:bb:cc:00:00:04", 37.77520, -122.41860, "Netgear-Guest", 1, 2412, "[WPA2-PSK-CCMP][ESS]"),
+        ("aa:bb:cc:00:00:05", 37.77445, -122.41875, "oldrouter", 3, 2422, "[WEP][ESS]"),
+    ]
+    bts = [
+        ("a2:14:22:00:00:11", 37.77472, -122.41975, "Fitbit Charge", "BLE", "Misc"),
+        ("b6:30:9c:00:00:22", 37.77458, -122.41928, "", "BT", "Uncategorized;10"),
+    ]
+    cell = ("310260_41021_118273301", 37.78100, -122.41500, "T-Mobile USA", "LTE", "310260", 1275)
+
+    # The drive: east along the block, then curving north. One point every 20 s.
+    route = []
+    lat, lon, t = 37.77460, -122.42010, SAMPLE_START
+    for i in range(16):
+        lon += 0.00022
+        if i >= 8:
+            lat += 0.00016
+            lon -= 0.00004
+        route.append((round(lat, 6), round(lon, 6), t + i * 20.0))
+
+    def dist_m(la, lo, la2, lo2):
+        return math.hypot((lo2 - lo) * 111_320.0 * math.cos(math.radians(la)), (la2 - la) * 111_320.0)
+
+    def rssi(d):  # stronger up close; log-distance falloff, clamped to a believable range
+        return int(max(-95, min(-30, round(-40 - 22 * math.log10(max(1.0, d / 4.0))))))
+
+    def when(ts):
+        return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+    rows = []
+    for la, lo, ts in route:
+        for mac, ala, alo, ssid, ch, fr, auth in aps:
+            d = dist_m(la, lo, ala, alo)
+            if d <= 150:
+                rows.append(f"{mac},{ssid},{auth},{when(ts)},{ch},{fr},{rssi(d)},{la:.6f},{lo:.6f},12.0,5.0,,,WIFI")
+        for mac, bla, blo, name, typ, cls in bts:
+            d = dist_m(la, lo, bla, blo)
+            if d <= 70:
+                fr = "7936" if typ == "BT" else ""
+                rows.append(f"{mac},{name},{cls},{when(ts)},,{fr},{rssi(d)},{la:.6f},{lo:.6f},12.0,5.0,,,{typ}")
+        cid, cla, clo, carrier, radio, plmn, earfcn = cell
+        rows.append(f"{cid},{carrier},{radio};{plmn},{when(ts)},{earfcn},{earfcn},{rssi(dist_m(la, lo, cla, clo))},{la:.6f},{lo:.6f},12.0,5.0,,,{radio}")
+
+    header = (
+        "WigleWifi-1.6,appRelease=NetSeer demo,model=demo,release=16,device=demo,display=demo,board=demo,brand=demo\n"
+        "MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,RCOIs,MfgrId,Type\n"
+    )
+    return header + "\n".join(rows) + "\n"
+
+
 def write_all(dest: Path | None = None) -> Path:
     dest = dest or DATA
     dest.mkdir(parents=True, exist_ok=True)
@@ -522,6 +584,7 @@ def write_all(dest: Path | None = None) -> Path:
     (dest / "kismet-walk.netxml").write_text(kismet_netxml(), encoding="utf-8")
     (dest / "kismet-aps.csv").write_text(kismet_csv(), encoding="utf-8")
     (dest / "airodump-ng.csv").write_text(airodump_csv(), encoding="utf-8")
+    (dest / "wardrive.wiglewifi.csv").write_text(wigle_wardrive(), encoding="utf-8")
     return dest
 
 

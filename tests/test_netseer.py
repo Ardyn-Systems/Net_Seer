@@ -20,6 +20,16 @@ def test_samples_exist_after_generate(tmp_path):
     dest = write_all(tmp_path)
     assert (dest / "office-lan.pcap").stat().st_size > 0
     assert (dest / "wifi-campus.pcapng").stat().st_size > 0
+    assert (dest / "wardrive.wiglewifi.csv").stat().st_size > 0
+
+
+def test_wardrive_demo_has_kinds_tracks_and_estimates():
+    if not (DATA_DIR / "wardrive.wiglewifi.csv").exists():
+        write_all(DATA_DIR)
+    g = ingest_files(files_for_sample("wardrive"))
+    assert {n.kind for n in g.nodes} >= {"ap", "bluetooth", "cell"}
+    assert any(n.track for n in g.nodes) and all(n.seen for n in g.nodes)
+    assert any(n.extra.get("est_location") for n in g.nodes)
 
 
 def test_office_lan_has_ports_and_services():

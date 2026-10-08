@@ -285,6 +285,8 @@ When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), the **map-pin 
 - **Time** slider: drag to reveal sightings up to a chosen time and replay the drive.
 - **Whole capture** shows every located device; switch to **Added devices** to start empty and build the map up with **Show on map** as you go.
 
+Try it with the **Wardrive (WiGLE)** sample under **Settings → Help**.
+
 ---
 
 ## Layers
