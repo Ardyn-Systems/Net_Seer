@@ -303,9 +303,7 @@ The footer estimates the number of pages before you create the PDF, and NetSeer 
 
 ## Change the theme
 
-Click the palette button in the top bar.
-
-![Theme menu with Terrain, Midnight, Daylight, Blueprint, and Retrowave](images/theme-menu.png)
+Open **Settings** → **General** and pick a theme from the grid at the top.
 
 ![The same map in the Terrain, Midnight, Daylight, Blueprint, and Retrowave themes](images/themes.png)
 

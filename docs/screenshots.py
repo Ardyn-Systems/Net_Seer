@@ -356,10 +356,7 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.evaluate("() => resetTimeWindow()")
         page.wait_for_timeout(300)
 
-        # 8. Themes.
-        page.click("#btn-theme")
-        page.wait_for_selector("body > .menu")
-        shots.save("theme-menu", selectors=["#btn-theme", "body > .menu"], pad=20)
+        # 8. Themes (the picker lives in Settings → General; see the settings-general shot below).
         shots.reset()
         frames = []
         for theme in ("terrain", "midnight", "daylight", "blueprint", "retrowave"):
