@@ -13,6 +13,9 @@
     "smoke": "electron . --smoke-test",
     "dist": "electron-builder"
   },
+  "dependencies": {
+    "electron-updater": "^6.3.9"
+  },
   "devDependencies": {
     "electron": "^33.2.0",
     "electron-builder": "^25.1.8"
@@ -25,6 +28,13 @@
       "output": "dist"
     },
     "files": ["main.js", "preload.js"],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ardyn-systems",
+        "repo": "NetSeer"
+      }
+    ],
     "extraResources": [
       {
         "from": "../dist/netseer-server",

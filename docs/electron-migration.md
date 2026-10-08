@@ -27,7 +27,14 @@ the web UI are unchanged.
 > **system tray** (show/hide/quit, single-instance), a **native application menu** (standard
 > edit/view/window roles whose accelerators work even while the bar is hidden, plus Help links), and
 > a **`netseer://` deep link** that focuses NetSeer and forwards the URL to the UI — the handoff a
-> companion app like WaveTop uses. Then making Electron the default desktop build (Phase 5).
+> companion app like WaveTop uses.
+>
+> **Phase 5 (started — the cutover):** the Electron build now **updates itself** with
+> `electron-updater` (GitHub provider) — a background check on launch, a **Check for updates…** menu
+> item, and a restart-to-install prompt; the release workflow attaches the `latest*.yml` update
+> metadata. This closes the last big parity gap (the pywebview app's in-app updater). The cutover
+> then proceeds as the steps below, deliberately **keeping pywebview as the fallback until
+> auto-update is proven on a real release pair**.
 
 ## Goals and non-goals
 
@@ -99,7 +106,16 @@ Each phase is shippable and reversible; pywebview stays the default until parity
 - **Phase 4 — plugin host.** JS/TS UI extensions in the renderer plus Python back-end plugins in the
   sidecar (new parsers, exporters, data sources).
 - **Phase 5 — cut over.** Make Electron the default desktop build; retire the pywebview path once
-  parity and signing are confirmed. Source and hosted modes are untouched throughout.
+  parity and signing are confirmed. Source and hosted modes are untouched throughout. In order:
+  1. **Auto-update** so the Electron build maintains itself — *done* (`electron-updater`, metadata
+     attached to releases).
+  2. **Prove it** end to end across one real release pair (cut 0.x, then 0.x+1, and confirm an
+     installed Electron 0.x updates itself).
+  3. **Promote the download:** rename the Electron artifacts to the canonical names, point the README
+     download table at them, and label the pywebview builds "classic".
+  4. **Teach the UI about the shell:** when running under Electron, Settings → Updates uses the
+     Electron updater (or points to GitHub) instead of the pywebview install flow.
+  5. **Retire pywebview** once the Electron build has ridden a couple of releases cleanly.
 
 ## Packaging, signing, and updates
 
