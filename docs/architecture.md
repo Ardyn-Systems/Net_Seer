@@ -131,7 +131,6 @@ Every route the front end calls, grouped by area:
 | Security | `POST /api/security/assess`, `GET /api/security/database`, `POST /api/security/discoverable`, `POST /api/security/handshake`, `POST /api/security/refresh`, `POST /api/security/refresh/cancel` |
 | Export | `POST /api/export/drawio`, `/api/export/vdx`, `/api/export/vsdx`, `POST /api/export/device/{fmt}`, `POST /api/export/report.pdf` |
 | Maps | `POST /api/compare`, `POST /api/device/properties`, `POST /api/unwanted/dump` |
-| Update | `GET /api/update/status`, `POST /api/update/start`, `/api/update/cancel`, `/api/update/install` |
 | Lifecycle | `POST /api/heartbeat`, `GET /api/health` |
 | App | `GET /`, `GET /favicon.ico` |
 
