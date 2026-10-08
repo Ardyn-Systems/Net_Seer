@@ -6,18 +6,23 @@ The NetSeer desktop app. It launches the Python backend as a **managed sidecar**
 same ones that run online and from source. See
 [../docs/electron-migration.md](../docs/electron-migration.md) for the design history.
 
-## What Phase 1 does
+## What it does
 
 - Picks a free loopback port and starts the backend (`python -m netseer` in dev; a frozen
-  `netseer-server` under `resources/` when packaged — the packaging slice comes next).
-- Health-checks the backend, then shows it in a 1440×900 window (min 900×600, dark background,
-  `NETSEER_MODE=desktop`).
+  `netseer-server` under `resources/` when packaged — see `packaging/electron/netseer-server.spec`).
+- Health-checks the backend, then shows it in a frameless 1440×900 window (min 900×600, dark
+  background, `NETSEER_MODE=desktop`) with a web-UI title bar.
+- Adds a system tray, a native application menu, and `netseer://` deep links (the companion-app
+  handoff).
+- Updates itself with `electron-updater` (GitHub provider): a background check on launch, a
+  **Check for updates** control, and a restart-to-install prompt, gated on the user's
+  auto-update toggle.
 - Opens external links in the user's browser.
 - Kills the sidecar when the app quits, and quits if the backend dies.
 - Security: `contextIsolation` on, `nodeIntegration` off, sandboxed renderer, a minimal preload.
 
-Not yet (later Phase-1 / later phases): the frozen server sidecar + `electron-builder` packaging and
-signing, the frameless title bar and native menus/tray, deep links, and auto-update.
+Packaged and signed by `.github/workflows/electron.yml` (electron-builder): a Windows installer +
+portable zip, and a Linux AppImage + tar.gz. See [SIGNING.md](../packaging/windows/SIGNING.md).
 
 ## Run it (from source)
 

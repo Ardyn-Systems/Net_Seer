@@ -15,9 +15,12 @@ import io
 import json
 import math
 import os
+import socket
 import subprocess
 import sys
 import tempfile
+import time
+import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,10 +66,26 @@ CALLOUT_CSS = """
 """
 
 
+def free_ephemeral_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def wait_ready(port: int, timeout: float = 30.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/health", timeout=1) as r:
+                if r.status == 200:
+                    return
+        except Exception:
+            time.sleep(0.25)
+    raise RuntimeError(f"NetSeer did not answer on port {port} within {timeout}s")
+
+
 def start_server() -> tuple[str, subprocess.Popen]:
     """Run NetSeer in its own process, like a user would."""
-    from netseer.desktop import free_ephemeral_port, wait_ready
-
     port = free_ephemeral_port()
     env = dict(
         os.environ,
