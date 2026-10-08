@@ -1,9 +1,9 @@
-// NetSeer desktop shell (Electron) — Phase 1.
-// Launches the existing Python backend as a managed sidecar, waits for it to answer, and shows it
-// in a window. The Python app and the web UI are unchanged; this only replaces the pywebview
-// window. See docs/electron-migration.md.
+// NetSeer desktop shell (Electron).
+// Launches the existing Python backend as a managed sidecar, shows it in a frameless window with a
+// custom title bar, and adds the native desktop touches: a tray, an application menu, and a
+// netseer:// deep link. The Python app and the web UI are unchanged. See docs/electron-migration.md.
 
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, Tray, dialog, nativeImage, shell, ipcMain } = require("electron");
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const http = require("node:http");
@@ -11,14 +11,23 @@ const path = require("node:path");
 
 const SMOKE = process.argv.includes("--smoke-test");
 const BG = "#15140f";
+const REPO = "ardyn-systems/NetSeer";
+const GUIDE_URL = `https://github.com/${REPO}/blob/main/docs/user-guide.md`;
+const ISSUES_URL = `https://github.com/${REPO}/issues/new`;
 
 let sidecar = null;
 let sidecarExited = false;
 let shuttingDown = false;
+let mainWindow = null;
+let tray = null;
+let pendingDeepLink = null;
 
 function log(...args) {
   console.log("[netseer]", ...args);
 }
+
+// Only one NetSeer at a time: a second launch (e.g. from a netseer:// link) focuses this one.
+const gotLock = app.requestSingleInstanceLock();
 
 function freePort() {
   return new Promise((resolve, reject) => {
@@ -31,8 +40,13 @@ function freePort() {
   });
 }
 
-// Dev runs the server from source (python -m netseer); a packaged build runs the frozen
-// server sidecar bundled under resources/ (added in the packaging step, a later Phase-1 slice).
+function iconPath() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, "icons", "netseer.png")
+    : path.join(__dirname, "..", "packaging", "linux", "netseer.png");
+}
+
+// Dev runs the server from source (python -m netseer); a packaged build runs the frozen sidecar.
 function sidecarCommand(port) {
   const args = ["--host", "127.0.0.1", "--port", String(port)];
   const explicit = process.env.NETSEER_SIDECAR;
@@ -103,6 +117,7 @@ function createWindow(port) {
     show: !SMOKE,
     autoHideMenuBar: true,
     frame: false, // the app draws its own title bar (see the web UI's window controls)
+    icon: iconPath(),
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -110,6 +125,7 @@ function createWindow(port) {
       sandbox: true,
     },
   });
+  mainWindow = win;
 
   // Links to other sites open in the user's browser, never in the app window.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -126,9 +142,103 @@ function createWindow(port) {
   // Keep the custom title bar's maximize/restore button in step with the real window state.
   win.on("maximize", () => win.webContents.send("window:maximized", true));
   win.on("unmaximize", () => win.webContents.send("window:maximized", false));
+  win.on("closed", () => {
+    mainWindow = null;
+  });
+  // A deep link that arrived before the page was ready is delivered once it loads.
+  win.webContents.once("did-finish-load", () => {
+    if (pendingDeepLink) {
+      win.webContents.send("deeplink", pendingDeepLink);
+      pendingDeepLink = null;
+    }
+  });
 
   win.loadURL(`${base}/`);
   return win;
+}
+
+function showMainWindow() {
+  if (!mainWindow) return;
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function setupTray() {
+  if (SMOKE) return; // the smoke run never shows UI
+  try {
+    let image = nativeImage.createFromPath(iconPath());
+    if (process.platform === "win32" && !image.isEmpty()) image = image.resize({ width: 16, height: 16 });
+    tray = new Tray(image);
+    tray.setToolTip("NetSeer");
+    tray.setContextMenu(
+      Menu.buildFromTemplate([
+        { label: "Show NetSeer", click: showMainWindow },
+        { label: "Hide to tray", click: () => mainWindow && mainWindow.hide() },
+        { type: "separator" },
+        { label: "Quit NetSeer", click: () => app.quit() },
+      ])
+    );
+    tray.on("click", () => (mainWindow && mainWindow.isVisible() ? mainWindow.hide() : showMainWindow()));
+  } catch (err) {
+    log("tray unavailable:", err.message); // e.g. no tray daemon (headless/CI)
+  }
+}
+
+function showAbout() {
+  dialog.showMessageBox(mainWindow ?? undefined, {
+    type: "info",
+    title: "About NetSeer",
+    message: "NetSeer",
+    detail: `Turn traffic into terrain.\nVersion ${app.getVersion()}`,
+  });
+}
+
+function setupMenu() {
+  const template = [
+    ...(process.platform === "darwin" ? [{ role: "appMenu" }] : []),
+    { role: "fileMenu" },
+    { role: "editMenu" },
+    { role: "viewMenu" },
+    { role: "windowMenu" },
+    {
+      role: "help",
+      submenu: [
+        { label: "User guide", click: () => shell.openExternal(GUIDE_URL) },
+        { label: "Report a problem", click: () => shell.openExternal(ISSUES_URL) },
+        { type: "separator" },
+        { label: "About NetSeer", click: showAbout },
+      ],
+    },
+  ];
+  // The menu bar stays hidden on the frameless window (autoHideMenuBar), but its accelerators —
+  // Reload, zoom, DevTools, and the clipboard shortcuts in text fields — work regardless.
+  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+// ---- Deep links (netseer://) ----
+
+function deepLinkFrom(argv) {
+  return (argv || []).find((a) => typeof a === "string" && a.startsWith("netseer://")) || null;
+}
+
+function handleDeepLink(url) {
+  if (!url) return;
+  if (mainWindow) {
+    showMainWindow();
+    mainWindow.webContents.send("deeplink", url);
+  } else {
+    pendingDeepLink = url;
+  }
+}
+
+function registerProtocol() {
+  if (process.defaultApp) {
+    // In dev, point the registration at this script so Windows can relaunch Electron with the URL.
+    if (process.argv.length >= 2) app.setAsDefaultProtocolClient("netseer", process.execPath, [path.resolve(process.argv[1])]);
+  } else {
+    app.setAsDefaultProtocolClient("netseer");
+  }
 }
 
 // Window controls for the frameless title bar the web UI draws. Scoped to the sending window.
@@ -147,11 +257,15 @@ function failFast(message) {
 }
 
 async function main() {
+  registerProtocol();
+  setupMenu();
+  pendingDeepLink = deepLinkFrom(process.argv); // a link passed on first launch (Windows/Linux)
   const port = await freePort();
   startSidecar(port);
   await waitForHealth(port);
   log("backend ready on", port);
   const win = createWindow(port);
+  setupTray();
 
   if (SMOKE) {
     const timer = setTimeout(() => failFast("window didn't finish loading in time"), 30000);
@@ -179,7 +293,19 @@ async function main() {
   }
 }
 
-app.whenReady().then(main).catch((err) => failFast(err.message));
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    handleDeepLink(deepLinkFrom(argv));
+    showMainWindow();
+  });
+  app.on("open-url", (event, url) => {
+    event.preventDefault();
+    handleDeepLink(url);
+  });
+  app.whenReady().then(main).catch((err) => failFast(err.message));
+}
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();

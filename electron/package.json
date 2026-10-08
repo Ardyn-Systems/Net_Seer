@@ -29,6 +29,10 @@
       {
         "from": "../dist/netseer-server",
         "to": "netseer"
+      },
+      {
+        "from": "../packaging/linux/netseer.png",
+        "to": "icons/netseer.png"
       }
     ],
     "win": {
