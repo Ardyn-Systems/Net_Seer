@@ -28,6 +28,10 @@ hiddenimports = [
     "scapy.all",
     "python_multipart",
     "multipart",
+    # uvicorn loads the app by the string "netseer.web:app", so PyInstaller can't see it from the
+    # import graph. Force it in, or the bundled web/ asset folder shadows web.py as an empty
+    # namespace package and uvicorn reports: Attribute "app" not found in module "netseer.web".
+    "netseer.web",
 ]
 
 a = Analysis(

@@ -4098,7 +4098,6 @@ async function loadServerInfo() {
       platform: info.platform || "",
       package: info.package || "source",
       repo: info.repo || state.server.repo,
-      updater: Boolean(info.updater),
     };
   } catch {
     /* keep defaults */
@@ -5905,7 +5904,6 @@ const installCommand = (tag) => `uv tool install --force "git+https://github.com
 
 function updateHowText() {
   const { platform, package: pkg } = state.server;
-  if (state.server.updater) return "Click Update, or open Earlier versions to roll back. NetSeer downloads it, checks it against GitHub's checksum, and installs it for you, then reopens.";
   if (pkg === "installer") return "To switch versions, download that version's installer and run it. It replaces the version you have now.";
   if (pkg === "appimage") return "To switch versions, download that version's AppImage, make it executable, and run it instead of this one. Keep the old file if you might want to go back.";
   if (pkg === "portable") {
@@ -5917,7 +5915,7 @@ function updateHowText() {
 
 function renderUpdates() {
   const hosted = state.server.mode === "hosted";
-  // The Electron app updates itself (electron-updater), so it skips the pywebview install flow.
+  // The Electron app updates itself (electron-updater); the browser and CLI only link to releases.
   const electron = window.netseerShell?.kind === "electron";
   show("updates-electron", electron && !hosted);
   show("updates-local", !hosted && !electron);
@@ -5964,8 +5962,7 @@ function releaseActions(r) {
   const asset = assetFor(r);
   const verb = cmp > 0 ? "Update" : cmp < 0 ? "Roll back" : "Reinstall";
   let actions = `<a class="btn small ghost" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Release notes</a>`;
-  if (asset && state.server.updater) actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-update="${escapeHtml(r.tag)}">${verb}</button>`;
-  else if (asset) actions += `<a class="btn small${cmp > 0 ? " primary" : ""}" href="${escapeHtml(asset.url)}" target="_blank" rel="noopener" title="${escapeHtml(asset.name)}, ${formatSize(asset.size)}">${verb}</a>`;
+  if (asset) actions += `<a class="btn small${cmp > 0 ? " primary" : ""}" href="${escapeHtml(asset.url)}" target="_blank" rel="noopener" title="${escapeHtml(asset.name)}, ${formatSize(asset.size)}">${verb}</a>`;
   else if (state.server.package === "source") actions += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-copy="${escapeHtml(r.tag)}">Copy ${verb.toLowerCase()} command</button>`;
   return actions;
 }
@@ -6046,8 +6043,7 @@ async function autoCheckUpdates() {
   const newer = newerRelease(cache);
   if (!newer || cache.notified === newer.tag) return;
   writeLocal(UPDATES_KEY, { ...cache, notified: newer.tag });
-  const open = () => (state.server.updater ? openUpdateWizard(newer) : openSettings("updates"));
-  toast(`${newer.name} is available.`, { action: { label: state.server.updater ? "Update now" : "See what's new", onClick: open }, timeout: 10000 });
+  toast(`${newer.name} is available.`, { action: { label: "See what's new", onClick: () => openSettings("updates") }, timeout: 10000 });
 }
 
 function bindSettings() {
@@ -6102,8 +6098,6 @@ function bindSettings() {
     if (e.target.checked) checkForUpdates();
   });
   el("release-list").addEventListener("click", (e) => {
-    const upd = e.target.closest("[data-update]");
-    if (upd) openUpdateWizard(readUpdateCache()?.releases.find((r) => r.tag === upd.dataset.update));
     const btn = e.target.closest("[data-copy]");
     if (btn) copyText(installCommand(btn.dataset.copy), "Install command copied. Run it in a terminal, then restart NetSeer.");
   });
@@ -6116,187 +6110,7 @@ function bindSettings() {
   window.addEventListener("resize", () => tour.active && placeTour());
 }
 
-/* ---------- Update wizard (desktop app) ---------- */
-// The desktop app downloads, checks, and installs releases itself (see netseer/updater.py).
-
 const LAST_VERSION_KEY = "netseer.lastVersion";
-const wizard = { release: null, timer: null };
-
-async function updateApi(path, body) {
-  const res = await fetch(`/api/update/${path}`, {
-    method: body === undefined ? "GET" : "POST",
-    headers: { "X-NetSeer-Update": "1", ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  return parseResponse(res);
-}
-
-// Release notes are Markdown; this covers what NetSeer's notes use.
-function renderNotes(md) {
-  const inline = (s) =>
-    escapeHtml(s)
-      .replace(/`([^`]+)`/g, "<code>$1</code>")
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/(^|[\s(])\*([^*\s][^*]*)\*/g, "$1<em>$2</em>")
-      .replace(/\[([^\]]+)\]\((https:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
-  const out = [];
-  let list = false;
-  let table = null;
-  const close = () => {
-    if (list) out.push("</ul>");
-    if (table) out.push(`<table>${table.join("")}</table>`);
-    list = false;
-    table = null;
-  };
-  for (const raw of String(md || "").split(/\r?\n/)) {
-    const line = raw.trimEnd();
-    const item = line.match(/^\s*[-*] (.*)$/);
-    if (/^\|.*\|$/.test(line.trim())) {
-      if (list) close();
-      table ||= [];
-      if (/^\|[\s:|-]+\|$/.test(line.trim())) continue;
-      const cells = line.trim().slice(1, -1).split("|").map((c) => `<td>${inline(c.trim())}</td>`);
-      table.push(`<tr>${cells.join("")}</tr>`);
-    } else if (item) {
-      if (table) close();
-      if (!list) out.push("<ul>");
-      list = true;
-      out.push(`<li>${inline(item[1])}</li>`);
-    } else {
-      close();
-      const heading = line.match(/^#{1,4} (.*)$/);
-      if (heading) out.push(`<h4>${inline(heading[1])}</h4>`);
-      else if (line.trim()) out.push(`<p>${inline(line)}</p>`);
-    }
-  }
-  close();
-  return out.join("");
-}
-
-// The wizard does the downloading, so the notes' Downloads table is just noise there.
-function withoutSection(md, heading) {
-  const out = [];
-  let skipping = false;
-  for (const line of String(md || "").split(/\r?\n/)) {
-    const h = line.match(/^(#{1,4}) (.*)$/);
-    if (h) skipping = h[2].trim().toLowerCase() === heading.toLowerCase();
-    if (!skipping) out.push(line);
-  }
-  return out.join("\n");
-}
-
-function showUpdateStep(name) {
-  document.querySelectorAll("#update-dialog .upd-step").forEach((s) => s.classList.toggle("hidden", s.dataset.step !== name));
-}
-
-function openUpdateWizard(release) {
-  if (!release) return;
-  wizard.release = release;
-  const cmp = compareVersions(release.tag, state.server.version);
-  const asset = assetFor(release);
-  el("upd-title").textContent = cmp > 0 ? `Update to ${release.name}` : cmp < 0 ? `Go back to ${release.name}` : `Reinstall ${release.name}`;
-  el("upd-sub").textContent = `You have ${state.server.version}.${asset ? ` The download is ${formatSize(asset.size)}.` : ""}`;
-  el("upd-notes").innerHTML = renderNotes(withoutSection(release.body, "Downloads")) || '<p class="hint">No release notes.</p>';
-  show("upd-old-warning", compareVersions(release.tag, "0.4.0") < 0);
-  el("upd-manual").href = release.url;
-  el("upd-download").textContent = cmp > 0 ? "Download update" : cmp < 0 ? "Download this version" : "Download again";
-  el("settings-dialog").close();
-  closeMenu();
-  showUpdateStep("intro");
-  const dialog = el("update-dialog");
-  if (!dialog.open) dialog.showModal();
-  // Pick up a download that's already running or finished (say, after closing this).
-  updateApi("status")
-    .then((s) => {
-      if (s.tag === release.tag && ["checking", "downloading", "verifying", "ready"].includes(s.status)) followUpdate(s);
-    })
-    .catch(() => {});
-}
-
-async function startUpdateDownload() {
-  const release = wizard.release;
-  if (!release) return;
-  if (el("upd-backup").checked) await backupAll();
-  showUpdateStep("progress");
-  setUpdateProgress({ status: "checking", done: 0, total: 0 });
-  try {
-    followUpdate(await updateApi("start", { tag: release.tag }));
-  } catch (err) {
-    showUpdateError(err.message);
-  }
-}
-
-function setUpdateProgress(s) {
-  const pct = s.total ? Math.min(100, Math.round((s.done / s.total) * 100)) : 0;
-  el("upd-bar").style.width = `${s.status === "verifying" ? 100 : pct}%`;
-  el("upd-bar").parentElement.setAttribute("aria-valuenow", String(pct));
-  el("upd-progress-text").textContent =
-    s.status === "checking" ? "Asking GitHub for the download…"
-    : s.status === "verifying" ? "Checking the download…"
-    : s.total ? `Downloading: ${formatSize(s.done)} of ${formatSize(s.total)}`
-    : "Downloading…";
-}
-
-function followUpdate(s) {
-  clearTimeout(wizard.timer);
-  if (s.status === "error") return showUpdateError(s.error);
-  if (s.status === "ready") return showUpdateReady();
-  if (s.status === "idle") return showUpdateStep("intro");
-  showUpdateStep("progress");
-  setUpdateProgress(s);
-  wizard.timer = setTimeout(async () => {
-    if (!el("update-dialog").open) return;
-    try {
-      followUpdate(await updateApi("status"));
-    } catch (err) {
-      showUpdateError(err.message);
-    }
-  }, 400);
-}
-
-function showUpdateReady() {
-  const name = wizard.release?.name || "the new version";
-  const pkg = state.server.package;
-  el("upd-ready-text").textContent =
-    pkg === "installer" ? `NetSeer will close, install ${name}, and reopen by itself. If NetSeer is installed for all users, Windows will ask for permission first.`
-    : pkg === "appimage" ? `NetSeer will close and reopen as ${name}. The AppImage file is replaced where it is.`
-    : `NetSeer will close, put ${name} in its folder, and reopen. The version you have now is kept next to it in a folder ending in “.previous”, until the next update.`;
-  showUpdateStep("ready");
-  el("upd-install").focus();
-}
-
-function showUpdateError(message) {
-  clearTimeout(wizard.timer);
-  el("upd-error").textContent = message || "Something went wrong.";
-  showUpdateStep("error");
-}
-
-async function installUpdate() {
-  el("upd-install").disabled = true;
-  try {
-    await flushSave();
-    await updateApi("install", {});
-    showUpdateStep("installing");
-    // Browser windows can't always be closed by the app; say what to do if this one stays.
-    setTimeout(() => {
-      el("upd-installing-text").textContent = "NetSeer has closed to finish the update and will reopen in its own window. You can close this one.";
-    }, 8000);
-  } catch (err) {
-    showUpdateError(err.message);
-  } finally {
-    el("upd-install").disabled = false;
-  }
-}
-
-async function cancelUpdate() {
-  clearTimeout(wizard.timer);
-  try {
-    await updateApi("cancel", {});
-  } catch {
-    /* nothing to cancel */
-  }
-  el("update-dialog").close();
-}
 
 // After an update (or going back), say so once.
 function noteVersionChange() {
@@ -6313,29 +6127,6 @@ function noteVersionChange() {
   const verb = compareVersions(version, last) > 0 ? "Updated" : "Switched";
   toast(`${verb} to NetSeer ${version} (from ${last}).`, { action: { label: "What's new", onClick: () => openSettings("updates") }, timeout: 9000 });
   return true;
-}
-
-function bindUpdateWizard() {
-  const dialog = el("update-dialog");
-  el("upd-download").addEventListener("click", () => startUpdateDownload().catch((err) => showUpdateError(err.message)));
-  el("upd-install").addEventListener("click", installUpdate);
-  dialog.querySelectorAll("[data-upd]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const act = b.dataset.upd;
-      if (act === "cancel") cancelUpdate();
-      else if (act === "retry") openUpdateWizard(wizard.release);
-      else dialog.close();
-    })
-  );
-  // Esc while downloading cancels the download, rather than leaving it running unseen.
-  dialog.addEventListener("cancel", (e) => {
-    const step = dialog.querySelector(".upd-step:not(.hidden)")?.dataset.step;
-    if (step === "installing") e.preventDefault();
-    else if (step === "progress" || step === "ready") {
-      e.preventDefault();
-      cancelUpdate();
-    }
-  });
 }
 
 /* ---------- Sidebar: resize ---------- */
@@ -7627,7 +7418,6 @@ async function init() {
   bindUi();
   bindReportDialog();
   bindSettings();
-  bindUpdateWizard();
   bindSidebarResize();
   bindManualDialogs();
   bindDisconnectDialog();
@@ -7659,7 +7449,7 @@ async function init() {
   state.surveys = sortSurveys([...restoredUploads.filter((s) => !hidden.has(s.id)), ...openedSamples.map(sampleToSurvey)]);
   await openStartingMap();
   const updated = noteVersionChange();
-  // The app window is Chromium (WebView2) or a Chromium app-mode window: no prompt there.
+  // The desktop app window is Electron's Chromium: persistent storage is granted without a prompt.
   if (state.server.mode === "desktop") requestPersistentStorage();
   if (!updated) offerTour();
   autoCheckUpdates();

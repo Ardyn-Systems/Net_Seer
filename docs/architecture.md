@@ -13,7 +13,7 @@ the back end runs changes:
 
 | Mode | Back end runs | UI shows in |
 | --- | --- | --- |
-| Desktop app (Windows / Linux) | On your machine, on `127.0.0.1` | Its own window (Edge WebView2 / WebKitGTK), or your browser |
+| Desktop app (Windows / Linux) | On your machine, on `127.0.0.1` (Electron starts it as a sidecar) | Its own Electron window |
 | From source (`uv` / `pipx`) | On your machine | Your browser |
 | Hosted ([netseer.onrender.com](https://netseer.onrender.com)) | On Render | Your browser |
 
@@ -85,12 +85,14 @@ they look the same whatever theme you use.
 | `reports.py` | PDF report (ReportLab) and CSV (`/api/export/report.pdf`, device exports) |
 | `layout.py` | Shared diagram coordinates (shape centres) used by the exporters |
 
-### Updater (`src/netseer/updater.py`)
+### Updates
 
-Desktop builds only. It checks the **GitHub Releases** API, downloads the installer or AppImage
-from `github.com`, verifies its SHA-256 against the release's `SHA256SUMS`, then installs and
-reopens. A source install or the hosted copy never downloads or runs anything — they update the
-normal way for how they were installed.
+The desktop app updates itself through **electron-updater**: the Electron shell (`electron/`) checks
+the **GitHub Releases** API, downloads the new installer or AppImage, verifies it against the
+release's `latest.yml` / `latest-linux.yml` metadata, and (with the user's consent, or silently if
+they left auto-update on) restarts into it. The Python backend does not self-update — `/api/health`
+reports `"updater": false`, and the browser's Settings → Updates pane only links to the releases. A
+source install or the hosted copy updates the normal way for how it was installed.
 
 ## Security subsystem (`src/netseer/security/`)
 
@@ -141,7 +143,8 @@ Every route the front end calls, grouped by area:
   On the desktop and source installs the back end *is* your machine, so nothing leaves it. The
   hosted copy processes the file to draw the map and does not keep it (and limits uploads to 20 MB).
 - **The internet is optional.** The only outbound calls are the security database refresh and, on
-  desktop, the updater — both only when you start them. Everything else works with no network.
+  the desktop app, the Electron self-updater — both only when you start them (or, for updates, if
+  you leave auto-update on). Everything else works with no network.
 
 ## External services
 

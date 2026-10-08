@@ -1,7 +1,7 @@
 """Entry point for the frozen NetSeer server sidecar the Electron shell launches.
 
-Unlike the desktop build (which opens its own pywebview window), this freezes only the web server
-(netseer.cli.main -> uvicorn). The Electron app is the window; this is just the backend.
+This freezes only the web server (netseer.cli.main -> uvicorn); the Electron app is the window and
+this is just the backend it launches.
 See electron/ and docs/electron-migration.md.
 """
 

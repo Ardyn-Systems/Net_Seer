@@ -21,7 +21,7 @@ NetSeer reads capture files you give it; it doesn't sniff live traffic. The desk
 - [How much you can store](#how-much-you-can-store)
 - [Command-line options](#command-line-options)
 - [Develop](#develop)
-- [Build the desktop apps](#build-the-desktop-apps)
+- [Build the desktop app](#build-the-desktop-app)
 - [Update and uninstall](#update-and-uninstall)
 
 Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) · [How to](docs/netseer-how-to.md) (every control, briefly) · [Install and use on Debian/Ubuntu](docs/netseer-install-and-use.md) (step-by-step) · [Architecture](docs/architecture.md) (how the pieces fit, with diagrams).
@@ -30,15 +30,15 @@ Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) ·
 
 | You're on | Get | How it opens |
 | --- | --- | --- |
-| Windows 10 or 11 | **`NetSeer-Electron-Setup-<version>.exe`**, or the classic `NetSeer-Setup-<version>.exe` | Its own window |
-| Linux desktop | **`NetSeer-Electron-<version>-x86_64.AppImage`**, or the classic `NetSeer-<version>-x86_64.AppImage` | Its own window (see below) |
+| Windows 10 or 11 | **`NetSeer-Setup-<version>.exe`** (or the portable `.zip`) | Its own window |
+| Linux desktop | **`NetSeer-<version>-<arch>.AppImage`** (or the `.tar.gz`) | Its own window (see below) |
 | Linux server, Kali, Raspberry Pi | Install from source with `uv` or `pipx` | A browser, locally or over SSH |
 | macOS | From source | A browser |
 | Anywhere, nothing to install | **[netseer.onrender.com](https://netseer.onrender.com)** | Your browser |
 
 Download the Windows and Linux builds from [Releases](https://github.com/ardyn-systems/NetSeer/releases).
 
-**Two desktop builds.** The **Electron** build (recommended) has a frameless window with a custom title bar, a system tray, and **updates itself**. The **classic** build runs on the operating system's built-in web view (Edge WebView2 on Windows, WebKitGTK on Linux) and is a smaller download. Both are the same NetSeer — pick whichever you prefer.
+The desktop app is built on **Electron**: a frameless window with a custom title bar, a system tray, and an **automatic self-updater**. The backend is the same NetSeer that runs online and from source.
 
 ### Try it online
 
@@ -57,43 +57,28 @@ Put your own public copy online for free on Render, the same way the one above r
 
 ### Windows
 
-**Electron build (recommended).** Run **NetSeer-Electron-Setup-&lt;version&gt;.exe** — a per-user install (no admin prompt), with a frameless window, a system tray, and automatic updates. Or unzip the portable **NetSeer-Electron-&lt;version&gt;-x64.zip** and run `NetSeer.exe`.
+Run **NetSeer-Setup-&lt;version&gt;.exe** — a per-user install (no admin prompt) that opens in its own frameless window, adds a system tray icon, and updates itself. Or unzip the portable **NetSeer-&lt;version&gt;-x64.zip** and run `NetSeer.exe`.
 
-**Classic build.** Run **NetSeer-Setup-&lt;version&gt;.exe** (or the portable `.zip`). It opens in its own window using Microsoft Edge WebView2, which comes with Windows 10 and 11, and falls back to your browser if WebView2 is missing.
-
-Either way, until the builds are code-signed ([how to set that up](packaging/windows/SIGNING.md)), Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info** → **Run anyway**.
+Until the builds are code-signed ([how to set that up](packaging/windows/SIGNING.md)), Windows SmartScreen shows "Windows protected your PC" the first time: choose **More info** → **Run anyway**.
 
 ### Linux desktop (AppImage)
 
-**Electron build (recommended)** opens in its own native window and updates itself:
+The AppImage opens in its own native window and updates itself:
 
 ```bash
-chmod +x NetSeer-Electron-*-x86_64.AppImage
-./NetSeer-Electron-*-x86_64.AppImage
+chmod +x NetSeer-*.AppImage
+./NetSeer-*.AppImage
 ```
 
-**Classic build** uses a browser you already have as its window:
-
-```bash
-chmod +x NetSeer-*-x86_64.AppImage
-./NetSeer-*-x86_64.AppImage             # run it
-./NetSeer-*-x86_64.AppImage --install   # optional: add NetSeer to your app menu
-```
-
-The classic build picks the best window it can find:
-
-1. An installed **Chrome, Chromium, Edge, Brave, or Vivaldi** in app mode: its own window with no browser toolbar, and its own profile so your maps stay put.
-2. Otherwise your **default browser**. Maps are then saved in that browser, and NetSeer quits by itself a couple of minutes after you close the tab.
-
-Both AppImages are built on Ubuntu 22.04 and run on that or newer (Debian 12, Fedora 36+, and similar); everything they need is bundled.
+It is built on Ubuntu 22.04 and runs on that or newer (Debian 12, Fedora 36+, and similar); everything it needs is bundled.
 
 AppImages need **FUSE** to run. Many current distros don't ship the older `libfuse2` they expect, so if you see a `dlopen(): error loading libfuse.so.2` or "AppImages require FUSE to run" message, either install `libfuse2` (`sudo apt install libfuse2` on Debian/Ubuntu) or run it without FUSE:
 
 ```bash
-./NetSeer-*-x86_64.AppImage --appimage-extract-and-run
+./NetSeer-*.AppImage --appimage-extract-and-run
 ```
 
-To skip AppImages entirely, the classic build's **`.tar.gz`** has the same program with no FUSE dependency: unpack it and run `NetSeer/NetSeer`.
+To skip AppImages entirely, the **`.tar.gz`** has the same app with no FUSE dependency: unpack it and run `NetSeer/netseer`.
 
 ### Linux server, Kali, or Raspberry Pi (from source)
 
@@ -156,7 +141,7 @@ From the frames and survey rows, NetSeer extracts:
   - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it
   - per-device **PDF, CSV, XML, or text**
 - **Five themes:** Terrain (the default, over a topographic map), Midnight, Daylight (good for printing), Blueprint, and Retrowave (soft synthwave).
-- **Settings** (the cog): scroll-zoom speed, back up and restore all your maps, one-click updates (or roll back to an earlier release) in the desktop app, a one-minute guided tour, and an About page.
+- **Settings** (the cog): scroll-zoom speed, integrations, back up and restore all your maps, the vulnerability database, updates (the desktop app updates itself; everywhere else links to the latest release), a one-minute guided tour, and an About page.
 
 The [user guide](docs/user-guide.md) walks through all of it with screenshots; the [How to](docs/netseer-how-to.md) lists every control and keyboard shortcut.
 
@@ -166,11 +151,11 @@ NetSeer never changes your capture files. Maps, names, notes, and positions are 
 
 | What | Windows | Linux |
 | --- | --- | --- |
-| Saved maps (desktop app) | `%LOCALAPPDATA%\NetSeer\webview` | `~/.local/share/NetSeer/browser` (snap browsers: `~/snap/<browser>/common/NetSeer`) |
-| Log, for bug reports | `%LOCALAPPDATA%\NetSeer\netseer.log` | `~/.local/share/NetSeer/netseer.log` |
+| Saved maps (desktop app) | `%APPDATA%\NetSeer` (Electron app data) | `~/.config/NetSeer` (Electron app data) |
+| Security database + pairing tokens | `%LOCALAPPDATA%\NetSeer` | `~/.local/share/NetSeer` |
 | Unwanted dumps | `Documents\NetSeer\Unwanted` | `~/Documents/NetSeer/Unwanted` |
 
-Running from source and using your normal browser, maps live in that browser's site data for `127.0.0.1:47331`, and Unwanted dumps go to `Unwanted/` in the project (or `NETSEER_UNWANTED_DIR`).
+The desktop app stores maps in its own Electron window (keyed to `127.0.0.1:47331`); start it with `ELECTRON_ENABLE_LOGGING=1` to see the backend's log on the console for bug reports. Running from source and using your normal browser, maps live in that browser's site data for `127.0.0.1:47331`, and Unwanted dumps go to `Unwanted/` in the project (or `NETSEER_UNWANTED_DIR`).
 
 ## How much you can store
 
@@ -178,7 +163,7 @@ Every version of NetSeer saves maps the same way: in the **IndexedDB** storage o
 
 | | Windows app | Linux app | Online copy |
 | --- | --- | --- | --- |
-| Saved by | Edge WebView2 (Chromium) | Chrome, Chromium, Edge, Brave, or Vivaldi in its own profile | Your browser |
+| Saved by | Electron (bundled Chromium) | Electron (bundled Chromium) | Your browser |
 | Room for saved maps | Up to about 60% of the disk | Up to about 60% of the disk | Chrome and Edge: up to about 60% of the disk. Firefox: about 10% of the disk, at most 10 GB, until storage is protected. Safari: large, but see below. |
 | Largest capture | No limit | No limit | 20 MB per file |
 | Packets read per capture | All of them | All of them | All of them |
@@ -213,16 +198,11 @@ So your maps are tied to **that browser on that device**. Other visitors can't s
 | `--host HOST` | Address to listen on (default `127.0.0.1`, this machine only) |
 | `--port PORT` | Port (default `$PORT` if set, else `47331`) |
 
-**`NetSeer.exe`, the AppImage, or `netseer-desktop`** runs the desktop app:
+**`NetSeer.exe` or the AppImage** runs the desktop app (Electron). It starts the `netseer` backend on `127.0.0.1` for you, opens its own window, and takes one flag:
 
 | Option | Meaning |
 | --- | --- |
-| `--browser` | Open in the default browser instead of a window |
-| `--port PORT` | Use a different port (saved maps are per port) |
-| `--install`, `--uninstall` | Linux: add or remove NetSeer in your app menu |
-| `--smoke-test` | Check the installation and exit (`0` means OK) |
-| `--debug` | Verbose logging |
-| `--version` | Print the version |
+| `--smoke-test` | Start the backend, load the UI, and exit (`0` means OK) |
 
 Environment variables:
 
@@ -232,6 +212,7 @@ Environment variables:
 | `NETSEER_HOSTED=1` | Public mode for an internet-facing server: visitors can't write files to the server; Unwanted downloads to the browser instead |
 | `NETSEER_MAX_UPLOAD_MB` | Largest capture accepted (default 50) |
 | `PORT` | Default port, as set by hosting platforms |
+| `ELECTRON_ENABLE_LOGGING=1` | Desktop app: print the backend's log to the console |
 
 ## Develop
 
@@ -243,7 +224,7 @@ uv run netseer             # http://127.0.0.1:47331
 uv run pytest
 ```
 
-Without uv: `python3 -m venv .venv && . .venv/bin/activate && pip install -e . pytest httpx`. For the desktop window from source, install the `desktop` extra (`pip install -e ".[desktop]"`, which needs WebKitGTK on Linux) and run `netseer-desktop`.
+Without uv: `python3 -m venv .venv && . .venv/bin/activate && pip install -e . pytest httpx`. For the desktop window from source, run the backend (`uv run netseer`) and, in `electron/`, `npm install && NETSEER_PYTHON=python3 npm start` to open the Electron shell against it.
 
 | Path | What's there |
 | --- | --- |
@@ -251,9 +232,10 @@ Without uv: `python3 -m venv .venv && . .venv/bin/activate && pip install -e . p
 | `src/netseer/graph.py` | Turns observations into devices, links, subnets, and VLANs |
 | `src/netseer/exporters/` | draw.io, Visio, PDF reports, device exports |
 | `src/netseer/web.py`, `web/` | The API and the browser app (no build step) |
-| `src/netseer/desktop.py` | The desktop launcher for Windows and Linux |
+| `electron/` | The Electron desktop shell (window, tray, menu, self-updater) |
 | `src/netseer/data/` | Bundled samples and the IEEE OUI table |
-| `packaging/` | Logo sources, Windows installer, Linux AppImage |
+| `packaging/electron/` | PyInstaller spec that freezes the backend as the Electron sidecar |
+| `packaging/` | Logo sources and Windows/Linux icons |
 
 Recreate the bundled samples with `uv run python -m netseer.generate_samples`. Rebuild the manufacturer table from the IEEE registries:
 
@@ -269,49 +251,34 @@ The user guide's screenshots come from `docs/screenshots.py`, which drives NetSe
 
 The logo lives in `packaging/brand/` as SVG. After editing it, regenerate every icon with `python packaging/brand/render.py` (needs `pymupdf` and `pillow`).
 
-## Build the desktop apps
+## Build the desktop app
 
-GitHub Actions builds both platforms. On every pull request it checks the build and uploads the files as workflow artifacts. Pushing a version tag also attaches them to a GitHub release:
+GitHub Actions ([`electron.yml`](.github/workflows/electron.yml)) builds both platforms. It freezes the Python backend into a sidecar with **PyInstaller**, then packages the **Electron** shell around it with **electron-builder**. On every pull request it smoke-tests the build and uploads the files as workflow artifacts. Pushing a version tag also attaches them to a GitHub release:
 
 ```bash
 git tag v0.7.2 && git push origin v0.7.2
 ```
 
-Keep the tag in step with `version` in `pyproject.toml` and `__version__` in `src/netseer/__init__.py`.
+Keep the tag in step with `version` in `pyproject.toml`, `__version__` in `src/netseer/__init__.py`, and `version` in `electron/package.json`.
 
-**Windows**, with Python 3.12 ([`windows.yml`](.github/workflows/windows.yml)):
-
-```powershell
-python -m pip install . "pywebview>=5.3" "pyinstaller>=6.10"
-pyinstaller packaging/windows/netseer.spec --noconfirm --clean
-dist\NetSeer\NetSeer.exe --smoke-test
-iscc /DAppVersion=0.7.2 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
-```
-
-Code signing switches on once the Azure Artifact Signing secrets exist; see [packaging/windows/SIGNING.md](packaging/windows/SIGNING.md).
-
-**Linux**, with Python 3.12 ([`linux.yml`](.github/workflows/linux.yml)):
+To build locally, with Python 3.12 and Node 20:
 
 ```bash
 python -m pip install . "pyinstaller>=6.10"
-pyinstaller packaging/linux/netseer.spec --noconfirm --clean
-dist/NetSeer/NetSeer --smoke-test
-bash packaging/linux/build-appimage.sh 0.7.2   # AppImage and .tar.gz in dist/
+pyinstaller packaging/electron/netseer-server.spec --noconfirm --clean   # freezes dist/netseer-server
+cd electron && npm install
+npx electron-builder            # installer + portable zip (Windows), AppImage + tar.gz (Linux)
 ```
+
+Windows code signing switches on once the signing secrets exist; see [packaging/windows/SIGNING.md](packaging/windows/SIGNING.md). More detail on the shell is in [electron/README.md](electron/README.md) and [docs/electron-migration.md](docs/electron-migration.md).
 
 ## Update and uninstall
 
-- **Windows:** run the newer `NetSeer-Setup` over the old one; it keeps your maps. Uninstall from **Settings → Apps**.
-- **AppImage:** replace the file (run `--install` again if you added it to the menu). To remove it, run `--uninstall`, then delete the file.
+**The desktop app updates itself** through electron-updater. Open **Settings** → **Updates**: leave **Update NetSeer automatically** on and it downloads new releases in the background and asks to restart; turn it off and use **Check for updates** when you want one. Updates come only from this repo's GitHub releases (`api.github.com` and `github.com`), checked against the release's signed `latest.yml` / `latest-linux.yml`.
+
+- **Windows:** the self-updater installs over the old version and keeps your maps. Or run a newer `NetSeer-Setup` yourself. Uninstall from **Settings → Apps**.
+- **AppImage:** the self-updater replaces the file in place. To remove it, just delete the file.
 - **From source:** `uv tool upgrade netseer` (or `git pull` in a clone, then `uv sync`). Remove with `uv tool uninstall netseer`.
-
-**From 0.4.0, the desktop app updates itself.** Open **Settings** → **Updates** → **Check for updates**, then click **Update** (or open **Earlier versions**, pick one, and click **Roll back**):
-
-1. A short wizard shows what's new and can back up your maps first.
-2. NetSeer downloads the right file for your install from GitHub and checks its SHA-256 against the checksum GitHub publishes. A file that doesn't match is deleted.
-3. **Restart and update:** NetSeer closes, installs the new version, and reopens. The Windows installer runs silently; a portable copy keeps the version you had in a `.previous` folder; an AppImage is replaced in place.
-
-Turn on **Check when NetSeer opens** to be told about new releases (at most once a day). The only requests NetSeer makes for this are to `api.github.com` and to the release download on `github.com`. Updates are only allowed from the desktop app's own window, so another website can't start one.
 
 Your saved maps stay in the folders listed under [Where your data lives](#where-your-data-lives) until you delete them. To copy them to another computer or browser, use **Settings** → **Your data** → **Back up all maps**, then **Restore a backup** on the other one.
 

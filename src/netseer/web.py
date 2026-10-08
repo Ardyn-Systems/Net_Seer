@@ -20,7 +20,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from netseer import __version__, integration, updater
+from netseer import __version__, integration
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
 from netseer.compare import compare_graphs
 from netseer.security import assess_graph
@@ -73,7 +73,7 @@ def max_body_bytes() -> int | None:
     return None if limit is None else limit + 1024 * 1024
 
 
-REPO = updater.REPO
+REPO = "ardyn-systems/NetSeer"
 
 
 def run_mode() -> str:
@@ -156,7 +156,7 @@ PRESENCE: dict[str, float | None] = {"last": None, "bye": None}
 async def no_stale_pages(request: Request, call_next):
     """The page and its files are checked with the server before every reuse.
 
-    Without this, the app window (WebView2) guesses how long a page stays fresh and can keep
+    Without this, the Electron window's Chromium guesses how long a page stays fresh and can keep
     showing the old one after an update. Checking is a cheap 304 when nothing changed.
     """
     response = await call_next(request)
@@ -188,59 +188,12 @@ def health() -> dict:
         # installer / portable / appimage for desktop builds, "source" otherwise.
         "package": os.environ.get("NETSEER_PACKAGE") or "source",
         "repo": REPO,
-        # The desktop app can download and install releases itself (Settings → Updates).
-        "updater": updater.unsupported_reason() is None,
+        # The Electron app updates itself (electron-updater); the browser/CLI do not self-update.
+        "updater": False,
     }
 
 
-# In-app updates. These download and run programs, so they answer only the desktop app's
-# own page: the custom header makes other web pages fail CORS preflight, and the Host
-# check stops a DNS-rebinding site from posing as 127.0.0.1.
-UPDATE_HEADER = "x-netseer-update"
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "[::1]"}
-
-
-def _guard_update(request: Request) -> None:
-    reason = updater.unsupported_reason()
-    if reason:
-        raise HTTPException(status_code=403, detail=reason)
-    host = (request.headers.get("host") or "").rsplit(":", 1)[0].lower()
-    origin = request.headers.get("origin")
-    if request.headers.get(UPDATE_HEADER) != "1" or host not in LOCAL_HOSTS:
-        raise HTTPException(status_code=403, detail="Updates can only be started from NetSeer's own window.")
-    if origin and origin.rstrip("/") != f"http://{request.headers.get('host')}":
-        raise HTTPException(status_code=403, detail="Updates can only be started from NetSeer's own window.")
-
-
-@app.get("/api/update/status")
-def update_status(request: Request) -> dict:
-    if updater.unsupported_reason() is None:
-        _guard_update(request)
-    return updater.status()
-
-
-@app.post("/api/update/start")
-def update_start(request: Request, body: dict) -> dict:
-    _guard_update(request)
-    try:
-        return updater.start(str(body.get("tag", "")))
-    except updater.UpdateError as exc:
-        raise _http_error(exc, 409) from exc
-
-
-@app.post("/api/update/cancel")
-def update_cancel(request: Request) -> dict:
-    _guard_update(request)
-    return updater.cancel()
-
-
-@app.post("/api/update/install")
-def update_install(request: Request) -> dict:
-    _guard_update(request)
-    try:
-        return updater.install()
-    except updater.UpdateError as exc:
-        raise _http_error(exc, 409) from exc
 
 
 @app.get("/api/samples")

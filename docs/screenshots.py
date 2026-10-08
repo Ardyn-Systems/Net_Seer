@@ -55,29 +55,6 @@ EXAMPLE_RELEASES = [
 ]
 
 
-def fake_updater(context) -> None:
-    """Show the desktop app's update wizard without downloading or installing anything."""
-    calls = {"started": False, "polls": 0}
-
-    def health(route):
-        resp = route.fetch()
-        data = resp.json()
-        data["updater"] = True
-        route.fulfill(response=resp, body=json.dumps(data))
-
-    def update(route):
-        name = route.request.url.rsplit("/", 1)[-1]
-        if name == "start":
-            calls.update(started=True, polls=0)
-        if name == "status" and calls["started"]:
-            calls["polls"] += 1
-        state = "idle" if not calls["started"] else "downloading" if calls["polls"] < 2 else "ready"
-        body = {"status": state, "tag": NEWER_TAG, "done": 9_000_000, "total": 27_400_000}
-        route.fulfill(status=200, content_type="application/json", body=json.dumps(body))
-
-    context.route("**/api/health", health)
-    context.route("**/api/update/*", update)
-
 CALLOUT_CSS = """
 .ns-callout { position: fixed; z-index: 9999; width: 30px; height: 30px; border-radius: 50%;
   background: #e0a84a; color: #2a1d05; font: 700 15px/30px system-ui, sans-serif; text-align: center;
@@ -199,7 +176,6 @@ def capture(url: str, channel: str | None) -> list[str]:
         # Skip the first-visit "Take the tour" message, and keep the docs offline.
         context.add_init_script("if (!localStorage.getItem('netseer.prefs.v1')) localStorage.setItem('netseer.prefs.v1', '{\"tourOffered\":true}')")
         context.route("https://api.github.com/**", lambda route: route.fulfill(status=200, content_type="application/json", body=json.dumps(EXAMPLE_RELEASES)))
-        fake_updater(context)
         page = context.new_page()
         page.goto(url)
         page.wait_for_function("() => typeof state !== 'undefined' && state.ready")
@@ -385,18 +361,6 @@ def capture(url: str, channel: str | None) -> list[str]:
             page.click(".release-older summary")
         page.mouse.move(5, 5)
         shots.save("settings-updates", selectors=["#settings-dialog"], pad=0)
-        page.click(f'#release-list [data-update="{NEWER_TAG}"]')
-        page.wait_for_selector("#update-dialog[open]")
-        page.mouse.move(5, 5)
-        shots.save("update-wizard", selectors=["#update-dialog"], pad=0)
-        page.uncheck("#upd-backup")
-        page.click("#upd-download")
-        page.wait_for_selector('#update-dialog .upd-step[data-step="ready"]:not(.hidden)')
-        page.mouse.move(5, 5)
-        shots.save("update-ready", selectors=["#update-dialog"], pad=0)
-        page.evaluate("() => el('update-dialog').close()")
-        page.click("#btn-settings")
-        page.wait_for_selector("#settings-dialog[open]")
         page.evaluate("() => { localStorage.removeItem('netseer.updates.v1'); showUpdateBadges(null); }")
         page.click('.settings-nav [data-pane="help"]')
         shots.save("settings-help", selectors=["#settings-dialog"], pad=0)

@@ -37,7 +37,7 @@ def cache_dir() -> Path:
     if override:
         path = Path(override)
     else:
-        from netseer.desktop import data_dir
+        from netseer.paths import data_dir
 
         path = data_dir()
     path.mkdir(parents=True, exist_ok=True)

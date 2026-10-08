@@ -1,9 +1,10 @@
-# NetSeer — Electron shell (Phase 1)
+# NetSeer — Electron shell
 
-An Electron desktop shell for NetSeer. It launches the existing Python backend as a **managed
-sidecar**, waits for `/api/health`, and opens a window pointed at it. The Python app and the web UI
-are unchanged — this only replaces the pywebview window. See
-[../docs/electron-migration.md](../docs/electron-migration.md) for the full plan.
+The NetSeer desktop app. It launches the Python backend as a **managed sidecar**, waits for
+`/api/health`, and opens a frameless window pointed at it, with a system tray, native menu,
+`netseer://` deep links, and an electron-updater self-updater. The Python app and the web UI are the
+same ones that run online and from source. See
+[../docs/electron-migration.md](../docs/electron-migration.md) for the design history.
 
 ## What Phase 1 does
 
