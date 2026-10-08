@@ -8,14 +8,17 @@ feature set (frameless window, tray, native menus, notifications, file associati
 a future in-process plugin surface. This is a **shell swap**, not a rewrite: the Python back end and
 the web UI are unchanged.
 
-> **Status (Phase 1, nearly done):** the Electron shell lives in [`../electron/`](../electron/) — it
+> **Status (Phase 1 complete):** the Electron shell lives in [`../electron/`](../electron/) — it
 > starts the Python backend as a managed sidecar, health-checks it, and shows it in a window with
 > external-link handling and the security model below. The backend is frozen as a **server-only
 > sidecar** (`packaging/electron/netseer-server.spec`) and bundled by `electron-builder` into a
-> Linux AppImage and a Windows portable zip. CI (`.github/workflows/electron.yml`) smoke-tests the
-> shell from source and the **packaged** app on both OSes. Remaining: code-signing and wiring these
-> artifacts into the tagged release (today they're built and smoke-tested on every PR). Then
-> Phase 2 — the frameless title bar and native menus/tray/deep-links.
+> Linux AppImage and a Windows installer + portable zip, named with an `Electron` suffix so they sit
+> alongside (not replace) the pywebview artifacts. CI (`.github/workflows/electron.yml`) smoke-tests
+> the shell from source and the **packaged** app on both OSes on every PR, and on a version tag it
+> builds, signs (when the Windows cert secrets exist — see
+> [packaging/windows/SIGNING.md](../packaging/windows/SIGNING.md)), and **attaches the artifacts to
+> the release**. Next: **Phase 2** — the frameless title bar and native menus/tray/deep-links — and
+> eventually making Electron the default desktop build (Phase 5).
 
 ## Goals and non-goals
 

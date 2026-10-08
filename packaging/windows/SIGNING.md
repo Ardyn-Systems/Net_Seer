@@ -41,3 +41,19 @@ Get-AuthenticodeSignature .\NetSeer-Setup-0.6.4.exe | Format-List Status, Signer
 ```
 
 Or right-click the file → **Properties** → **Digital Signatures**.
+
+## The Electron build
+
+The Electron shell (`electron/`, built by `.github/workflows/electron.yml`) signs through
+**electron-builder** instead of the Azure tool above, so it uses a `.pfx`/`.p12` certificate via two
+secrets. When they're absent the installer and portable zip are built **unsigned**, exactly like the
+main build.
+
+| Secret | Value |
+| --- | --- |
+| `WINDOWS_CSC_LINK` | Base64 of your code-signing certificate (`.pfx`), or a URL to it |
+| `WINDOWS_CSC_KEY_PASSWORD` | The certificate's password |
+
+To use the same **Azure Artifact Signing** service as the main build instead of a `.pfx`, add an
+electron-builder [custom `sign` hook](https://www.electron.build/code-signing) that calls the Azure
+Trusted Signing client — a later step once the Electron build graduates from experimental.

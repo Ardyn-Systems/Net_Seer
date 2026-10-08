@@ -20,6 +20,7 @@
   "build": {
     "appId": "systems.ardyn.netseer",
     "productName": "NetSeer",
+    "artifactName": "NetSeer-Electron-${version}-${arch}.${ext}",
     "directories": {
       "output": "dist"
     },
@@ -31,9 +32,17 @@
       }
     ],
     "win": {
-      "target": ["zip"]
+      "icon": "../packaging/windows/netseer.ico",
+      "target": ["nsis", "zip"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "artifactName": "NetSeer-Electron-Setup-${version}.${ext}"
     },
     "linux": {
+      "icon": "../packaging/linux/netseer.png",
       "target": ["AppImage"],
       "category": "Network"
     }
