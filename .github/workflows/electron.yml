@@ -77,9 +77,13 @@ jobs:
           v=$(node -p "require('./electron/package.json').version")
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Set package version
+        working-directory: electron
+        shell: bash
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Build the AppImage (bundles the sidecar)
         working-directory: electron
-        run: npm install && npx electron-builder --linux AppImage -c.extraMetadata.version=${{ steps.version.outputs.version }}
+        run: npm install && npx electron-builder --linux AppImage
       - name: Smoke the packaged AppImage
         env:
           ELECTRON_ENABLE_LOGGING: "1"
@@ -123,6 +127,10 @@ jobs:
           v=$(node -p "require('./electron/package.json').version")
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Set package version
+        working-directory: electron
+        shell: bash
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Build the installer + portable (bundles the sidecar)
         working-directory: electron
         # Authenticode signing turns on automatically when the CSC secrets exist (see
@@ -130,7 +138,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
-        run: npm install; npx electron-builder --win -c.extraMetadata.version=${{ steps.version.outputs.version }}
+        run: npm install; npx electron-builder --win
       - name: Smoke the packaged app
         shell: pwsh
         run: |
