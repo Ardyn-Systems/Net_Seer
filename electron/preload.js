@@ -9,6 +9,8 @@ contextBridge.exposeInMainWorld("netseerShell", {
   platform: process.platform,
   // A netseer:// link was opened; the page can route it (focus is already handled in the shell).
   onDeepLink: (callback) => ipcRenderer.on("deeplink", (_event, url) => callback(url)),
+  // Ask the shell to check GitHub for a newer version now (same as the Help menu item).
+  checkForUpdates: () => ipcRenderer.send("updates:check"),
   window: {
     minimize: () => ipcRenderer.send("window:minimize"),
     toggleMaximize: () => ipcRenderer.send("window:toggle-maximize"),
