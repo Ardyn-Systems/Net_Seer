@@ -8,6 +8,12 @@ feature set (frameless window, tray, native menus, notifications, file associati
 a future in-process plugin surface. This is a **shell swap**, not a rewrite: the Python back end and
 the web UI are unchanged.
 
+> **Status (Phase 1, in progress):** the Electron shell lives in [`../electron/`](../electron/) — it
+> starts the Python backend as a managed sidecar, health-checks it, and shows it in a window with
+> external-link handling and the security model below. A headless smoke test runs in CI
+> (`.github/workflows/electron.yml`). Still in Phase 1: freezing a server-only sidecar and
+> `electron-builder` packaging so it ships as its own artifact.
+
 ## Goals and non-goals
 
 **Goals**

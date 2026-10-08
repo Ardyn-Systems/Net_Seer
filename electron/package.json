@@ -1,0 +1,23 @@
+{
+  "name": "netseer-desktop",
+  "productName": "NetSeer",
+  "version": "0.6.4",
+  "description": "Turn traffic into terrain. Electron shell for the NetSeer backend.",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke-test"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "systems.ardyn.netseer",
+    "productName": "NetSeer",
+    "files": ["main.js", "preload.js"],
+    "win": { "target": ["nsis", "zip"] },
+    "linux": { "target": ["AppImage", "tar.gz"], "category": "Network" }
+  }
+}

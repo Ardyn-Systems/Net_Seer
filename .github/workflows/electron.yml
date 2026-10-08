@@ -1,0 +1,35 @@
+name: Electron smoke
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ["electron/**", "src/**", "pyproject.toml", ".github/workflows/electron.yml"]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install NetSeer (the sidecar)
+        run: python -m pip install --upgrade pip && python -m pip install .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: System libraries for headless Electron
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 \
+            libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxcomposite1 \
+            libxdamage1 libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2
+      - name: Install Electron
+        working-directory: electron
+        run: npm install
+      - name: Smoke test (starts the backend, loads the UI, exits 0)
+        working-directory: electron
+        env:
+          NETSEER_PYTHON: python
+          ELECTRON_ENABLE_LOGGING: "1"
+        run: xvfb-run -a npm run smoke -- --no-sandbox
