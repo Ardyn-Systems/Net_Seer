@@ -83,7 +83,9 @@ jobs:
         run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Build the AppImage (bundles the sidecar)
         working-directory: electron
-        run: npm install && npx electron-builder --linux AppImage
+        # -p never: build the update metadata (latest-linux.yml) but don't upload; the release step
+        # below attaches everything.
+        run: npm install && npx electron-builder --linux AppImage -p never
       - name: Smoke the packaged AppImage
         env:
           ELECTRON_ENABLE_LOGGING: "1"
@@ -94,8 +96,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: NetSeer-electron-linux
+          if-no-files-found: warn
           path: |
             electron/dist/*.AppImage
+            electron/dist/latest-linux.yml
             electron/dist/SHA256SUMS-electron-linux.txt
       - name: Attach to release
         if: github.ref_type == 'tag'
@@ -103,6 +107,7 @@ jobs:
         with:
           files: |
             electron/dist/*.AppImage
+            electron/dist/latest-linux.yml
             electron/dist/SHA256SUMS-electron-linux.txt
 
   package-windows:
@@ -138,7 +143,7 @@ jobs:
         env:
           CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
-        run: npm install; npx electron-builder --win
+        run: npm install; npx electron-builder --win -p never
       - name: Smoke the packaged app
         shell: pwsh
         run: |
@@ -150,9 +155,11 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: NetSeer-electron-windows
+          if-no-files-found: warn
           path: |
             electron/dist/*.exe
             electron/dist/*.zip
+            electron/dist/latest.yml
             electron/dist/SHA256SUMS-electron-windows.txt
       - name: Attach to release
         if: github.ref_type == 'tag'
@@ -161,4 +168,5 @@ jobs:
           files: |
             electron/dist/*.exe
             electron/dist/*.zip
+            electron/dist/latest.yml
             electron/dist/SHA256SUMS-electron-windows.txt

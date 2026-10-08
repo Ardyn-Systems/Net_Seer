@@ -4,6 +4,7 @@
 // netseer:// deep link. The Python app and the web UI are unchanged. See docs/electron-migration.md.
 
 const { app, BrowserWindow, Menu, Tray, dialog, nativeImage, shell, ipcMain } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const http = require("node:http");
@@ -185,6 +186,59 @@ function setupTray() {
   }
 }
 
+// ---- Auto-update (electron-updater, GitHub provider) ----
+// Only the packaged app updates itself; in dev electron-updater no-ops. The portable zip and the
+// source/hosted modes update the way they always have.
+
+let updateManualCheck = false;
+
+function setupUpdates() {
+  if (SMOKE || !app.isPackaged) return;
+  autoUpdater.autoDownload = true;
+  autoUpdater.on("update-available", () => {
+    if (updateManualCheck) notify("Updating NetSeer", "A newer version is downloading in the background.");
+  });
+  autoUpdater.on("update-not-available", () => {
+    if (updateManualCheck) notify("You're up to date", `NetSeer ${app.getVersion()} is the latest version.`);
+    updateManualCheck = false;
+  });
+  autoUpdater.on("update-downloaded", async (info) => {
+    const { response } = await dialog.showMessageBox(mainWindow ?? undefined, {
+      type: "info",
+      buttons: ["Restart now", "Later"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "Update ready",
+      message: `NetSeer ${info.version} is ready to install.`,
+      detail: "Restart NetSeer to finish updating.",
+    });
+    if (response === 0) {
+      shuttingDown = true;
+      stopSidecar();
+      autoUpdater.quitAndInstall();
+    }
+  });
+  autoUpdater.on("error", (err) => {
+    log("update check failed:", err == null ? "unknown" : err.message);
+    if (updateManualCheck) notify("Couldn't check for updates", "Try again later, or download the newest version from GitHub.");
+    updateManualCheck = false;
+  });
+  autoUpdater.checkForUpdatesAndNotify().catch((err) => log("update check error:", err.message));
+}
+
+function checkForUpdatesNow() {
+  if (!app.isPackaged) {
+    notify("Updates", "Auto-update runs in the installed app. From source, update with git/uv as usual.");
+    return;
+  }
+  updateManualCheck = true;
+  autoUpdater.checkForUpdates().catch((err) => log("manual update check error:", err.message));
+}
+
+function notify(title, body) {
+  dialog.showMessageBox(mainWindow ?? undefined, { type: "info", title, message: title, detail: body });
+}
+
 function showAbout() {
   dialog.showMessageBox(mainWindow ?? undefined, {
     type: "info",
@@ -204,6 +258,8 @@ function setupMenu() {
     {
       role: "help",
       submenu: [
+        { label: "Check for updates…", click: checkForUpdatesNow },
+        { type: "separator" },
         { label: "User guide", click: () => shell.openExternal(GUIDE_URL) },
         { label: "Report a problem", click: () => shell.openExternal(ISSUES_URL) },
         { type: "separator" },
@@ -266,6 +322,7 @@ async function main() {
   log("backend ready on", port);
   const win = createWindow(port);
   setupTray();
+  setupUpdates();
 
   if (SMOKE) {
     const timer = setTimeout(() => failFast("window didn't finish loading in time"), 30000);
