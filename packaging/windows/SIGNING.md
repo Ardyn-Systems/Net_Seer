@@ -27,7 +27,7 @@ electron-builder reads `CSC_LINK` / `CSC_KEY_PASSWORD` (the workflow maps the se
 In PowerShell:
 
 ```powershell
-Get-AuthenticodeSignature .\NetSeer-Setup-0.7.5.exe | Format-List Status, SignerCertificate
+Get-AuthenticodeSignature .\NetSeer-Setup-0.7.6.exe | Format-List Status, SignerCertificate
 ```
 
 Or right-click the file → **Properties** → **Digital Signatures**.
