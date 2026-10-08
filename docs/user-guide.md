@@ -55,6 +55,8 @@ NetSeer starts empty. Click **Open survey**, or drag capture files anywhere onto
 | tcpdump | `.pcap` |
 | Kismet | `.kismet` (its native log), `.pcap`, `.pcapng`, `.netxml`, `.csv` |
 | airodump-ng | `.csv`, `.cap` |
+| WiGLE | WigleWifi `.csv` wardrives (Wi-Fi, plus Bluetooth and cell towers) |
+| Craxiom Network Survey | Wi-Fi `.csv` exports |
 | NetSeer | `Unwanted-*.json` dumps |
 
 A Kismet `.kismet` log needs no converting: NetSeer reads its packets and Kismet's device list, including SSIDs, encryption, makers, the networks clients probed for, and access points that hide their network name (shown as **Hidden SSID**).

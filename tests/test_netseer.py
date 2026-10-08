@@ -102,6 +102,64 @@ def test_kismet_and_airodump():
     assert any(e.kind == "wireless" for e in dump.links)
 
 
+def test_wigle_and_craxiom_wardrive_csv():
+    from netseer.graph import GraphBuilder
+    from netseer.parsers import parse_into
+
+    def parse(data: bytes, name: str):
+        kind = sniff_format(data, name)
+        builder = GraphBuilder()
+        parse_into(builder, data, name, kind)
+        return kind, builder.finalize()
+
+    wigle = (
+        "WigleWifi-1.6,appRelease=2.0,model=x,release=16,device=d,display=x,board=x,brand=x\n"
+        "MAC,SSID,AuthMode,FirstSeen,Channel,Frequency,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,RCOIs,MfgrId,Type\n"
+        "aa:bb:cc:00:00:01,HomeNet,[WPA2-PSK-CCMP][RSN-PSK-CCMP][ESS],2026-10-03 22:10:34,6,2437,-55,34.8,-77.4,0,5,,,WIFI\n"
+        "aa:bb:cc:00:00:02,OpenCafe,[ESS],2026-10-03 22:10:34,36,5180,-70,34.8,-77.4,0,5,,,WIFI\n"
+        "77:c4:b5:07:0c:3f,MyWatch,Uncategorized;10,2026-10-03 22:10:34,,7936,-60,34.8,-77.4,0,5,,,BT\n"
+        "22:22:15:b8:f3:22,,Misc,2026-10-03 22:10:34,,,-80,34.8,-77.4,0,5,,6,BLE\n"
+        "310260_31344_222096149,T-Mobile USA,LTE;310260,2026-10-03 22:10:34,5035,5035,-100,34.8,-77.4,0,5,,,LTE\n"
+    ).encode()
+    kind, g = parse(wigle, "WigleWifi_test.csv")
+    assert kind == "wigle-csv"
+    kinds = {k: sum(n.kind == k for n in g.nodes) for k in ("ap", "bluetooth", "cell")}
+    assert kinds == {"ap": 2, "bluetooth": 2, "cell": 1}
+    assert any("WPA2" in e for e in next(n for n in g.nodes if "HomeNet" in n.ssids).encryption)
+    assert next(n for n in g.nodes if "OpenCafe" in n.ssids).encryption == ["OPEN"]
+    # A multicast/locally-administered address (BT/BLE random) is kept, unlike for Wi-Fi.
+    assert any(n.kind == "bluetooth" and "77:c4:b5:07:0c:3f" in n.macs for n in g.nodes)
+    cell = next(n for n in g.nodes if n.kind == "cell")
+    assert cell.extra.get("radio") == "LTE" and cell.extra.get("plmn") == "310260" and cell.label == "T-Mobile USA"
+
+    # WiGLE 1.4 has no Frequency column; it must still parse.
+    wigle14 = (
+        "WigleWifi-1.4,appRelease=x\n"
+        "MAC,SSID,AuthMode,FirstSeen,Channel,RSSI,CurrentLatitude,CurrentLongitude,AltitudeMeters,AccuracyMeters,Type\n"
+        "3c:37:86:56:8a:5e,ARLO,[ESS],2026-10-03 22:10:34,8,-73,34.82,-77.41,0,0,WIFI\n"
+    ).encode()
+    kind14, g14 = parse(wigle14, "fieldwatch.csv")
+    assert kind14 == "wigle-csv" and any(n.kind == "ap" for n in g14.nodes)
+
+    crax = (
+        "# Created by Network Survey version=1.59\n"
+        "# CSV Version=0.4.0\n"
+        "deviceTime,latitude,longitude,altitude,speed,accuracy,missionId,recordNumber,sourceAddress,"
+        "destinationAddress,bssid,beaconInterval,serviceSetType,ssid,supportedRates,extendedSupportedRates,"
+        "cipherSuites,akmSuites,encryptionType,wps,channel,frequencyMhz,signalStrength,snr,nodeType,standard,"
+        "passpoint,bandwidth,deviceSerialNumber,locationAge\n"
+        "2026-10-03T19:25:10-04:00,34.82,-77.41,-21,0,4,M,1,,,90:41:b2:d8:0c:1a,,,Netgear15,,,,,WPA3,false,37,6135,-80.0,,,IEEE80211BE,,MHZ_160,x,1001\n"
+        "2026-10-03T19:25:10-04:00,34.82,-77.41,-21,0,4,M,2,,,3c:37:86:56:8a:5e,,,ARLO,,,,,WPA2,true,8,2447,-81.0,,,IEEE80211N,,MHZ_20,x,1001\n"
+        "2026-10-03T19:25:10-04:00,34.82,-77.41,-21,0,4,M,3,,,c0:6f:98:f6:6f:c3,,,Guest,,,,,OPEN,false,6,2437,-86.0,,,IEEE80211AX,,MHZ_20,x,1001\n"
+    ).encode()
+    kindc, gc = parse(crax, "craxiom-wifi.csv")
+    assert kindc == "craxiom-csv"
+    assert gc.nodes and all(n.kind == "ap" for n in gc.nodes)
+    assert any("WPA3" in e for e in next(n for n in gc.nodes if "Netgear15" in n.ssids).encryption)
+    assert any("WPS" in e for e in next(n for n in gc.nodes if "ARLO" in n.ssids).encryption)
+    assert next(n for n in gc.nodes if "Guest" in n.ssids).encryption == ["OPEN"]
+
+
 def test_mac_roles_from_wired_and_dot11():
     if not (DATA_DIR / "office-lan.pcap").exists():
         write_all(DATA_DIR)

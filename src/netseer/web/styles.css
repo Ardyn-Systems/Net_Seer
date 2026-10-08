@@ -30,6 +30,9 @@
   --node-gateway: #d98a6a;
   --node-ap: #e0a84a;
   --node-wireless: #e8c77f;
+  /* Bluetooth and cellular (wardrive surveys). Defined once on :root; every theme inherits these. */
+  --node-bluetooth: #5b9bd5;
+  --node-cell: #b57edc;
   --node-subnet: #8a8270;
   --node-vlan: #b8a0c8;
   --group-fill: #8a8270;
@@ -607,6 +610,8 @@ input[role="switch"]:checked::after { transform: translateX(14px); background: v
 }
 .swatch.dashed { border-style: dashed; }
 .swatch.shape-hex { clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%); background: var(--c); border: 0; }
+.swatch.shape-round { border-radius: 999px; }
+.swatch.shape-diamond { clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); background: var(--c); border: 0; }
 
 /* ---------- Stage ---------- */
 

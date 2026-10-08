@@ -6,7 +6,7 @@
 
 <p align="center"><strong>Turn traffic into terrain.</strong></p>
 
-NetSeer turns packet captures and wireless surveys into an interactive network map. Drop in a Wireshark, tcpdump, Kismet, or airodump-ng capture and it lays out the devices, subnets, VLANs, access points, and services it finds, with the evidence behind each one. Then rename, annotate, rearrange, and export the result to **draw.io**, **Visio**, or a **PDF report**.
+NetSeer turns packet captures and wireless surveys into an interactive network map. Drop in a Wireshark, tcpdump, Kismet, airodump-ng, or WiGLE capture and it lays out the devices, subnets, VLANs, access points, and services it finds, with the evidence behind each one. Then rename, annotate, rearrange, and export the result to **draw.io**, **Visio**, or a **PDF report**.
 
 **Try it now at [netseer.onrender.com](https://netseer.onrender.com)**, no install needed. Or get the desktop app for Windows or Linux.
 
@@ -107,9 +107,13 @@ ssh -L 47331:127.0.0.1:47331 you@sensor   # then browse to http://127.0.0.1:4733
 | tcpdump | `.pcap` |
 | Kismet | `.kismet` (its native log), `.pcap`, `.pcapng`, `.netxml`, `.csv` |
 | airodump-ng | `.csv`, `.cap` |
+| WiGLE | WigleWifi `.csv` wardrive exports |
+| Craxiom Network Survey | `.csv` Wi-Fi survey exports |
 | NetSeer | `Unwanted-*.json` dumps (reload devices you set aside) |
 
 **Kismet logs (`.kismet`)** are read directly; there's no need to convert them first. NetSeer decodes the packets Kismet logged, then adds Kismet's own summary of each device: SSIDs (including networks that hide their name), channels, encryption, maker, signal, location when Kismet had GPS, the networks clients probed for, and which clients joined which access points. Bluetooth and other non-Wi-Fi devices in the log are left out.
+
+**WiGLE (WigleWifi) CSV** wardrives map each access point with its SSID, channel, encryption, signal, and GPS, and also bring in the **Bluetooth / BLE** devices and **cellular towers** (LTE, NR, GSM, …) the survey recorded, shown as their own kinds. **Craxiom Network Survey CSV** maps the access points it recorded the same way.
 
 Installed copies open captures of any size, such as long wardrives, reading them straight from disk with a progress bar. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB. NetSeer starts empty. To try it without any files of your own, open **Settings → Help**: sample captures open with one click, including a branch office surveyed twice a week apart, for trying **Compare surveys**.
 
@@ -228,7 +232,7 @@ Without uv: `python3 -m venv .venv && . .venv/bin/activate && pip install -e . p
 
 | Path | What's there |
 | --- | --- |
-| `src/netseer/parsers/` | pcap/pcapng (scapy), Kismet, and airodump readers |
+| `src/netseer/parsers/` | pcap/pcapng (scapy), Kismet, airodump, WiGLE, and Network Survey readers |
 | `src/netseer/graph.py` | Turns observations into devices, links, subnets, and VLANs |
 | `src/netseer/exporters/` | draw.io, Visio, PDF reports, device exports |
 | `src/netseer/web.py`, `web/` | The API and the browser app (no build step) |

@@ -9,7 +9,7 @@ from netseer.oui import lookup_oui, manufacturers_for_macs, vendor_from_mac
 from netseer.services import CLIENT_SIDE_PORTS, WELL_KNOWN_SERVER_PORTS, format_port, service_for_port
 
 
-def normalize_mac(mac: str | None) -> str | None:
+def normalize_mac(mac: str | None, *, allow_multicast: bool = False) -> str | None:
     if not mac:
         return None
     raw = re.sub(r"[^0-9a-fA-F]", "", mac)
@@ -18,7 +18,9 @@ def normalize_mac(mac: str | None) -> str | None:
     parts = [raw[i : i + 2].lower() for i in range(0, 12, 2)]
     if parts == ["00"] * 6 or parts == ["ff"] * 6:
         return None
-    if int(parts[0], 16) & 0x01:
+    # The group/multicast bit means "not a single device" for Ethernet/Wi-Fi, but Bluetooth LE
+    # random addresses legitimately set it, so callers cataloguing BLE pass allow_multicast.
+    if not allow_multicast and int(parts[0], 16) & 0x01:
         return None
     return ":".join(parts)
 
@@ -155,6 +157,11 @@ def infer_display_name(rec: dict[str, Any], l2_degree: int = 0) -> str:
         return rec.get("label") or "Subnet"
     if kind == "vlan":
         return rec.get("label") or "VLAN"
+    extra = rec.get("extra") or {}
+    if kind == "bluetooth":
+        return extra.get("bt_name") or "Bluetooth device"
+    if kind == "cell":
+        return extra.get("carrier") or "Cell tower"
     roles = rec.get("roles") or []
     services = rec.get("services") or []
     routing = rec.get("routing") or {}
@@ -291,8 +298,9 @@ class GraphBuilder:
         vendor: str | None = None,
         label: str | None = None,
         mac_roles: tuple[str, ...] | list[str] | None = None,
+        allow_multicast: bool = False,
     ) -> str | None:
-        mac = normalize_mac(mac)
+        mac = normalize_mac(mac, allow_multicast=allow_multicast)
         if not mac:
             return None
         node_id = mac_id(mac)
@@ -948,6 +956,76 @@ class GraphBuilder:
             gps=gps,
         )
         self.observe_signal(node_id, signal_dbm)
+        return node_id
+
+    def add_bluetooth(
+        self,
+        mac: str | None,
+        *,
+        name: str | None = None,
+        device_class: str | None = None,
+        variant: str | None = None,
+        signal_dbm: float | None = None,
+        gps: GpsFix | None = None,
+        vendor: str | None = None,
+    ) -> str | None:
+        """A Bluetooth/BLE device seen while wardriving (its own MAC, not linked to anything)."""
+        node_id = self.observe_mac(mac, wireless=True, vendor=vendor, label=name, allow_multicast=True)
+        if not node_id:
+            return None
+        rec = self._device(node_id)
+        rec["kind"] = "bluetooth"
+        rec["medium"] = "wireless"
+        # BLE random / locally-administered addresses (group or local bit set) aren't real OUIs,
+        # so drop the "Multicast"/"Locally administered" placeholder the OUI lookup fills in.
+        if rec["macs"] and int(rec["macs"][0][:2], 16) & 0x03:
+            rec["vendor"] = None
+        if "bluetooth" not in rec["roles"]:
+            rec["roles"].append("bluetooth")
+        if name:
+            rec["extra"]["bt_name"] = name
+        if device_class:
+            rec["extra"]["bt_class"] = device_class
+        if variant:
+            rec["extra"]["bt_variant"] = variant  # "BT" (classic) or "BLE"
+        self.observe_signal(node_id, signal_dbm)
+        if gps:
+            rec["gps"] = gps
+        return node_id
+
+    def add_cell_tower(
+        self,
+        cell_id: str | None,
+        *,
+        carrier: str | None = None,
+        radio: str | None = None,
+        plmn: str | None = None,
+        channel_arfcn: str | None = None,
+        signal_dbm: float | None = None,
+        gps: GpsFix | None = None,
+    ) -> str | None:
+        """A cellular tower/cell seen while wardriving (keyed by its cell id, not a MAC)."""
+        if not cell_id:
+            return None
+        node_id = "cell:" + re.sub(r"[^0-9A-Za-z_.:-]", "_", str(cell_id))
+        rec = self._device(node_id)
+        rec["kind"] = "cell"
+        rec["medium"] = "wireless"
+        if "cell" not in rec["roles"]:
+            rec["roles"].append("cell")
+        if carrier:
+            rec["label"] = carrier
+            rec["extra"]["carrier"] = carrier
+        rec["extra"]["cell_id"] = str(cell_id)
+        if radio:
+            rec["extra"]["radio"] = radio
+        if plmn:
+            rec["extra"]["plmn"] = plmn
+        if channel_arfcn:
+            rec["extra"]["channel_arfcn"] = str(channel_arfcn)
+        self.observe_signal(node_id, signal_dbm)
+        if gps:
+            rec["gps"] = gps
         return node_id
 
     def finalize(self) -> SurveyGraph:
