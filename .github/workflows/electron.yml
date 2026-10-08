@@ -1,13 +1,19 @@
 name: Electron
 
 on:
+  push:
+    tags: ["v*"]
   workflow_dispatch:
   pull_request:
     paths: ["electron/**", "packaging/electron/**", "src/**", "pyproject.toml", ".github/workflows/electron.yml"]
 
+permissions:
+  contents: write
+
 jobs:
   smoke:
     name: Smoke (from source)
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -64,6 +70,17 @@ jobs:
           sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 \
             libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxcomposite1 \
             libxdamage1 libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          v=$(node -p "require('./electron/package.json').version")
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Set package version
+        working-directory: electron
+        shell: bash
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
       - name: Build the AppImage (bundles the sidecar)
         working-directory: electron
         run: npm install && npx electron-builder --linux AppImage
@@ -72,10 +89,21 @@ jobs:
           ELECTRON_ENABLE_LOGGING: "1"
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: xvfb-run -a electron/dist/*.AppImage --smoke-test --no-sandbox
+      - name: Checksums
+        run: (cd electron/dist && sha256sum *.AppImage | tee SHA256SUMS-electron-linux.txt)
       - uses: actions/upload-artifact@v4
         with:
           name: NetSeer-electron-linux
-          path: electron/dist/*.AppImage
+          path: |
+            electron/dist/*.AppImage
+            electron/dist/SHA256SUMS-electron-linux.txt
+      - name: Attach to release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            electron/dist/*.AppImage
+            electron/dist/SHA256SUMS-electron-linux.txt
 
   package-windows:
     name: Package + smoke (Windows)
@@ -92,15 +120,45 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - name: Build the portable app (bundles the sidecar)
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          v=$(node -p "require('./electron/package.json').version")
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Set package version
         working-directory: electron
-        run: npm install; npx electron-builder --win zip
+        shell: bash
+        run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
+      - name: Build the installer + portable (bundles the sidecar)
+        working-directory: electron
+        # Authenticode signing turns on automatically when the CSC secrets exist (see
+        # packaging/windows/SIGNING.md); without them it builds unsigned.
+        env:
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+        run: npm install; npx electron-builder --win
       - name: Smoke the packaged app
         shell: pwsh
         run: |
           $p = Start-Process -FilePath "electron/dist/win-unpacked/NetSeer.exe" -ArgumentList "--smoke-test" -PassThru -Wait
           if ($p.ExitCode -ne 0) { throw "smoke failed with exit $($p.ExitCode)" }
+      - name: Checksums
+        shell: bash
+        run: (cd electron/dist && sha256sum *.exe *.zip | tee SHA256SUMS-electron-windows.txt)
       - uses: actions/upload-artifact@v4
         with:
           name: NetSeer-electron-windows
-          path: electron/dist/*.zip
+          path: |
+            electron/dist/*.exe
+            electron/dist/*.zip
+            electron/dist/SHA256SUMS-electron-windows.txt
+      - name: Attach to release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            electron/dist/*.exe
+            electron/dist/*.zip
+            electron/dist/SHA256SUMS-electron-windows.txt
