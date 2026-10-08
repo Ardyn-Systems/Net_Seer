@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld("netseerShell", {
   checkForUpdates: () => ipcRenderer.send("updates:check"),
   // Update progress/state from electron-updater: {state, version?, percent?, transferred?, total?, bytesPerSecond?, message?, manual?}.
   onUpdateStatus: (callback) => ipcRenderer.on("updates:status", (_event, status) => callback(status)),
+  // Start downloading an available update (the manual "Install" button).
+  downloadUpdate: () => ipcRenderer.send("updates:download"),
   // Restart and install a downloaded update now.
   installUpdate: () => ipcRenderer.send("updates:install"),
   // The persisted "update automatically" preference.

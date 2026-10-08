@@ -376,7 +376,7 @@ Use a backup to move your maps to another computer or browser, or before trying 
 
 *The releases in this picture are an example.*
 
-- In the **desktop app**, NetSeer updates itself. Leave **Update NetSeer automatically** on (the default) and it downloads a new release in the background, then shows an in-app window with a **Restart and update** button when it's ready — the Windows installer runs silently, the Linux AppImage is replaced in place. **Check for updates** shows the same window with the download progress as it goes. Turn auto-update off to stay on your version and check only when you want. Your maps are untouched either way.
+- In the **desktop app**, NetSeer updates itself. Leave **Update NetSeer automatically** on (the default) and it downloads a new release in the background, then shows an in-app window with a **Restart and update** button when it's ready — the Windows installer runs silently, the Linux AppImage is replaced in place. When you **Check for updates** yourself and one is available, that window offers an **Install** button, so you choose when to download and install it. Turn auto-update off to stay on your version and check only when you want. Your maps are untouched either way.
 - From **source** or online, the pane lists the releases. Each links to its **Release notes** and the download for your platform; older ones fold under **Earlier versions**. From source, the button copies a `uv tool install` command for that version instead.
 - **Check when NetSeer opens** (off by default) checks at most once a day and tells you once about each new release.
 - The [online copy](https://netseer.onrender.com) updates itself, so it shows no list.

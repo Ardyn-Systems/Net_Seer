@@ -235,9 +235,14 @@ function sendUpdate(payload) {
 
 function setupUpdates() {
   if (SMOKE || !app.isPackaged) return;
-  autoUpdater.autoDownload = true;
+  // We drive the download ourselves: a background (auto-update) check downloads right away, but a
+  // manual "Check for updates" waits and shows an Install button, so the user chooses when.
+  autoUpdater.autoDownload = false;
   autoUpdater.on("checking-for-update", () => sendUpdate({ state: "checking", manual: updateManualCheck }));
-  autoUpdater.on("update-available", (info) => sendUpdate({ state: "available", version: info?.version, manual: updateManualCheck }));
+  autoUpdater.on("update-available", (info) => {
+    sendUpdate({ state: "available", version: info?.version, manual: updateManualCheck });
+    if (!updateManualCheck) autoUpdater.downloadUpdate().catch((err) => log("update download error:", err.message));
+  });
   autoUpdater.on("update-not-available", () => {
     sendUpdate({ state: "none", version: app.getVersion(), manual: updateManualCheck });
     updateManualCheck = false;
@@ -350,6 +355,9 @@ ipcMain.on("window:toggle-maximize", (e) => {
 ipcMain.on("window:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 ipcMain.handle("window:is-maximized", (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized());
 ipcMain.on("updates:check", () => checkForUpdatesNow());
+ipcMain.on("updates:download", () => {
+  if (app.isPackaged) autoUpdater.downloadUpdate().catch((err) => log("update download error:", err.message));
+});
 ipcMain.on("updates:install", () => installUpdate());
 ipcMain.handle("updates:get-auto", () => readShellSettings().autoUpdate);
 ipcMain.on("updates:set-auto", (_e, on) => {
