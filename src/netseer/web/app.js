@@ -5965,6 +5965,8 @@ function renderUpdates() {
         setUpdateStatus(on ? "NetSeer updates itself automatically." : "Automatic updates are off — check when you want one.", on ? "good" : "");
       })
       .catch(() => {});
+    const cache = readUpdateCache();
+    if (cache) renderElectronVersions(cache.releases);
     return;
   }
   el("updates-how").textContent = updateHowText();
@@ -6004,8 +6006,8 @@ function releaseMeta(r) {
   return `${escapeHtml(releaseDate(r))}${asset ? ` · ${escapeHtml(asset.name)}` : ""}`;
 }
 
-function renderReleaseList(releases) {
-  const list = el("release-list");
+function renderReleaseList(releases, { listId = "release-list", actions = releaseActions } = {}) {
+  const list = el(listId);
   list.innerHTML = "";
   const all = releases.slice(0, 40);
   const older = all.filter((r) => compareVersions(r.tag, state.server.version) < 0);
@@ -6015,7 +6017,7 @@ function renderReleaseList(releases) {
     li.classList.toggle("current", cmp === 0);
     const tag = cmp === 0 ? '<span class="release-tag">Current</span>' : '<span class="release-tag newer">Newer</span>';
     li.innerHTML = `<span><span class="release-name">${escapeHtml(r.name)}</span>${tag}<span class="release-meta">${releaseMeta(r)}</span></span>
-      <span class="release-actions">${releaseActions(r)}</span>`;
+      <span class="release-actions">${actions(r)}</span>`;
     list.appendChild(li);
   }
   if (older.length) {
@@ -6028,7 +6030,7 @@ function renderReleaseList(releases) {
           <select id="release-older" aria-label="Earlier version">${older
             .map((r) => `<option value="${escapeHtml(r.tag)}"${r === picked ? " selected" : ""}>${escapeHtml(r.name)}${releaseDate(r) ? ` · ${escapeHtml(releaseDate(r))}` : ""}</option>`)
             .join("")}</select>
-          <span class="release-actions" id="release-older-actions">${releaseActions(picked)}</span>
+          <span class="release-actions" id="release-older-actions">${actions(picked)}</span>
         </div>
         <p class="release-meta" id="release-older-meta">${releaseMeta(picked)}</p>
       </details>`;
@@ -6036,12 +6038,38 @@ function renderReleaseList(releases) {
     li.querySelector("select").addEventListener("change", (e) => {
       const r = older.find((x) => x.tag === e.target.value);
       releaseUi.picked = r.tag;
-      el("release-older-actions").innerHTML = releaseActions(r);
+      el("release-older-actions").innerHTML = actions(r);
       el("release-older-meta").innerHTML = releaseMeta(r);
     });
     list.appendChild(li);
   }
   if (!list.children.length) list.innerHTML = '<li class="hint">No releases yet.</li>';
+}
+
+// The Electron app installs any version itself (download + checksum + run), so the version list
+// gets Update / Reinstall / Roll back buttons that the shell acts on.
+function electronReleaseActions(r) {
+  const cmp = compareVersions(r.tag, state.server.version);
+  const verb = cmp > 0 ? "Update" : cmp < 0 ? "Roll back" : "Reinstall";
+  let html = `<a class="btn small ghost" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">Release notes</a>`;
+  if (assetFor(r)) html += `<button class="btn small${cmp > 0 ? " primary" : ""}" type="button" data-install-version="${escapeHtml(r.tag)}">${verb}</button>`;
+  return html;
+}
+
+function renderElectronVersions(releases) {
+  if (el("electron-release-list")) renderReleaseList(releases, { listId: "electron-release-list", actions: electronReleaseActions });
+}
+
+// Start installing a chosen version (the shell downloads, checksum-verifies, and stages it; the
+// update dialog then shows progress and the Restart button runs the installer).
+function startVersionInstall(tag) {
+  eupdateVersionInstall = true;
+  window.netseerShell?.startVersionUpdate?.(tag);
+  el("eupdate-title").textContent = "Downloading update";
+  show("eupdate-install", false);
+  showUpdateProgress({});
+  const d = el("eupdate-dialog");
+  if (!d.open) d.showModal();
 }
 
 async function checkForUpdates() {
@@ -7680,6 +7708,9 @@ function showDeviceOnMap(id) {
 }
 
 /* ---------- In-app update dialog (Electron) ---------- */
+// True while a chosen-version install (version list) is staged, so Restart runs the downloaded
+// installer instead of electron-updater's quitAndInstall.
+let eupdateVersionInstall = false;
 // electron-updater's progress and prompts, shown inside the app window instead of native OS dialogs.
 // The shell forwards {state, version?, percent?, transferred?, total?, bytesPerSecond?, message?, manual?}.
 
@@ -7737,8 +7768,10 @@ function handleUpdateStatus(s) {
       open();
       break;
     case "ready":
-      el("eupdate-title").textContent = "Update ready";
-      el("eupdate-text").textContent = `NetSeer ${s.version || "the new version"} is ready. Restart to finish updating; your maps are kept.`;
+      eupdateVersionInstall = !!s.versionInstall;
+      el("eupdate-title").textContent = eupdateVersionInstall ? `Ready to install ${s.version || ""}`.trim() : "Update ready";
+      el("eupdate-text").textContent = `NetSeer ${s.version || "the new version"} is ready. Restart to ${eupdateVersionInstall ? "install it" : "finish updating"}; your maps are kept.`;
+      el("eupdate-restart").textContent = "Restart and install";
       show("eupdate-restart", true);
       show("update-dot", true);
       open();
@@ -7773,7 +7806,12 @@ function bindUpdateDialog() {
   el("eupdate-restart").addEventListener("click", () => {
     el("eupdate-restart").disabled = true;
     el("eupdate-text").textContent = "Restarting to install…";
-    window.netseerShell?.installUpdate?.();
+    if (eupdateVersionInstall) window.netseerShell?.applyVersionUpdate?.();
+    else window.netseerShell?.installUpdate?.();
+  });
+  el("electron-release-list").addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-install-version]");
+    if (btn) startVersionInstall(btn.dataset.installVersion);
   });
 }
 
@@ -7791,18 +7829,15 @@ function setupWindowChrome() {
   w.onMaximizeChange(sync);
   // A netseer:// link brought us to the front; the shell handled focus, acknowledge it here.
   if (shell.onDeepLink) shell.onDeepLink(() => toast("NetSeer opened from a link", { timeout: 2500 }));
-  // Settings → Updates uses the Electron updater; progress and the restart prompt show in the
-  // in-app update dialog (see handleUpdateStatus), not a native OS dialog.
+  // Update progress and the restart prompt show in the in-app dialog (handleUpdateStatus), not a
+  // native OS dialog. Automatic updates run in the background (electron-updater).
   if (shell.onUpdateStatus) {
     bindUpdateDialog();
     shell.onUpdateStatus(handleUpdateStatus);
   }
-  if (shell.checkForUpdates) {
-    el("updates-electron-check").addEventListener("click", () => {
-      shell.checkForUpdates();
-      setUpdateStatus("Checking for updates…");
-    });
-  }
+  // Manual "Check for updates" lists the versions from GitHub; the list's buttons install, reinstall,
+  // or roll back (the shell downloads + checksum-verifies + runs the installer).
+  el("updates-electron-check").addEventListener("click", () => checkForUpdates());
   if (shell.setAutoUpdate) {
     el("updates-electron-auto").addEventListener("change", (e) => {
       shell.setAutoUpdate(e.target.checked);
