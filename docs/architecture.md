@@ -63,6 +63,8 @@ Each input format has its own reader; all of them feed `graph.py`.
 | `kismetdb.py` | `.kismet` | Kismet's native SQLite log; two passes for the best device detail |
 | `kismet.py` | `.netxml`, `.csv` | Kismet's exported summaries |
 | `airodump.py` | airodump-ng `.csv` | Access points and clients from airodump sessions |
+| `wigle.py` | WigleWifi `.csv` | WiGLE wardrives: access points, plus Bluetooth/BLE and cellular towers |
+| `craxiom.py` | Network Survey `.csv` | Craxiom Network Survey Wi-Fi exports |
 
 Large captures use the async job endpoints (`/api/parse/jobs/*`) so the UI can show progress and
 let you cancel, instead of blocking on one request.

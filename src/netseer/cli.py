@@ -25,7 +25,7 @@ def default_port() -> int:
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="netseer",
-        description=f"{PRODUCT_NAME} web preview — {MOTTO} Ingest pcap/Kismet/airodump surveys and map them.",
+        description=f"{PRODUCT_NAME} web preview — {MOTTO} Ingest pcap/Kismet/airodump/WiGLE surveys and map them.",
     )
     parser.add_argument("--host", default=DEFAULT_HOST, help="Bind address (default 127.0.0.1; 0.0.0.0 exposes it to the LAN)")
     parser.add_argument("--port", type=int, default=default_port(), help="Bind port (default $PORT, else 47331)")

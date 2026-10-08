@@ -51,6 +51,10 @@ def sniff_format(data: bytes, filename: str = "") -> str:
         return "netseer-json"
     if "<detection-run" in lowered or "<wireless-network" in lowered or "kismet-3." in lowered:
         return "kismet-netxml"
+    if lowered.lstrip().startswith("wiglewifi-"):
+        return "wigle-csv"
+    if "network survey" in lowered or ("bssid" in lowered and "frequencymhz" in lowered and "signalstrength" in lowered):
+        return "craxiom-csv"
     if "bssid" in lowered and ("station mac" in lowered or "probed essids" in lowered or "# iv" in lowered):
         return "airodump-csv"
     if "bssid" in lowered and ("essid" in lowered or "nettype" in lowered or "gpsbestlat" in lowered):
@@ -65,5 +69,6 @@ def sniff_format(data: bytes, filename: str = "") -> str:
         return "airodump-csv" if "station mac" in lowered else "kismet-csv"
     raise UnsupportedSurveyError(
         "Unsupported survey format. Use Wireshark/tshark .pcap/.pcapng, tcpdump .pcap, "
-        "Kismet .kismet/.pcap/.netxml/.csv, airodump-ng CSV/.cap, or a NetSeer Unwanted/*.json dump."
+        "Kismet .kismet/.pcap/.netxml/.csv, airodump-ng CSV/.cap, WiGLE (WigleWifi) CSV, "
+        "Craxiom Network Survey CSV, or a NetSeer Unwanted/*.json dump."
     )

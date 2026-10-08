@@ -111,7 +111,7 @@
           <label class="drop" id="dropzone">
             <svg class="icon"><use href="#i-upload" /></svg>
             <span><strong>Drop captures here</strong> or click to browse</span>
-            <small>pcap, pcapng, Kismet .kismet/netxml/csv, airodump csv, Unwanted JSON</small>
+            <small>pcap, pcapng, Kismet .kismet/netxml/csv, airodump csv, WiGLE csv, Network Survey csv, Unwanted JSON</small>
           </label>
           <p id="hosted-note" class="hosted-note hidden">This is a public copy of NetSeer. Files you open are sent to this server only to draw the map and aren't kept. Your maps and notes stay in this browser.
             <strong>Captures up to <span class="hosted-limit">20 MB</span>.</strong> For bigger ones, such as long wardrives, <a class="install-link" target="_blank" rel="noopener">install NetSeer</a>: it has no size limit.</p>
@@ -153,6 +153,8 @@
             <li><i class="swatch" style="--c: var(--node-server)"></i>Server</li>
             <li><i class="swatch" style="--c: var(--node-host)"></i>Host</li>
             <li><i class="swatch" style="--c: var(--node-wireless)"></i>Wireless client</li>
+            <li><i class="swatch shape-round" style="--c: var(--node-bluetooth)"></i>Bluetooth device</li>
+            <li><i class="swatch shape-diamond" style="--c: var(--node-cell)"></i>Cell tower</li>
             <li><i class="swatch dashed" style="--c: var(--node-vlan)"></i>VLAN</li>
             <li><i class="swatch dashed" style="--c: var(--node-subnet)"></i>Subnet</li>
           </ul>
@@ -240,7 +242,7 @@
             <img class="brand-mark" src="/static/logo.svg" width="56" height="56" alt="" />
             <h2 id="empty-title">Map your network</h2>
             <p id="empty-hosted" class="hosted-note hidden">Public copy: files you open are processed on this server and not kept, up to <span class="hosted-limit">20 MB</span> each. <a class="install-link" target="_blank" rel="noopener">Install NetSeer</a> for bigger captures.</p>
-            <p id="empty-body">Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page. Or try a demo with the sample captures.</p>
+            <p id="empty-body">Drop a Wireshark, tcpdump, Kismet, airodump, or WiGLE capture anywhere on this page. Or try a demo with the sample captures.</p>
             <div class="row-actions center">
               <button id="empty-open" class="btn primary" type="button"><svg class="icon"><use href="#i-upload" /></svg><span>Open survey</span></button>
               <button id="empty-sample" class="btn" type="button">Try a demo</button>

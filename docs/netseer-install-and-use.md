@@ -14,7 +14,7 @@ NetSeer is a **local** survey-to-map tool:
 
 - Python package `netseer` (CLI `netseer`)
 - FastAPI + uvicorn serves a small UI in your browser
-- You drop Wireshark / tcpdump / Kismet / airodump-ng files; it draws L2/L3/RF as a map
+- You drop Wireshark / tcpdump / Kismet / airodump-ng / WiGLE files; it draws L2/L3/RF as a map
 - Export the same picture to draw.io, Visio, and PDF/CSV/XML/text
 
 Here you run it from source on the machine that holds the captures (or copy captures in). Everything the UI needs is bundled, so it works offline.

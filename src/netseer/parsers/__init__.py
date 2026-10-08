@@ -5,9 +5,11 @@ from typing import Callable
 
 from netseer.graph import GraphBuilder
 from netseer.parsers.airodump import parse_airodump_csv
+from netseer.parsers.craxiom import parse_craxiom_csv
 from netseer.parsers.kismet import parse_kismet_csv, parse_kismet_netxml
 from netseer.parsers.kismetdb import parse_kismetdb
 from netseer.parsers.pcap import parse_pcap
+from netseer.parsers.wigle import parse_wigle_csv
 
 # progress(packets, fraction of this file read 0..1)
 Progress = Callable[[int, float], None]
@@ -43,6 +45,10 @@ def parse_into(
         parse_kismet_csv(builder, _bytes(source), filename)
     elif kind == "airodump-csv":
         parse_airodump_csv(builder, _bytes(source), filename)
+    elif kind == "wigle-csv":
+        parse_wigle_csv(builder, _bytes(source), filename)
+    elif kind == "craxiom-csv":
+        parse_craxiom_csv(builder, _bytes(source), filename)
     else:
         raise ValueError(f"Unknown parser kind: {kind}")
 

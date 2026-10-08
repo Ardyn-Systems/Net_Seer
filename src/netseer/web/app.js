@@ -168,6 +168,8 @@ function themeColors() {
     gateway: v("--node-gateway"),
     ap: v("--node-ap"),
     wireless: v("--node-wireless"),
+    bluetooth: v("--node-bluetooth"),
+    cell: v("--node-cell"),
     subnet: v("--node-subnet"),
     vlan: v("--node-vlan"),
     groupFill: v("--group-fill"),
@@ -730,6 +732,8 @@ function nodeRole(n) {
   if (n.kind === "ap" || roles.includes("ap") || type === "access point") return "ap";
   if (n.kind === "gateway" || type === "router" || type === "gateway") return "gateway";
   if (n.kind === "server" || type === "server") return "server";
+  if (n.kind === "bluetooth") return "bluetooth";
+  if (n.kind === "cell") return "cell";
   if (roles.includes("station") || type === "wireless client" || n.medium === "wireless") return "wireless";
   return "host";
 }
@@ -1393,7 +1397,7 @@ function graphSpan(graph) {
 
 // Whether a map or survey has a timeline. Formats that never record times are known before
 // a survey is opened; anything opened is checked (once per graph).
-const UNTIMED_KINDS = new Set(["kismet-netxml", "kismet-csv", "airodump-csv"]);
+const UNTIMED_KINDS = new Set(["kismet-netxml", "kismet-csv", "airodump-csv", "wigle-csv", "craxiom-csv"]);
 const spanCache = new WeakMap();
 function hasTimeline(graph) {
   if (!graph) return null;
@@ -2516,6 +2520,8 @@ function cyStyle(c) {
     { selector: 'node[role = "gateway"]', style: { "border-color": c.gateway, "border-width": 3, shape: "cut-rectangle" } },
     { selector: 'node[role = "server"]', style: { "border-color": c.server } },
     { selector: 'node[role = "wireless"]', style: { "border-color": c.wireless, shape: "round-rectangle" } },
+    { selector: 'node[role = "bluetooth"]', style: { "border-color": c.bluetooth, shape: "ellipse", width: 96 } },
+    { selector: 'node[role = "cell"]', style: { "border-color": c.cell, shape: "diamond", width: 120, height: 64 } },
     { selector: 'node[role = "vlan"]', style: { "border-color": c.vlan, "border-style": "dashed", shape: "tag" } },
     { selector: 'node[role = "subnet"]', style: { "border-color": c.subnet, "border-style": "dashed" } },
     {
@@ -2613,11 +2619,11 @@ function cyStyle(c) {
       selector: `node[security = "${sev}"]`,
       style: { "background-color": SECURITY_COLORS[sev], "background-opacity": 0.3 },
     })),
-    ...[["host", c.host], ["server", c.server], ["gateway", c.gateway], ["ap", c.ap], ["wireless", c.wireless]].map(([role, color]) => ({
+    ...[["host", c.host], ["server", c.server], ["gateway", c.gateway], ["ap", c.ap], ["wireless", c.wireless], ["bluetooth", c.bluetooth], ["cell", c.cell]].map(([role, color]) => ({
       selector: `node[security][role = "${role}"]:selected`,
       style: { "background-opacity": 0.75, "background-blacken": 0, "border-color": color, "border-width": role === "gateway" ? 3 : role === "ap" ? 2.5 : 2, "underlay-opacity": 0 },
     })),
-    ...[["host", c.host], ["server", c.server], ["gateway", c.gateway], ["ap", c.ap], ["wireless", c.wireless], ["vlan", c.vlan], ["subnet", c.subnet]].map(([role, color]) => ({
+    ...[["host", c.host], ["server", c.server], ["gateway", c.gateway], ["ap", c.ap], ["wireless", c.wireless], ["bluetooth", c.bluetooth], ["cell", c.cell], ["vlan", c.vlan], ["subnet", c.subnet]].map(([role, color]) => ({
       selector: `node[change][change != "same"][role = "${role}"]:selected`,
       style: { "background-opacity": 0.75, "background-blacken": 0, "border-color": color, "border-width": role === "gateway" ? 3 : role === "ap" ? 2.5 : 2, "underlay-opacity": 0 },
     })),
@@ -2987,7 +2993,7 @@ function updateEmptyState() {
   const firstRun = !state.maps.some((m) => m.kind !== "unwanted" && m.graph?.nodes?.length);
   if (firstRun && (map?.kind === "unwanted" || map?.kind === "survey" || !map)) {
     el("empty-title").textContent = "Map your network";
-    el("empty-body").textContent = "Drop a Wireshark, tcpdump, Kismet, or airodump capture anywhere on this page. Or try a demo with the sample captures.";
+    el("empty-body").textContent = "Drop a Wireshark, tcpdump, Kismet, airodump, or WiGLE capture anywhere on this page. Or try a demo with the sample captures.";
   } else if (map?.kind === "unwanted") {
     el("empty-title").textContent = "Nothing set aside";
     el("empty-body").textContent = "Devices you set aside from other maps land here. Select devices and choose Set aside, then empty Unwanted to save them as files.";
@@ -3100,10 +3106,15 @@ function devicePanel(raw) {
       </dl>
     </div>
     ${
-      n.ssids?.length || n.channels?.length || signal || n.encryption?.length || gps
+      n.ssids?.length || n.channels?.length || signal || n.encryption?.length || gps || n.extra?.bt_variant || n.extra?.radio
         ? `<div class="insp-section"><h3>Radio</h3><dl class="facts">
         ${factRow("SSID", n.ssids)}
-        ${factRow("Channel", n.channels)}
+        ${factRow("Bluetooth", n.extra?.bt_variant === "BLE" ? "Bluetooth LE" : n.extra?.bt_variant === "BT" ? "Bluetooth (classic)" : null)}
+        ${factRow("Device class", n.extra?.bt_class)}
+        ${factRow("Cell radio", n.extra?.radio)}
+        ${factRow("Network (PLMN)", n.extra?.plmn)}
+        ${factRow("Cell ID", n.extra?.cell_id, { mono: true })}
+        ${factRow("Channel", n.extra?.channel_arfcn ? [`ARFCN ${n.extra.channel_arfcn}`] : n.channels)}
         ${factRow("Frequency", (n.frequencies_mhz || []).map((f) => `${f} MHz`))}
         ${factRow("Signal", signal)}
         ${factRow("Security", n.encryption)}

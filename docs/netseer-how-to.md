@@ -61,7 +61,7 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 ## Open surveys
 
-- **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv`, or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS).
+- **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv` (Kismet, airodump, **WiGLE**, or **Craxiom Network Survey**), or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS). A **WiGLE** wardrive also brings in Bluetooth/BLE devices and cellular towers, shown as their own kinds.
 - Each capture becomes its own map and joins the **Surveys** tab.
 - **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Compare with a baseline…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. Demo samples appear here once opened.
 - NetSeer starts empty: no maps or surveys until you open one. The welcome card has **Open survey** and **Try a demo** (opens **Settings** → **Demo**).
