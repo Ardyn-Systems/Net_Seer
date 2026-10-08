@@ -453,6 +453,17 @@
       </form>
     </dialog>
 
+    <dialog id="eupdate-dialog" class="dialog" aria-labelledby="eupdate-title">
+      <h2 id="eupdate-title">NetSeer update</h2>
+      <p id="eupdate-text" class="hint"></p>
+      <div id="eupdate-progress" class="progress hidden" role="progressbar" aria-labelledby="eupdate-text" aria-valuemin="0" aria-valuemax="100"><div id="eupdate-bar"></div></div>
+      <div class="row-actions end">
+        <a id="eupdate-releases" class="btn ghost hidden" data-link="releases" target="_blank" rel="noopener">All releases</a>
+        <button id="eupdate-later" class="btn ghost" type="button">Later</button>
+        <button id="eupdate-restart" class="btn primary hidden" type="button">Restart and update</button>
+      </div>
+    </dialog>
+
     <dialog id="settings-dialog" class="dialog settings-dialog" aria-labelledby="settings-title">
       <div class="settings-head">
         <h2 id="settings-title">Settings</h2>
