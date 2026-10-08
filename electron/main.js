@@ -3,7 +3,7 @@
 // in a window. The Python app and the web UI are unchanged; this only replaces the pywebview
 // window. See docs/electron-migration.md.
 
-const { app, BrowserWindow, shell } = require("electron");
+const { app, BrowserWindow, shell, ipcMain } = require("electron");
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const http = require("node:http");
@@ -102,6 +102,7 @@ function createWindow(port) {
     backgroundColor: BG,
     show: !SMOKE,
     autoHideMenuBar: true,
+    frame: false, // the app draws its own title bar (see the web UI's window controls)
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -122,9 +123,22 @@ function createWindow(port) {
     }
   });
 
+  // Keep the custom title bar's maximize/restore button in step with the real window state.
+  win.on("maximize", () => win.webContents.send("window:maximized", true));
+  win.on("unmaximize", () => win.webContents.send("window:maximized", false));
+
   win.loadURL(`${base}/`);
   return win;
 }
+
+// Window controls for the frameless title bar the web UI draws. Scoped to the sending window.
+ipcMain.on("window:minimize", (e) => BrowserWindow.fromWebContents(e.sender)?.minimize());
+ipcMain.on("window:toggle-maximize", (e) => {
+  const win = BrowserWindow.fromWebContents(e.sender);
+  if (win) (win.isMaximized() ? win.unmaximize() : win.maximize());
+});
+ipcMain.on("window:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
+ipcMain.handle("window:is-maximized", (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized());
 
 function failFast(message) {
   log("ERROR:", message);
@@ -141,11 +155,22 @@ async function main() {
 
   if (SMOKE) {
     const timer = setTimeout(() => failFast("window didn't finish loading in time"), 30000);
-    win.webContents.once("did-finish-load", () => {
+    win.webContents.once("did-finish-load", async () => {
       clearTimeout(timer);
-      log("SMOKE OK");
-      stopSidecar();
-      app.exit(0);
+      try {
+        await new Promise((r) => setTimeout(r, 300)); // let init() wire the title bar
+        const r = await win.webContents.executeJavaScript(
+          "({shell: window.netseerShell && window.netseerShell.kind, controls: !!document.getElementById('win-close'), dataShell: document.documentElement.dataset.shell})"
+        );
+        if (r.shell !== "electron" || !r.controls || r.dataShell !== "electron") {
+          return failFast("title-bar bridge not wired: " + JSON.stringify(r));
+        }
+        log("SMOKE OK (frameless title bar wired:", JSON.stringify(r) + ")");
+        stopSidecar();
+        app.exit(0);
+      } catch (e) {
+        failFast("smoke check failed: " + e.message);
+      }
     });
     win.webContents.once("did-fail-load", (_e, code, desc) => {
       clearTimeout(timer);

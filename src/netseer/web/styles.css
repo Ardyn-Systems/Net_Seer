@@ -328,6 +328,35 @@ kbd {
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
+
+/* Custom title bar — only in the Electron shell, which runs frameless (see electron/). */
+.window-controls { display: none; align-items: stretch; }
+.win-btn {
+  width: 46px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.win-btn:hover { background: var(--hover); color: var(--text); }
+.win-close:hover { background: #e2483d; color: #fff; }
+.window-controls svg { pointer-events: none; }
+.window-controls path, .window-controls rect { fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: square; }
+.win-btn .ic-restore { display: none; }
+[data-shell="electron"] .window-controls { display: flex; }
+[data-shell="electron"] .topbar { -webkit-app-region: drag; padding-right: 0; }
+[data-shell="electron"] .topbar button,
+[data-shell="electron"] .topbar a,
+[data-shell="electron"] .topbar input,
+[data-shell="electron"] .topbar .menu-wrap,
+[data-shell="electron"] .topbar #brand-logo { -webkit-app-region: no-drag; }
+[data-shell="electron"].win-maximized .ic-max { display: none; }
+[data-shell="electron"].win-maximized .ic-restore { display: inline; }
 .brand { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
 .logo { width: 32px; height: 32px; border-radius: 8px; object-fit: cover; }
 .brand-text { display: flex; flex-direction: column; line-height: 1.15; }
