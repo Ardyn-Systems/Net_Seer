@@ -5956,6 +5956,12 @@ function renderUpdates() {
   }
   if (electron) {
     setUpdateStatus("NetSeer updates itself automatically.", "good");
+    window.netseerShell.getAutoUpdate?.()
+      .then((on) => {
+        el("updates-electron-auto").checked = !!on;
+        setUpdateStatus(on ? "NetSeer updates itself automatically." : "Automatic updates are off — check when you want one.", on ? "good" : "");
+      })
+      .catch(() => {});
     return;
   }
   el("updates-how").textContent = updateHowText();
@@ -7631,6 +7637,12 @@ function setupWindowChrome() {
     el("updates-electron-check").addEventListener("click", () => {
       shell.checkForUpdates();
       setUpdateStatus("Checking for updates…");
+    });
+  }
+  if (shell.setAutoUpdate) {
+    el("updates-electron-auto").addEventListener("change", (e) => {
+      shell.setAutoUpdate(e.target.checked);
+      setUpdateStatus(e.target.checked ? "NetSeer updates itself automatically." : "Automatic updates are off — check when you want one.", e.target.checked ? "good" : "");
     });
   }
 }

@@ -599,7 +599,9 @@
               <p class="hint">This online copy updates itself whenever NetSeer changes on GitHub, so it always runs the newest version. Reload the page to pick up a change made while you had it open.</p>
             </div>
             <div id="updates-electron" class="hidden">
-              <p class="hint">NetSeer keeps itself up to date: it checks for a new version in the background and installs it when you restart. You can also check now.</p>
+              <p class="hint">NetSeer can keep itself up to date: it checks for a new version and downloads it in the background, then asks before it restarts to install.</p>
+              <label class="switch-row"><span>Update NetSeer automatically<small>Check on launch and download new versions in the background. You're always asked before it restarts to install.</small></span>
+                <input id="updates-electron-auto" type="checkbox" role="switch" /></label>
               <div class="row-actions">
                 <button id="updates-electron-check" class="btn" type="button">Check for updates</button>
                 <a class="btn ghost" data-link="releases" target="_blank" rel="noopener">All releases</a>

@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld("netseerShell", {
   onDeepLink: (callback) => ipcRenderer.on("deeplink", (_event, url) => callback(url)),
   // Ask the shell to check GitHub for a newer version now (same as the Help menu item).
   checkForUpdates: () => ipcRenderer.send("updates:check"),
+  // The persisted "update automatically" preference.
+  getAutoUpdate: () => ipcRenderer.invoke("updates:get-auto"),
+  setAutoUpdate: (on) => ipcRenderer.send("updates:set-auto", on),
   window: {
     minimize: () => ipcRenderer.send("window:minimize"),
     toggleMaximize: () => ipcRenderer.send("window:toggle-maximize"),
