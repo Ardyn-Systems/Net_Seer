@@ -5635,7 +5635,7 @@ function renderSettings() {
     issue: repoUrl(`/issues/new?body=${encodeURIComponent(`\n\n---\nNetSeer ${version}, ${runningAs()}`)}`),
     releases: repoUrl("/releases"),
   };
-  document.querySelectorAll("#settings-dialog [data-link]").forEach((a) => (a.href = links[a.dataset.link]));
+  document.querySelectorAll("#settings-dialog [data-link], #eupdate-dialog [data-link]").forEach((a) => (a.href = links[a.dataset.link]));
 }
 
 function renderThemeGrid() {
@@ -7380,6 +7380,95 @@ function synthwave(ctx, fx) {
   return { every: 40, fit: draw, draw, still: draw };
 }
 
+/* ---------- In-app update dialog (Electron) ---------- */
+// electron-updater's progress and prompts, shown inside the app window instead of native OS dialogs.
+// The shell forwards {state, version?, percent?, transferred?, total?, bytesPerSecond?, message?, manual?}.
+
+function showUpdateProgress(s) {
+  const bar = el("eupdate-bar");
+  const wrap = el("eupdate-progress");
+  show("eupdate-progress", true);
+  if (typeof s.percent === "number" && s.total) {
+    const pct = Math.max(0, Math.min(100, Math.round(s.percent)));
+    wrap.classList.remove("indeterminate");
+    bar.style.width = `${pct}%`;
+    wrap.setAttribute("aria-valuenow", String(pct));
+    const rate = s.bytesPerSecond ? ` · ${formatSize(s.bytesPerSecond)}/s` : "";
+    el("eupdate-text").textContent = `Downloading: ${formatSize(s.transferred)} of ${formatSize(s.total)}${rate}`;
+  } else {
+    wrap.classList.add("indeterminate");
+    wrap.removeAttribute("aria-valuenow");
+  }
+}
+
+// What the page does with each update event. Background (non-manual) checks stay quiet and only
+// pop up once a download is ready; a user-initiated check shows the whole flow.
+function handleUpdateStatus(s) {
+  const dialog = el("eupdate-dialog");
+  const open = () => dialog.open || dialog.showModal();
+  if (!s.manual && s.state !== "ready") {
+    // Background check: stay quiet while it downloads; only the ready-to-restart prompt pops up.
+    // The dot on the settings cog hints that something's coming.
+    if (s.state === "available" || s.state === "downloading") show("update-dot", true);
+    return;
+  }
+  show("eupdate-releases", false);
+  show("eupdate-restart", false);
+  show("eupdate-progress", false);
+  el("eupdate-later").textContent = "Later";
+  switch (s.state) {
+    case "checking":
+      el("eupdate-title").textContent = "Checking for updates";
+      el("eupdate-text").textContent = "Asking GitHub for the latest version…";
+      el("eupdate-later").textContent = "Close";
+      open();
+      break;
+    case "available":
+      el("eupdate-title").textContent = "Update available";
+      el("eupdate-text").textContent = `NetSeer ${s.version || ""} is downloading…`.replace("  ", " ");
+      showUpdateProgress(s);
+      open();
+      break;
+    case "downloading":
+      el("eupdate-title").textContent = "Downloading update";
+      showUpdateProgress(s);
+      open();
+      break;
+    case "ready":
+      el("eupdate-title").textContent = "Update ready";
+      el("eupdate-text").textContent = `NetSeer ${s.version || "the new version"} is ready. Restart to finish updating; your maps are kept.`;
+      show("eupdate-restart", true);
+      show("update-dot", true);
+      open();
+      el("eupdate-restart").focus();
+      break;
+    case "none":
+      el("eupdate-title").textContent = "You're up to date";
+      el("eupdate-text").textContent = `NetSeer ${s.version || state.server.version} is the latest version.`;
+      el("eupdate-later").textContent = "Close";
+      open();
+      break;
+    case "error":
+      el("eupdate-title").textContent = "Couldn't check for updates";
+      el("eupdate-text").textContent = s.message || "Try again later.";
+      el("eupdate-releases").href = repoUrl("/releases");
+      show("eupdate-releases", true);
+      el("eupdate-later").textContent = "Close";
+      open();
+      break;
+  }
+}
+
+function bindUpdateDialog() {
+  const dialog = el("eupdate-dialog");
+  el("eupdate-later").addEventListener("click", () => dialog.close());
+  el("eupdate-restart").addEventListener("click", () => {
+    el("eupdate-restart").disabled = true;
+    el("eupdate-text").textContent = "Restarting to install…";
+    window.netseerShell?.installUpdate?.();
+  });
+}
+
 // Frameless title bar: wire the min/max/close buttons to the Electron shell (no-op elsewhere).
 function setupWindowChrome() {
   const shell = window.netseerShell;
@@ -7394,7 +7483,12 @@ function setupWindowChrome() {
   w.onMaximizeChange(sync);
   // A netseer:// link brought us to the front; the shell handled focus, acknowledge it here.
   if (shell.onDeepLink) shell.onDeepLink(() => toast("NetSeer opened from a link", { timeout: 2500 }));
-  // Settings → Updates uses the Electron updater; the result comes back as a native dialog.
+  // Settings → Updates uses the Electron updater; progress and the restart prompt show in the
+  // in-app update dialog (see handleUpdateStatus), not a native OS dialog.
+  if (shell.onUpdateStatus) {
+    bindUpdateDialog();
+    shell.onUpdateStatus(handleUpdateStatus);
+  }
   if (shell.checkForUpdates) {
     el("updates-electron-check").addEventListener("click", () => {
       shell.checkForUpdates();

@@ -11,6 +11,10 @@ contextBridge.exposeInMainWorld("netseerShell", {
   onDeepLink: (callback) => ipcRenderer.on("deeplink", (_event, url) => callback(url)),
   // Ask the shell to check GitHub for a newer version now (same as the Help menu item).
   checkForUpdates: () => ipcRenderer.send("updates:check"),
+  // Update progress/state from electron-updater: {state, version?, percent?, transferred?, total?, bytesPerSecond?, message?, manual?}.
+  onUpdateStatus: (callback) => ipcRenderer.on("updates:status", (_event, status) => callback(status)),
+  // Restart and install a downloaded update now.
+  installUpdate: () => ipcRenderer.send("updates:install"),
   // The persisted "update automatically" preference.
   getAutoUpdate: () => ipcRenderer.invoke("updates:get-auto"),
   setAutoUpdate: (on) => ipcRenderer.send("updates:set-auto", on),

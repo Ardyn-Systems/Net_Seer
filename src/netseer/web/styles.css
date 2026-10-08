@@ -1221,6 +1221,9 @@ input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
 
 .progress { height: 10px; margin: 0.9rem 0 0.4rem; overflow: hidden; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); }
 .progress > div { width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width 0.3s ease; }
+.progress.indeterminate > div { width: 35%; animation: progress-slide 1.2s ease-in-out infinite; }
+@keyframes progress-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
+@media (prefers-reduced-motion: reduce) { .progress.indeterminate > div { animation: none; width: 100%; opacity: 0.5; } }
 
 /* ---------- Dragging list rows ---------- */
 

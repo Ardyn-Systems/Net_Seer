@@ -220,55 +220,67 @@ function writeShellSettings(patch) {
   return next;
 }
 
+// The update UI lives in the web page (Settings → Updates and an in-app dialog), not in native OS
+// dialogs. We forward electron-updater's events to the renderer; it shows the status and the
+// restart button. `manual` marks a user-initiated check so the page can stay quiet about background
+// ones (it only pops up on its own when a download is ready).
+function sendUpdate(payload) {
+  const wc = mainWindow?.webContents;
+  if (wc && !wc.isDestroyed()) {
+    wc.send("updates:status", payload);
+    return true;
+  }
+  return false;
+}
+
 function setupUpdates() {
   if (SMOKE || !app.isPackaged) return;
   autoUpdater.autoDownload = true;
-  autoUpdater.on("update-available", () => {
-    if (updateManualCheck) notify("Updating NetSeer", "A newer version is downloading in the background.");
-  });
+  autoUpdater.on("checking-for-update", () => sendUpdate({ state: "checking", manual: updateManualCheck }));
+  autoUpdater.on("update-available", (info) => sendUpdate({ state: "available", version: info?.version, manual: updateManualCheck }));
   autoUpdater.on("update-not-available", () => {
-    if (updateManualCheck) notify("You're up to date", `NetSeer ${app.getVersion()} is the latest version.`);
+    sendUpdate({ state: "none", version: app.getVersion(), manual: updateManualCheck });
     updateManualCheck = false;
   });
-  autoUpdater.on("update-downloaded", async (info) => {
-    const { response } = await dialog.showMessageBox(mainWindow ?? undefined, {
-      type: "info",
-      buttons: ["Restart now", "Later"],
-      defaultId: 0,
-      cancelId: 1,
-      title: "Update ready",
-      message: `NetSeer ${info.version} is ready to install.`,
-      detail: "Restart NetSeer to finish updating.",
-    });
-    if (response === 0) {
-      shuttingDown = true;
-      stopSidecar();
-      // isSilent: install without the setup wizard; isForceRunAfter: relaunch when done.
-      autoUpdater.quitAndInstall(true, true);
+  autoUpdater.on("download-progress", (p) =>
+    sendUpdate({ state: "downloading", manual: updateManualCheck, percent: p.percent, transferred: p.transferred, total: p.total, bytesPerSecond: p.bytesPerSecond })
+  );
+  autoUpdater.on("update-downloaded", (info) => {
+    // Always surface this (manual or background): the restart prompt is the one thing the user acts on.
+    const shown = sendUpdate({ state: "ready", version: info?.version });
+    updateManualCheck = false;
+    // Fallback only if there's no window to show the in-app prompt (e.g. closed to tray and destroyed).
+    if (!shown) {
+      dialog
+        .showMessageBox(undefined, { type: "info", buttons: ["Restart now", "Later"], defaultId: 0, cancelId: 1, title: "Update ready", message: `NetSeer ${info?.version} is ready to install.`, detail: "Restart NetSeer to finish updating." })
+        .then(({ response }) => response === 0 && installUpdate());
     }
   });
   autoUpdater.on("error", (err) => {
     log("update check failed:", err == null ? "unknown" : err.message);
-    if (updateManualCheck) notify("Couldn't check for updates", "Try again later, or download the newest version from GitHub.");
+    sendUpdate({ state: "error", manual: updateManualCheck, message: err?.message || "Something went wrong." });
     updateManualCheck = false;
   });
   // Only check on launch when the user leaves auto-update on; the Check-for-updates button always works.
   if (readShellSettings().autoUpdate) {
-    autoUpdater.checkForUpdatesAndNotify().catch((err) => log("update check error:", err.message));
+    autoUpdater.checkForUpdates().catch((err) => log("update check error:", err.message));
   }
+}
+
+function installUpdate() {
+  shuttingDown = true;
+  stopSidecar();
+  // isSilent: install without the setup wizard; isForceRunAfter: relaunch when done.
+  autoUpdater.quitAndInstall(true, true);
 }
 
 function checkForUpdatesNow() {
   if (!app.isPackaged) {
-    notify("Updates", "Auto-update runs in the installed app. From source, update with git/uv as usual.");
+    sendUpdate({ state: "error", manual: true, message: "Auto-update runs in the installed app. From source, update with git/uv as usual." });
     return;
   }
   updateManualCheck = true;
   autoUpdater.checkForUpdates().catch((err) => log("manual update check error:", err.message));
-}
-
-function notify(title, body) {
-  dialog.showMessageBox(mainWindow ?? undefined, { type: "info", title, message: title, detail: body });
 }
 
 function showAbout() {
@@ -338,6 +350,7 @@ ipcMain.on("window:toggle-maximize", (e) => {
 ipcMain.on("window:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 ipcMain.handle("window:is-maximized", (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized());
 ipcMain.on("updates:check", () => checkForUpdatesNow());
+ipcMain.on("updates:install", () => installUpdate());
 ipcMain.handle("updates:get-auto", () => readShellSettings().autoUpdate);
 ipcMain.on("updates:set-auto", (_e, on) => {
   writeShellSettings({ autoUpdate: !!on });
