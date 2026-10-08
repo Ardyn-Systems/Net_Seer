@@ -7713,6 +7713,7 @@ function handleUpdateStatus(s) {
   }
   show("eupdate-releases", false);
   show("eupdate-restart", false);
+  show("eupdate-install", false);
   show("eupdate-progress", false);
   el("eupdate-later").textContent = "Later";
   switch (s.state) {
@@ -7723,10 +7724,12 @@ function handleUpdateStatus(s) {
       open();
       break;
     case "available":
+      // A manual check found an update: let the user start it with the Install button.
       el("eupdate-title").textContent = "Update available";
-      el("eupdate-text").textContent = `NetSeer ${s.version || ""} is downloading…`.replace("  ", " ");
-      showUpdateProgress(s);
+      el("eupdate-text").textContent = `NetSeer ${s.version || "a newer version"} is available. You have ${state.server.version}.`;
+      show("eupdate-install", true);
       open();
+      el("eupdate-install").focus();
       break;
     case "downloading":
       el("eupdate-title").textContent = "Downloading update";
@@ -7761,6 +7764,12 @@ function handleUpdateStatus(s) {
 function bindUpdateDialog() {
   const dialog = el("eupdate-dialog");
   el("eupdate-later").addEventListener("click", () => dialog.close());
+  el("eupdate-install").addEventListener("click", () => {
+    window.netseerShell?.downloadUpdate?.();
+    el("eupdate-title").textContent = "Downloading update";
+    show("eupdate-install", false);
+    showUpdateProgress({}); // indeterminate until the first progress event
+  });
   el("eupdate-restart").addEventListener("click", () => {
     el("eupdate-restart").disabled = true;
     el("eupdate-text").textContent = "Restarting to install…";
