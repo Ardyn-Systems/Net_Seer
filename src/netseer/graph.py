@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import math
 import re
 from typing import Any
 
@@ -88,6 +89,7 @@ def _link_service_label(rec: dict[str, Any], fallback: str) -> str:
 
 # Sightings closer together than this count as one stretch of activity.
 SEEN_GAP_SECONDS = 60.0
+TRACK_CAP = 2000  # GPS sightings kept per device before downsampling, to bound the saved map
 
 
 def merge_seen(intervals: list[list[float]], gap: float = SEEN_GAP_SECONDS) -> list[list[float]]:
@@ -183,6 +185,38 @@ def infer_display_name(rec: dict[str, Any], l2_degree: int = 0) -> str:
     return "Host"
 
 
+def estimate_location(track: list[list[float]]) -> dict[str, Any] | None:
+    """Estimate a transmitter's location from its GPS sightings, weighted by signal.
+
+    A signal-weighted centroid (the approach WiGLE uses): the spots where a device was heard
+    loudest pull the estimate toward it. RSSI is noisy — multipath, obstacles, antennas — so this
+    is an estimate, and it only means much when the device was heard from several different places.
+    Returns {lat, lon, n, radius_m (weighted spread of the sightings), span_m (how spread out they
+    were)} or None when there isn't enough to say.
+    """
+    pts = [(p[0], p[1], p[3]) for p in track if len(p) >= 4 and p[0] is not None and p[1] is not None and p[3] is not None]
+    if len(pts) < 3:
+        return None
+    smin = min(s for _, _, s in pts)
+    weights = [(s - smin + 1.0) ** 2 for _, _, s in pts]  # louder sightings count for more
+    wsum = sum(weights)
+    if wsum <= 0:
+        return None
+    lat = sum(w * la for (la, _, _), w in zip(pts, weights)) / wsum
+    lon = sum(w * lo for (_, lo, _), w in zip(pts, weights)) / wsum
+    coslat = math.cos(math.radians(lat))
+    dists = [math.hypot((lo - lon) * 111_320.0 * coslat, (la - lat) * 111_320.0) for la, lo, _ in pts]
+    radius = math.sqrt(sum(w * d * d for w, d in zip(weights, dists)) / wsum)
+    return {
+        "lat": round(lat, 6),
+        "lon": round(lon, 6),
+        "n": len(pts),
+        "radius_m": round(radius, 1),
+        "span_m": round(max(dists), 1),
+        "method": "rssi-weighted-centroid",
+    }
+
+
 def device_map_label(node: Any) -> str:
     """Clean on-map name: inferred/override type, plus optional user caption."""
     name = (getattr(node, "label", None) or getattr(node, "inferred_type", None) or "Host").strip()
@@ -247,6 +281,7 @@ class GraphBuilder:
                 "routing": {},
                 "extra": {},
                 "seen": [],
+                "track": [],
             }
             self.devices[node_id] = rec
         if self.now is not None:
@@ -516,6 +551,20 @@ class GraphBuilder:
         rec["signal_max_dbm"] = (
             float(dbm) if rec["signal_max_dbm"] is None else max(rec["signal_max_dbm"], float(dbm))
         )
+
+    def observe_track(self, node_id: str, lat: float | None, lon: float | None, t: float | None = None, sig: float | None = None) -> None:
+        """One GPS sighting of a device: where (and, if known, when and how strong)."""
+        if lat is None or lon is None:
+            return
+        try:
+            point = [float(lat), float(lon), None if t is None else float(t), None if sig is None else float(sig)]
+        except (TypeError, ValueError):
+            return
+        track = self._device(node_id)["track"]
+        track.append(point)
+        # A very long dwell on one device would bloat the saved map; downsample to stay bounded.
+        if len(track) > TRACK_CAP * 2:
+            del track[::2]
 
     def observe_rf(
         self,
@@ -1050,6 +1099,9 @@ class GraphBuilder:
         nodes: list[Node] = []
         for rec in self.devices.values():
             gps = rec["gps"]
+            est = estimate_location(rec["track"])
+            if est:
+                rec["extra"]["est_location"] = est
             inferred = rec.get("inferred_type") or infer_display_name(rec, l2_degree.get(rec["id"], 0))
             nodes.append(
                 Node(
@@ -1080,6 +1132,7 @@ class GraphBuilder:
                     extra=rec["extra"],
                     inferred_type=inferred,
                     seen=merge_seen(rec.get("seen") or []),
+                    track=rec.get("track") or [],
                 )
             )
         for net, rec in self.subnets.items():

@@ -53,6 +53,9 @@ class Node:
     notes: str = ""
     # When it was heard: [[start, end], ...] in Unix seconds (UTC). Empty when the survey has no times.
     seen: list[list[float]] = field(default_factory=list)
+    # Where (and when) each observation was: [[lat, lon, t|None, signal_dbm|None], ...].
+    # From wardrive surveys that record a GPS fix per sighting; empty otherwise.
+    track: list[list[float]] = field(default_factory=list)
 
 
 @dataclass

@@ -1397,7 +1397,7 @@ function graphSpan(graph) {
 
 // Whether a map or survey has a timeline. Formats that never record times are known before
 // a survey is opened; anything opened is checked (once per graph).
-const UNTIMED_KINDS = new Set(["kismet-netxml", "kismet-csv", "airodump-csv", "wigle-csv", "craxiom-csv"]);
+const UNTIMED_KINDS = new Set(["kismet-netxml", "kismet-csv", "airodump-csv"]);
 const spanCache = new WeakMap();
 function hasTimeline(graph) {
   if (!graph) return null;
@@ -3120,6 +3120,15 @@ function devicePanel(raw) {
         ${factRow("Security", n.encryption)}
         ${factRow("GPS", gps, { mono: true })}
       </dl></div>`
+        : ""
+    }
+    ${
+      n.track?.length || n.extra?.est_location
+        ? `<div class="insp-section"><h3>Location</h3><dl class="facts">
+        ${factRow("Sightings", n.track?.length ? [`${n.track.length} GPS ${n.track.length === 1 ? "fix" : "fixes"}`] : null)}
+        ${n.extra?.est_location ? factRow("Estimated", [`${n.extra.est_location.lat}, ${n.extra.est_location.lon}`], { mono: true }) : ""}
+        ${n.extra?.est_location ? factRow("From", [`${n.extra.est_location.n} readings · spread ±${formatMetres(n.extra.est_location.radius_m)}`]) : ""}
+      </dl>${n.extra?.est_location ? '<p class="hint">A signal-weighted estimate of where the transmitter is — most reliable when it was heard from several different spots.</p>' : ""}</div>`
         : ""
     }
     ${n.services?.length || ports.length ? `<div class="insp-section"><h3>Services</h3>${chips([...new Set([...ports, ...(n.services || []).filter((s) => !ports.some((p) => p.startsWith(s)))])])}</div>` : ""}
@@ -5675,6 +5684,11 @@ function renderThemeGrid() {
 function formatSize(bytes) {
   if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatMetres(m) {
+  const v = Number(m) || 0;
+  return v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} km` : `${Math.max(1, Math.round(v))} m`;
 }
 
 async function refreshDataSummary() {

@@ -50,6 +50,18 @@ def _coerce(name: str, spec: Any, value: Any) -> Any:
                     if start is not None and end is not None and end >= start:
                         pairs.append([start, end])
             return pairs
+        if name == "track":  # [[lat, lon, t|None, signal|None], ...]
+            points = []
+            for item in value:
+                if not isinstance(item, (list, tuple)) or len(item) < 2:
+                    continue
+                lat, lon = _optional_float(item[0]), _optional_float(item[1])
+                if lat is None or lon is None:
+                    continue
+                t = _optional_float(item[2]) if len(item) > 2 else None
+                sig = _optional_float(item[3]) if len(item) > 3 else None
+                points.append([lat, lon, t, sig])
+            return points
         return [str(item) for item in value if item is not None]
     if spec.default_factory is dict:
         return value if isinstance(value, dict) else {}

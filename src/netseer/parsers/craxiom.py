@@ -9,9 +9,21 @@ from __future__ import annotations
 
 import csv
 import io
+from datetime import datetime
 
 from netseer.graph import GraphBuilder
 from netseer.models import GpsFix
+
+
+def _craxiom_time(text: str) -> float | None:
+    """Network Survey deviceTime, ISO 8601 with offset (e.g. 2026-10-03T19:25:10.38-04:00)."""
+    text = text.strip()
+    if not text:
+        return None
+    try:
+        return datetime.fromisoformat(text).timestamp()
+    except ValueError:
+        return None
 
 # Network Survey's encryptionType enum -> tokens NetSeer's security engine understands.
 _ENCRYPTION = {
@@ -49,40 +61,33 @@ def parse_craxiom_csv(builder: GraphBuilder, data: bytes, filename: str) -> None
         key = fields.get(name.lower())
         return (row.get(key) or "").strip() if key else ""
 
-    for row in reader:
-        bssid = col(row, "bssid")
-        if not bssid:
-            continue
-        builder.packet_count += 1
-        ssid = col(row, "ssid") or None
-        channel = col(row, "channel")
-        freq = col(row, "frequencyMhz")
-        signal = col(row, "signalStrength")
-        lat, lon, alt = col(row, "latitude"), col(row, "longitude"), col(row, "altitude")
+    def num(text: str, cast):
         try:
-            ch = int(float(channel)) if channel else None
+            return cast(float(text)) if text else None
         except ValueError:
-            ch = None
-        try:
-            mhz = float(freq) if freq else None
-        except ValueError:
-            mhz = None
-        try:
-            sig = float(signal) if signal else None
-        except ValueError:
-            sig = None
-        gps = None
-        try:
-            if lat and lon:
-                gps = GpsFix(lat=float(lat), lon=float(lon), alt=float(alt) if alt else None)
-        except ValueError:
-            gps = None
-        builder.add_ap(
-            bssid,
-            ssid=ssid,
-            channel=ch,
-            frequency_mhz=mhz,
-            encryption=_craxiom_encryption(col(row, "encryptionType"), col(row, "wps")),
-            signal_dbm=sig,
-            gps=gps,
-        )
+            return None
+
+    try:
+        for row in reader:
+            bssid = col(row, "bssid")
+            if not bssid:
+                continue
+            builder.packet_count += 1
+            sig = num(col(row, "signalStrength"), float)
+            lat, lon, alt = num(col(row, "latitude"), float), num(col(row, "longitude"), float), num(col(row, "altitude"), float)
+            gps = GpsFix(lat=lat, lon=lon, alt=alt) if lat is not None and lon is not None else None
+            t = _craxiom_time(col(row, "deviceTime"))
+            builder.now = t
+            node_id = builder.add_ap(
+                bssid,
+                ssid=col(row, "ssid") or None,
+                channel=num(col(row, "channel"), int),
+                frequency_mhz=num(col(row, "frequencyMhz"), float),
+                encryption=_craxiom_encryption(col(row, "encryptionType"), col(row, "wps")),
+                signal_dbm=sig,
+                gps=gps,
+            )
+            if node_id:
+                builder.observe_track(node_id, lat, lon, t, sig)
+    finally:
+        builder.now = None

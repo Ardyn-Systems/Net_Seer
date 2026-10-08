@@ -208,6 +208,7 @@ Select one device to see:
 - **Name on map** and **Caption under the name** (shown as a second line on the map). **Use auto name** goes back to the inferred type.
 - **Identity**: IPs, MACs (TX / RX / DA / RA when the frames show them), maker (IEEE OUI), VLANs.
 - **Radio**: SSID, channel, frequency, signal range, security, GPS (when present).
+- **Location** (wardrive surveys): how many times the device was seen with a GPS fix, and an **estimated location** — a signal-weighted centroid of those sightings (the approach WiGLE uses). It's most reliable when the device was heard from several different spots; RSSI is noisy, so treat it as an estimate.
 - **Security**: findings, known vulnerabilities (with EPSS), and captured Wi-Fi handshakes; see [Security](#security).
 - **Services** and **Routing** (OSPF, default gateway, DHCP, DNS).
 - **Notes** for anything you want to keep.
