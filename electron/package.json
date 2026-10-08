@@ -1,7 +1,7 @@
 {
   "name": "netseer-desktop",
   "productName": "NetSeer",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Turn traffic into terrain. Electron shell for the NetSeer backend.",
   "author": {
     "name": "Ardyn Systems"
