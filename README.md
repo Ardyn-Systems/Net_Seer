@@ -260,7 +260,7 @@ The logo lives in `packaging/brand/` as SVG. After editing it, regenerate every 
 GitHub Actions ([`electron.yml`](.github/workflows/electron.yml)) builds both platforms. It freezes the Python backend into a sidecar with **PyInstaller**, then packages the **Electron** shell around it with **electron-builder**. On every pull request it smoke-tests the build and uploads the files as workflow artifacts. Pushing a version tag also attaches them to a GitHub release:
 
 ```bash
-git tag v0.7.4 && git push origin v0.7.4
+git tag v0.7.5 && git push origin v0.7.5
 ```
 
 Keep the tag in step with `version` in `pyproject.toml`, `__version__` in `src/netseer/__init__.py`, and `version` in `electron/package.json`.
