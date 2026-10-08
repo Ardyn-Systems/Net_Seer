@@ -263,7 +263,7 @@ The logo lives in `packaging/brand/` as SVG. After editing it, regenerate every 
 GitHub Actions builds both platforms. On every pull request it checks the build and uploads the files as workflow artifacts. Pushing a version tag also attaches them to a GitHub release:
 
 ```bash
-git tag v0.6.4 && git push origin v0.6.4
+git tag v0.7.0 && git push origin v0.7.0
 ```
 
 Keep the tag in step with `version` in `pyproject.toml` and `__version__` in `src/netseer/__init__.py`.
@@ -274,7 +274,7 @@ Keep the tag in step with `version` in `pyproject.toml` and `__version__` in `sr
 python -m pip install . "pywebview>=5.3" "pyinstaller>=6.10"
 pyinstaller packaging/windows/netseer.spec --noconfirm --clean
 dist\NetSeer\NetSeer.exe --smoke-test
-iscc /DAppVersion=0.6.4 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
+iscc /DAppVersion=0.7.0 packaging\windows\netseer.iss   # installer; needs Inno Setup 6
 ```
 
 Code signing switches on once the Azure Artifact Signing secrets exist; see [packaging/windows/SIGNING.md](packaging/windows/SIGNING.md).
@@ -285,7 +285,7 @@ Code signing switches on once the Azure Artifact Signing secrets exist; see [pac
 python -m pip install . "pyinstaller>=6.10"
 pyinstaller packaging/linux/netseer.spec --noconfirm --clean
 dist/NetSeer/NetSeer --smoke-test
-bash packaging/linux/build-appimage.sh 0.6.4   # AppImage and .tar.gz in dist/
+bash packaging/linux/build-appimage.sh 0.7.0   # AppImage and .tar.gz in dist/
 ```
 
 ## Update and uninstall
