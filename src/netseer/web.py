@@ -116,6 +116,37 @@ def _http_error(exc: Exception, status: int = 400) -> HTTPException:
     return HTTPException(status_code=status, detail=str(exc))
 
 
+LOOPBACK_CLIENTS = {"127.0.0.1", "::1", "localhost"}
+
+
+def bound_host() -> str:
+    """The address the server was launched on (set by the launcher); 127.0.0.1 unless on the LAN."""
+    return os.environ.get("NETSEER_BOUND_HOST", "127.0.0.1")
+
+
+def _client_is_local(request: Request) -> bool:
+    return bool(request.client) and request.client.host in LOOPBACK_CLIENTS
+
+
+def _lan_allowed_path(path: str) -> bool:
+    """Paths a paired companion app may reach from the LAN: discovery, pairing, and pushing."""
+    return path in {"/api/v1/info", "/api/v1/pair"} or path.startswith("/api/v1/ingest") or path.startswith("/api/v1/live")
+
+
+@app.middleware("http")
+async def lan_guard(request: Request, call_next):
+    """When exposed on the LAN, non-local clients may only reach the token-gated integration API.
+
+    The gate is only active when the server is actually bound to all interfaces (0.0.0.0) and this
+    isn't the public hosted copy. On a loopback bind no remote client can connect, so this is a
+    no-op — which also keeps it out of the way of the test client.
+    """
+    if not hosted_mode() and bound_host() == "0.0.0.0" and not _client_is_local(request):
+        if not integration.lan_enabled() or not _lan_allowed_path(request.url.path):
+            return JSONResponse({"detail": "This address only serves paired companion apps."}, status_code=403)
+    return await call_next(request)
+
+
 # Last time an open NetSeer page checked in (time.monotonic()), and when it said goodbye.
 # The desktop launcher's browser fallback uses this to quit once the tab is closed.
 PRESENCE: dict[str, float | None] = {"last": None, "bye": None}
@@ -491,7 +522,8 @@ def _own_page_ws(websocket: WebSocket) -> bool:
 @app.websocket("/api/v1/events")
 async def integration_events(websocket: WebSocket) -> None:
     """NetSeer's page subscribes here to hear when a companion app pushes a capture."""
-    if hosted_mode() or not _own_page_ws(websocket):
+    remote = bound_host() == "0.0.0.0" and not (websocket.client and websocket.client.host in LOOPBACK_CLIENTS)
+    if hosted_mode() or remote or not _own_page_ws(websocket):
         await websocket.close(code=1008)
         return
     await websocket.accept()
@@ -552,6 +584,34 @@ def revoke_paired_device(request: Request, device_id: str) -> Response:
     if not integration.revoke(device_id):
         raise HTTPException(status_code=404, detail="That device isn't paired.")
     return Response(status_code=204)
+
+
+def _network_state() -> dict:
+    enabled = integration.lan_enabled()
+    reachable = bound_host() == "0.0.0.0"
+    return {
+        "enabled": enabled,
+        "reachable": reachable,  # whether the socket is actually open on the network yet
+        "restart_needed": enabled != reachable,  # a restart rebinds the socket to match the setting
+        "addresses": integration.lan_addresses(),
+    }
+
+
+@app.get("/api/v1/network")
+def integration_network(request: Request) -> dict:
+    """LAN-sharing state, for Settings → Integrations (NetSeer's own window only)."""
+    _require_integration()
+    _guard_own_window(request)
+    return _network_state()
+
+
+@app.post("/api/v1/network")
+def set_integration_network(request: Request, body: dict) -> dict:
+    """Turn 'Allow devices on my network' on or off. Takes effect on the socket at the next restart."""
+    _require_integration()
+    _guard_own_window(request)
+    integration.set_lan_enabled(bool(body.get("enabled")))
+    return _network_state()
 
 
 @app.post("/api/v1/ingest/capture")

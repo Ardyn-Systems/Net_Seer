@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import secrets
+import socket
 import threading
 import time
 from dataclasses import dataclass
@@ -45,6 +46,58 @@ def integration_dir() -> Path:
 
 def _store() -> Path:
     return integration_dir() / "devices.json"
+
+
+def _settings_path() -> Path:
+    return integration_dir() / "settings.json"
+
+
+SETTINGS_DEFAULTS = {"lan_enabled": False}
+
+
+def settings() -> dict:
+    try:
+        data = json.loads(_settings_path().read_text("utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    return {**SETTINGS_DEFAULTS, **(data if isinstance(data, dict) else {})}
+
+
+def lan_enabled() -> bool:
+    """Whether the user has opted to let devices on the local network reach the integration API."""
+    return bool(settings().get("lan_enabled"))
+
+
+def set_lan_enabled(on: bool) -> dict:
+    with _lock:
+        data = settings()
+        data["lan_enabled"] = bool(on)
+        tmp = _settings_path().with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2), "utf-8")
+        tmp.replace(_settings_path())
+    return data
+
+
+def lan_addresses() -> list[str]:
+    """This machine's non-loopback IPv4 addresses, for telling a companion app where to reach NetSeer."""
+    ips: set[str] = set()
+    try:
+        for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
+            ip = info[4][0]
+            if not ip.startswith("127."):
+                ips.add(ip)
+    except OSError:
+        pass
+    try:  # the primary outbound interface, even when the hostname doesn't resolve to it
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        probe.connect(("192.0.2.1", 1))  # TEST-NET-1: routed but never answered, so nothing is sent
+        ip = probe.getsockname()[0]
+        probe.close()
+        if not ip.startswith("127."):
+            ips.add(ip)
+    except OSError:
+        pass
+    return sorted(ips)
 
 
 def _hash(token: str) -> str:

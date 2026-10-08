@@ -216,8 +216,14 @@ class ServerThread(threading.Thread):
         from netseer.web import app
 
         self.port = port
+        from netseer import integration
+
+        # Expose on the LAN only when the user opted in (Settings → Integrations); the LAN guard in
+        # web.py still limits non-local clients to the token-gated integration API.
+        host = "0.0.0.0" if integration.lan_enabled() else "127.0.0.1"
+        os.environ["NETSEER_BOUND_HOST"] = host
         # log_config=None: uvicorn's default config writes to a console the .exe doesn't have.
-        config = uvicorn.Config(app, host="127.0.0.1", port=port, log_config=None, access_log=False, log_level="info")
+        config = uvicorn.Config(app, host=host, port=port, log_config=None, access_log=False, log_level="info")
         self.server = uvicorn.Server(config)
 
     def run(self) -> None:

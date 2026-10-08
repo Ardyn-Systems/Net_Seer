@@ -19,6 +19,14 @@ def _client(monkeypatch, tmp_path):
     return webmod, TestClient(webmod.app, base_url="http://localhost")
 
 
+def _client_at(monkeypatch, tmp_path, client_addr):
+    monkeypatch.setenv("NETSEER_INTEGRATION_DIR", str(tmp_path / "integration"))
+    monkeypatch.delenv("NETSEER_HOSTED", raising=False)
+    import netseer.web as webmod
+
+    return webmod, TestClient(webmod.app, base_url="http://localhost", client=client_addr)
+
+
 def _pair(client, name="WaveTop"):
     start = client.post("/api/v1/pair/start", headers={"x-netseer-window": "1"})
     assert start.status_code == 200, start.text
@@ -150,3 +158,41 @@ def test_events_channel_closed_on_hosted_copy(monkeypatch, tmp_path):
     with pytest.raises(Exception):
         with client.websocket_connect("/api/v1/events") as ws:
             ws.receive_text()
+
+
+def test_network_setting_is_window_only(monkeypatch, tmp_path):
+    _, client = _client(monkeypatch, tmp_path)
+    assert client.get("/api/v1/network").status_code == 403
+    win = {"x-netseer-window": "1"}
+    assert client.get("/api/v1/network", headers=win).json()["enabled"] is False
+    res = client.post("/api/v1/network", json={"enabled": True}, headers=win).json()
+    assert res["enabled"] is True
+    from netseer import integration
+
+    assert integration.lan_enabled() is True
+
+
+def test_lan_guard_limits_non_local_clients(monkeypatch, tmp_path):
+    monkeypatch.setenv("NETSEER_BOUND_HOST", "0.0.0.0")
+    _, remote = _client_at(monkeypatch, tmp_path, ("192.168.1.9", 5000))
+    # LAN sharing off: a non-local client is blocked everywhere.
+    assert remote.get("/").status_code == 403
+    assert remote.get("/api/v1/info").status_code == 403
+    from netseer import integration
+
+    integration.set_lan_enabled(True)
+    # On: a non-local client reaches discovery/pairing/ingest only.
+    assert remote.get("/api/v1/info").status_code == 200
+    assert remote.get("/").status_code == 403  # the UI stays local-only
+    assert remote.get("/api/v1/devices", headers={"x-netseer-window": "1"}).status_code == 403  # management too
+    # A local client still reaches everything.
+    _, local = _client_at(monkeypatch, tmp_path, ("127.0.0.1", 5000))
+    assert local.get("/api/health").status_code == 200
+    assert local.get("/").status_code == 200
+
+
+def test_lan_guard_inactive_on_loopback_bind(monkeypatch, tmp_path):
+    monkeypatch.setenv("NETSEER_BOUND_HOST", "127.0.0.1")
+    _, remote = _client_at(monkeypatch, tmp_path, ("192.168.1.9", 5000))
+    # Bound to loopback, the guard is a no-op (nothing remote can really connect anyway).
+    assert remote.get("/api/v1/info").status_code == 200
