@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Wrap the PyInstaller output (dist/NetSeer) into an AppImage and a portable tarball.
-#   bash packaging/linux/build-appimage.sh 0.6.4
+#   bash packaging/linux/build-appimage.sh 0.7.0
 set -euo pipefail
 
 VERSION="${1:?usage: build-appimage.sh <version>}"
