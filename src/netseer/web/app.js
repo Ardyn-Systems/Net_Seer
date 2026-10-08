@@ -2712,6 +2712,8 @@ function toElements(graph) {
 }
 
 function renderMap({ fit = true } = {}) {
+  syncGeoButton();
+  geoOnGraphChange();
   const viewport = !fit && state.cy ? { zoom: state.cy.zoom(), pan: { ...state.cy.pan() } } : null;
   if (state.cy) {
     state.cy.destroy();
@@ -3141,6 +3143,7 @@ function devicePanel(raw) {
     </div>
     <div class="insp-section insp-actions">
       <button type="button" class="btn small" data-act="copy-details">Copy details</button>
+      ${geoLocated(n) ? '<button type="button" class="btn small" data-act="geo" title="Show where this was seen on a map">Show on map</button>' : ""}
       ${isDeviceNode(raw) ? '<button type="button" class="btn small" data-act="connect" title="Connect to another device from information you have">Connect to…</button>' : ""}
       ${isDeviceNode(raw) && (state.graph?.links || []).some((l) => l.source === raw.id || l.target === raw.id) ? '<button type="button" class="btn small" data-act="disconnect" title="Remove links to another device; nothing moves">Disconnect from…</button>' : ""}
       ${isDeviceNode(raw) ? '<button type="button" class="btn small" data-act="member">Add to network…</button>' : ""}
@@ -3334,7 +3337,10 @@ function runAction(act, anchor) {
   else if (act === "unwanted") moveSelectedTo(UNWANTED_ID);
   else if (act === "move") openMoveMenu(anchor);
   else if (act === "copy-details") copyDeviceDetails();
-  else if (act === "connect") {
+  else if (act === "geo") {
+    const id = selectedIds()[0];
+    if (id) showDeviceOnMap(id);
+  } else if (act === "connect") {
     const ids = selectedIds();
     if (ids.length === 2) openConnectDialog(ids[0], ids[1]);
     else if (ids.length === 1) startConnect(ids[0]);
@@ -3414,6 +3420,7 @@ function showContextMenu(x, y, onNode) {
         { label: "Cut", kbd: "Ctrl X", onSelect: cutSelected },
         { label: "Paste", kbd: "Ctrl V", disabled: !hasClip, onSelect: pasteClipboard },
         "sep",
+        ...(selectedIds().length === 1 && geoLocated(nodeById(selectedIds()[0]) || {}) ? [{ label: "Show on map", onSelect: () => showDeviceOnMap(selectedIds()[0]) }, "sep"] : []),
         { label: "Set aside in Unwanted", onSelect: () => moveSelectedTo(UNWANTED_ID) },
         ...connectMenuItems(),
         "sep",
@@ -7405,6 +7412,273 @@ function synthwave(ctx, fx) {
   return { every: 40, fit: draw, draw, still: draw };
 }
 
+/* ---------- Geo map (GPS) ---------- */
+// A real-world map of where devices were seen. Offline by default (markers on a lat/lon grid with a
+// scale, nothing leaves the machine); an opt-in street basemap loads OpenStreetMap tiles online.
+
+const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const geo = {
+  map: null,
+  features: null, // device markers + estimate spread circles
+  path: null, // operator path polyline
+  focusLayer: null, // focused device's own sightings
+  tiles: null,
+  mode: "whole", // "whole" | "added"
+  added: new Set(),
+  focusId: null,
+  tmin: null,
+  tmax: null,
+  cutoff: null,
+};
+
+const geoLocated = (n) => (n.track && n.track.length) || (Number.isFinite(n.gps?.lat) && Number.isFinite(n.gps?.lon));
+const geoDevices = () => (state.graph?.nodes || []).filter((n) => isDeviceNode(n) && geoLocated(n));
+
+function syncGeoButton() {
+  show("btn-geo", geoDevices().length > 0);
+}
+
+// Keep the geo map in step when the active map changes: forget devices that are gone, and redraw
+// if it's open.
+function geoOnGraphChange() {
+  const ids = new Set((state.graph?.nodes || []).map((n) => n.id));
+  for (const id of [...geo.added]) if (!ids.has(id)) geo.added.delete(id);
+  if (geo.focusId && !ids.has(geo.focusId)) geo.focusId = null;
+  if (geo.map && !el("geo-view").classList.contains("hidden")) renderGeo(false);
+}
+
+function geoColor(n) {
+  const c = themeColors();
+  return c[nodeRole(n)] || c.host;
+}
+
+// Best guess of where a device is: its estimated location if we have one, else its kept fix, else
+// the mean of its sightings.
+function geoPoint(n) {
+  const e = n.extra?.est_location;
+  if (e && Number.isFinite(e.lat) && Number.isFinite(e.lon)) return { lat: e.lat, lon: e.lon, estimated: true };
+  if (Number.isFinite(n.gps?.lat) && Number.isFinite(n.gps?.lon)) return { lat: n.gps.lat, lon: n.gps.lon, estimated: false };
+  if (n.track?.length) {
+    const la = n.track.reduce((s, p) => s + p[0], 0) / n.track.length;
+    const lo = n.track.reduce((s, p) => s + p[1], 0) / n.track.length;
+    return { lat: la, lon: lo, estimated: false };
+  }
+  return null;
+}
+
+function geoTimeRange(devs) {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const n of devs) for (const p of n.track || []) if (Number.isFinite(p[2])) ((lo = Math.min(lo, p[2])), (hi = Math.max(hi, p[2])));
+  return Number.isFinite(lo) && hi > lo ? [lo, hi] : null;
+}
+
+function initGeoMap() {
+  geo.map = L.map("geo-map", { zoomControl: true, attributionControl: true, preferCanvas: true });
+  geo.map.setView([0, 0], 2);
+  L.control.scale({ imperial: true, metric: true }).addTo(geo.map);
+  geo.features = L.layerGroup().addTo(geo.map);
+  geo.path = L.layerGroup().addTo(geo.map);
+  geo.focusLayer = L.layerGroup().addTo(geo.map);
+}
+
+function geoVisibleDevices() {
+  let devs = geoDevices();
+  if (geo.mode === "added") devs = devs.filter((n) => geo.added.has(n.id));
+  if (geo.cutoff != null) {
+    devs = devs.filter((n) => {
+      const timed = (n.track || []).some((p) => Number.isFinite(p[2]));
+      return !timed || (n.track || []).some((p) => Number.isFinite(p[2]) && p[2] <= geo.cutoff);
+    });
+  }
+  return devs;
+}
+
+function geoPopup(n) {
+  const sig = n.signal_dbm != null ? `${n.signal_dbm} dBm` : "";
+  const e = n.extra?.est_location;
+  const est = e ? `Estimated from ${e.n} readings (±${formatMetres(e.radius_m)}).` : "";
+  const sightings = n.track?.length ? `${n.track.length} GPS ${n.track.length === 1 ? "fix" : "fixes"}` : "";
+  return `<div class="geo-pop"><strong>${escapeHtml(displayName(n))}</strong>
+    <div class="geo-pop-sub">${escapeHtml([inferredName(n), sig].filter(Boolean).join(" · "))}</div>
+    ${sightings ? `<div class="geo-pop-row">${escapeHtml(sightings)}</div>` : ""}
+    ${est ? `<div class="geo-pop-row hint">${escapeHtml(est)}</div>` : ""}
+    <button type="button" class="btn small" data-geo-open="${escapeHtml(n.id)}">Open details</button></div>`;
+}
+
+function renderGeo(fit = false) {
+  if (!geo.map) return;
+  geo.features.clearLayers();
+  geo.path.clearLayers();
+  geo.focusLayer.clearLayers();
+  const devs = geoVisibleDevices();
+  const showEst = el("geo-estimates").checked;
+  const bounds = [];
+  for (const n of devs) {
+    const pt = geoPoint(n);
+    if (!pt) continue;
+    const color = geoColor(n);
+    if (showEst && n.extra?.est_location) {
+      L.circle([pt.lat, pt.lon], { radius: n.extra.est_location.radius_m || 1, color, weight: 1, opacity: 0.5, fillColor: color, fillOpacity: 0.06 }).addTo(geo.features);
+    }
+    const m = L.circleMarker([pt.lat, pt.lon], {
+      radius: n.id === geo.focusId ? 8 : 6,
+      color,
+      weight: n.id === geo.focusId ? 3 : 2,
+      fillColor: color,
+      fillOpacity: pt.estimated ? 0.25 : 0.7,
+    });
+    m.bindPopup(geoPopup(n));
+    m.addTo(geo.features);
+    bounds.push([pt.lat, pt.lon]);
+  }
+  // Operator path: every sighting across visible devices, in time order, up to the cutoff.
+  if (el("geo-path").checked) {
+    const pts = [];
+    for (const n of devs) for (const p of n.track || []) if (Number.isFinite(p[0]) && Number.isFinite(p[1]) && (geo.cutoff == null || !Number.isFinite(p[2]) || p[2] <= geo.cutoff)) pts.push(p);
+    pts.sort((a, b) => (a[2] || 0) - (b[2] || 0));
+    if (pts.length > 1) L.polyline(pts.map((p) => [p[0], p[1]]), { color: themeColors().muted, weight: 2, opacity: 0.6, dashArray: "4 4" }).addTo(geo.path);
+  }
+  // Focused device: show each of its sightings as a small dot, joined in the order they were seen.
+  const focus = geo.focusId && devs.find((n) => n.id === geo.focusId);
+  if (focus && focus.track?.length) {
+    const color = geoColor(focus);
+    const seen = (focus.track || []).filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]) && (geo.cutoff == null || !Number.isFinite(p[2]) || p[2] <= geo.cutoff));
+    const ordered = [...seen].sort((a, b) => (a[2] || 0) - (b[2] || 0));
+    if (ordered.length > 1) L.polyline(ordered.map((p) => [p[0], p[1]]), { color, weight: 1.5, opacity: 0.8 }).addTo(geo.focusLayer);
+    for (const p of seen) {
+      L.circleMarker([p[0], p[1]], { radius: 3, color, weight: 1, fillColor: color, fillOpacity: 0.85 })
+        .bindTooltip(`${p[3] != null ? `${p[3]} dBm` : "seen"}${Number.isFinite(p[2]) ? ` · ${new Date(p[2] * 1000).toLocaleString()}` : ""}`)
+        .addTo(geo.focusLayer);
+      bounds.push([p[0], p[1]]);
+    }
+  }
+  el("geo-count").textContent = `${devs.length} ${devs.length === 1 ? "device" : "devices"}${geo.mode === "added" ? " added" : ""}`;
+  if (fit && bounds.length) geo.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+}
+
+function updateGeoTime() {
+  if (geo.tmin == null) {
+    geo.cutoff = null;
+    return;
+  }
+  const frac = Number(el("geo-time").value) / 1000;
+  geo.cutoff = geo.tmin + (geo.tmax - geo.tmin) * frac;
+  el("geo-time-from").textContent = new Date(geo.tmin * 1000).toLocaleString();
+  el("geo-time-to").textContent = frac >= 1 ? "all" : new Date(geo.cutoff * 1000).toLocaleString();
+}
+
+function syncGeoModeUi() {
+  el("geo-mode-whole").setAttribute("aria-selected", String(geo.mode === "whole"));
+  el("geo-mode-added").setAttribute("aria-selected", String(geo.mode === "added"));
+  show("geo-clear", geo.mode === "added");
+}
+
+function geoLegend() {
+  const items = [
+    ["ap", "Access point"],
+    ["wireless", "Wireless client"],
+    ["bluetooth", "Bluetooth"],
+    ["cell", "Cell tower"],
+    ["host", "Other device"],
+  ];
+  const c = themeColors();
+  el("geo-legend").innerHTML =
+    items.map(([k, label]) => `<span class="geo-leg"><i style="background:${c[k] || c.host}"></i>${escapeHtml(label)}</span>`).join("") +
+    `<span class="geo-leg"><i class="ring"></i>Estimated location (± spread)</span>`;
+}
+
+function openGeoMap(focusId = null) {
+  if (typeof L === "undefined") {
+    toast("The map library didn't load.");
+    return;
+  }
+  if (!geoDevices().length) {
+    toast("This survey has no GPS data to map.");
+    return;
+  }
+  el("geo-view").classList.remove("hidden");
+  if (focusId) {
+    geo.focusId = focusId;
+    if (geo.mode === "added") geo.added.add(focusId);
+  }
+  if (!geo.map) initGeoMap();
+  const range = geoTimeRange(geoDevices());
+  geo.tmin = range ? range[0] : null;
+  geo.tmax = range ? range[1] : null;
+  show("geo-timebar", !!range);
+  if (range) {
+    el("geo-time").value = 1000;
+    updateGeoTime();
+  } else {
+    geo.cutoff = null;
+  }
+  geoLegend();
+  syncGeoModeUi();
+  // The container just became visible; let it lay out before Leaflet measures and fits, or the
+  // first open draws nothing until the next interaction.
+  requestAnimationFrame(() => {
+    if (!geo.map) return;
+    geo.map.invalidateSize();
+    renderGeo(true);
+  });
+}
+
+function closeGeoMap() {
+  el("geo-view").classList.add("hidden");
+  geo.focusId = null;
+}
+
+function setGeoMode(mode) {
+  if (geo.mode === mode) return;
+  geo.mode = mode;
+  syncGeoModeUi();
+  renderGeo(true);
+}
+
+function setGeoStreet(on) {
+  if (!geo.map) return;
+  show("geo-street-note", on);
+  if (on && !geo.tiles) {
+    geo.tiles = L.tileLayer(OSM_TILES, { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(geo.map);
+  } else if (!on && geo.tiles) {
+    geo.map.removeLayer(geo.tiles);
+    geo.tiles = null;
+  }
+}
+
+function bindGeoMap() {
+  el("btn-geo").addEventListener("click", () => openGeoMap());
+  el("geo-close").addEventListener("click", closeGeoMap);
+  el("geo-mode-whole").addEventListener("click", () => setGeoMode("whole"));
+  el("geo-mode-added").addEventListener("click", () => setGeoMode("added"));
+  el("geo-clear").addEventListener("click", () => {
+    geo.added.clear();
+    renderGeo(true);
+  });
+  el("geo-street").addEventListener("change", (e) => setGeoStreet(e.target.checked));
+  el("geo-path").addEventListener("change", () => renderGeo(false));
+  el("geo-estimates").addEventListener("change", () => renderGeo(false));
+  el("geo-time").addEventListener("input", () => {
+    updateGeoTime();
+    renderGeo(false);
+  });
+  el("geo-map").addEventListener("click", (e) => {
+    const open = e.target.closest("[data-geo-open]");
+    if (!open) return;
+    closeGeoMap();
+    selectNodes([open.dataset.geoOpen], { center: true });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !el("geo-view").classList.contains("hidden")) closeGeoMap();
+  });
+}
+
+// Open the geo map focused on one device (from its details or right-click).
+function showDeviceOnMap(id) {
+  openGeoMap(id);
+}
+
 /* ---------- In-app update dialog (Electron) ---------- */
 // electron-updater's progress and prompts, shown inside the app window instead of native OS dialogs.
 // The shell forwards {state, version?, percent?, transferred?, total?, bytesPerSecond?, message?, manual?}.
@@ -7537,6 +7811,7 @@ async function init() {
   bindUi();
   bindReportDialog();
   bindSettings();
+  bindGeoMap();
   bindSidebarResize();
   bindManualDialogs();
   bindDisconnectDialog();

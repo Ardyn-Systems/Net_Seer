@@ -277,6 +277,15 @@ The **Layers** tab controls what's drawn, and how devices are arranged.
 
 Your layer choices are remembered.
 
+## The geo map
+
+When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — the **map-pin button** in the top bar opens a real-world map of where devices were seen. You can also open it focused on one device from its **Details** (**Show on map**) or by right-clicking it.
+
+- It's **offline by default**: devices on a pannable map with a distance scale, and nothing about your locations leaves your computer. Tick **Street map** to add an OpenStreetMap basemap — the one option that goes online, fetching map tiles from openstreetmap.org.
+- Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), otherwise where it was heard. **Estimated locations** also draws a faint circle for the estimate's spread. Click a marker for its details.
+- Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked.
+- **Operator path** traces the route the survey drove; the **time** slider replays it; and you can show the **whole capture** at once or switch to **Added devices** to build the map up with **Show on map** as you go.
+
 ## Export diagrams and files
 
 ![Export menu: draw.io diagram, Visio drawing, Visio XML, and Report](images/export-menu.png)
