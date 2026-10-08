@@ -458,6 +458,7 @@
           <button role="tab" type="button" data-pane="data" aria-selected="false">Your data</button>
           <button role="tab" type="button" data-pane="demo" aria-selected="false">Demo</button>
           <button role="tab" type="button" data-pane="security" aria-selected="false">Security</button>
+          <button id="nav-integrations" role="tab" type="button" data-pane="integrations" aria-selected="false">Integrations</button>
           <button role="tab" type="button" data-pane="updates" aria-selected="false">Updates<span id="updates-badge" class="nav-badge hidden">New</span></button>
           <button role="tab" type="button" data-pane="help" aria-selected="false">Help</button>
           <button role="tab" type="button" data-pane="about" aria-selected="false">About</button>
@@ -542,6 +543,23 @@
             <dl id="vdb-facts" class="facts"></dl>
             <p class="hint"><strong>Update database</strong> downloads the latest data from NVD (the U.S. National Vulnerability Database), FIRST (EPSS scores), and CISA (known exploited vulnerabilities), in a few minutes. It sends only the names of the products NetSeer knows, such as OpenSSH; nothing about you or your maps. Without updating, the data is as current as your version of NetSeer.</p>
             <p id="vdb-hosted" class="hint hidden">This online copy uses the vulnerability data that came with its version. Installed copies can update it.</p>
+          </section>
+
+          <section class="settings-pane hidden" data-pane="integrations" role="tabpanel">
+            <h3>Companion apps</h3>
+            <p class="hint">Let apps like WaveTop push captures straight into NetSeer — no saving to a file first. Pair a device once; it then sends captures to this NetSeer with a token you can revoke any time.</p>
+            <div class="version-card">
+              <div>
+                <strong>This NetSeer</strong>
+                <span id="intg-address" class="hint"></span>
+              </div>
+              <button id="intg-pair" class="btn primary" type="button">Pair a device</button>
+            </div>
+            <div id="intg-code" class="intg-code hidden" role="status" aria-live="polite"></div>
+            <h3>Paired devices</h3>
+            <ul id="intg-devices" class="intg-devices"></ul>
+            <p id="intg-empty" class="hint">No devices are paired yet.</p>
+            <p class="hint">Reaching NetSeer from another device (like a phone running WaveTop) over your network needs the upcoming <strong>Allow devices on my network</strong> setting; today pairing works for apps on this computer.</p>
           </section>
 
           <section class="settings-pane hidden" data-pane="updates" role="tabpanel">

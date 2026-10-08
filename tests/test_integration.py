@@ -113,6 +113,20 @@ def test_hosted_copy_disables_integration(monkeypatch, tmp_path):
     assert client.post("/api/v1/pair", json={"code": "123456"}).status_code == 404
 
 
+def test_devices_list_and_revoke_are_window_only(monkeypatch, tmp_path):
+    _, client = _client(monkeypatch, tmp_path)
+    # Device management only answers NetSeer's own window.
+    assert client.get("/api/v1/devices").status_code == 403
+    _pair(client, name="Phone")
+    win = {"x-netseer-window": "1"}
+    devices = client.get("/api/v1/devices", headers=win).json()["devices"]
+    assert len(devices) == 1 and devices[0]["name"] == "Phone"
+    device_id = devices[0]["id"]
+    assert client.request("DELETE", f"/api/v1/devices/{device_id}", headers=win).status_code == 204
+    assert client.get("/api/v1/devices", headers=win).json()["devices"] == []
+    assert client.request("DELETE", f"/api/v1/devices/{device_id}", headers=win).status_code == 404
+
+
 def test_events_channel_announces_a_pushed_capture(monkeypatch, tmp_path):
     _, client = _client(monkeypatch, tmp_path)
     token = _pair(client)

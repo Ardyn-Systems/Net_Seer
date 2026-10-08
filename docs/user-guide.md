@@ -348,6 +348,10 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 ![Settings, Your data: a summary, Back up all maps, Restore a backup, and Clear all data](images/settings-data.png)
 
+**Integrations.** Pair companion apps — such as WaveTop — so they can push captures straight into NetSeer, with no file to save and open. **Pair a device** shows a one-time code to type into the app; paired devices are listed with when you added them and last used each, and a **Revoke** button removes access. It's on installed and source copies, not the public online one; pairing over your network is coming.
+
+![Settings, Integrations: a pairing code and the paired devices list](images/settings-integrations.png)
+
 - **Back up all maps** downloads one `NetSeer-backup-<date>.json` file with every map, name, note, edit, position, and preference.
 - **Restore a backup…** replaces what's saved here with a backup file. It asks first.
 - **Clear all data…** removes everything saved here and starts fresh. It asks first. Your capture files aren't touched.

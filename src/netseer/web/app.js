@@ -4878,6 +4878,111 @@ async function receivePushedCapture(msg) {
   }
 }
 
+/* ---------- Settings: Integrations (pairing + paired devices) ---------- */
+
+let pairTimer = null;
+const intgWhen = (sec) => (sec ? new Date(sec * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
+
+// These management calls only answer NetSeer's own window (see _guard_own_window in web.py).
+async function intgApi(path, { method = "GET" } = {}) {
+  const res = await fetch(`/api/v1${path}`, { method, headers: { "X-NetSeer-Window": "1" } });
+  if (res.status === 204) return null;
+  return parseResponse(res);
+}
+
+function renderIntegrations() {
+  el("intg-address").textContent = `${location.host} (on this computer)`;
+  clearPairingCode();
+  renderDevices();
+}
+
+function clearPairingCode() {
+  if (pairTimer) {
+    clearInterval(pairTimer);
+    pairTimer = null;
+  }
+  const box = el("intg-code");
+  box.classList.add("hidden");
+  box.innerHTML = "";
+}
+
+async function startPairing() {
+  try {
+    const { code, expires_in } = await intgApi("/pair/start", { method: "POST" });
+    showPairingCode(code, expires_in || 300);
+  } catch (err) {
+    toast(`Couldn't start pairing: ${err.message || err}`, { error: true });
+  }
+}
+
+function showPairingCode(code, seconds) {
+  if (pairTimer) clearInterval(pairTimer);
+  const box = el("intg-code");
+  box.classList.remove("hidden");
+  const digits = String(code).replace(/(\d{3})(\d{3})/, "$1 $2");
+  let left = seconds;
+  const paint = () => {
+    const mm = Math.floor(left / 60);
+    const ss = String(left % 60).padStart(2, "0");
+    box.innerHTML = `<div class="pair-code">${escapeHtml(digits)}</div>
+      <div class="hint">In WaveTop, add NetSeer at <code>${escapeHtml(location.host)}</code> and enter this code. It expires in ${mm}:${ss}.</div>`;
+  };
+  paint();
+  pairTimer = setInterval(() => {
+    left -= 1;
+    if (left <= 0) {
+      clearInterval(pairTimer);
+      pairTimer = null;
+      box.innerHTML = `<div class="hint">That code expired. Select <strong>Pair a device</strong> for a new one.</div>`;
+      renderDevices();
+      return;
+    }
+    paint();
+  }, 1000);
+}
+
+async function renderDevices() {
+  const list = el("intg-devices");
+  let devices = [];
+  try {
+    devices = (await intgApi("/devices")).devices || [];
+  } catch {
+    devices = [];
+  }
+  show("intg-empty", devices.length === 0);
+  list.innerHTML = "";
+  for (const d of devices) {
+    const li = document.createElement("li");
+    const used = d.last_used ? `last used ${intgWhen(d.last_used)}` : "not used yet";
+    const info = document.createElement("div");
+    info.innerHTML = `<strong>${escapeHtml(d.name)}</strong><small>Paired ${escapeHtml(intgWhen(d.created))} · ${escapeHtml(used)}</small>`;
+    const btn = document.createElement("button");
+    btn.className = "btn ghost small";
+    btn.type = "button";
+    btn.textContent = "Revoke";
+    btn.addEventListener("click", () => revokeDevice(d.id, d.name));
+    li.append(info, btn);
+    list.appendChild(li);
+  }
+}
+
+async function revokeDevice(id, name) {
+  const ok = await openDialog({
+    title: `Revoke ${name}?`,
+    body: "It won't be able to push captures to NetSeer until you pair it again.",
+    okLabel: "Revoke",
+    danger: true,
+  });
+  if (!ok) return;
+  try {
+    await intgApi(`/devices/${encodeURIComponent(id)}`, { method: "DELETE" });
+    toast(`Revoked ${name}`, { timeout: 2500 });
+    renderDevices();
+  } catch (err) {
+    toast(`Couldn't revoke ${name}: ${err.message || err}`, { error: true });
+  }
+}
+
 /* ---------- Reading big captures: upload, progress, stop, cancel ---------- */
 
 const readJob = { current: null };
@@ -5455,6 +5560,7 @@ function showSettingsPane(name) {
   if (name === "updates") renderUpdates();
   if (name === "demo") renderDemo();
   if (name === "security") renderSecurityPane();
+  if (name === "integrations") renderIntegrations();
 }
 
 function renderSettings() {
@@ -5464,6 +5570,8 @@ function renderSettings() {
   el("settings-ssid").checked = state.prefs.apSsid;
   fillTimeSettings();
   el("updates-auto").checked = state.prefs.autoUpdate;
+  // Companion-app integration is a desktop/source feature; the public copy doesn't offer it.
+  show("nav-integrations", state.server.mode !== "hosted");
   const version = state.server.version || "unknown";
   document.querySelectorAll(".app-version").forEach((n) => (n.textContent = version));
   el("about-mode").textContent = runningAs();
@@ -5881,6 +5989,8 @@ function bindSettings() {
     if (e.target === dialog) dialog.close(); // backdrop
   });
   dialog.querySelectorAll(".settings-nav [data-pane]").forEach((b) => b.addEventListener("click", () => showSettingsPane(b.dataset.pane)));
+  el("intg-pair").addEventListener("click", startPairing);
+  dialog.addEventListener("close", clearPairingCode);
   dialog.querySelectorAll("[data-goto]").forEach((a) =>
     a.addEventListener("click", (e) => {
       e.preventDefault();
