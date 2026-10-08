@@ -1,12 +1,21 @@
 # NetSeer: Electron migration plan (design)
 
-**Status:** Proposed · **Audience:** NetSeer developers · See also [architecture.md](architecture.md),
+**Status:** Complete · **Audience:** NetSeer developers · See also [architecture.md](architecture.md),
 [integration-api.md](integration-api.md)
 
-NetSeer's desktop window moves from **pywebview** to **Electron**, to unlock a richer desktop
+NetSeer's desktop window moved from **pywebview** to **Electron**, to unlock a richer desktop
 feature set (frameless window, tray, native menus, notifications, file associations, deep links) and
-a future in-process plugin surface. This is a **shell swap**, not a rewrite: the Python back end and
+a future in-process plugin surface. This was a **shell swap**, not a rewrite: the Python back end and
 the web UI are unchanged.
+
+> **Phase 5 complete (the cutover is done).** Electron is now the one and only desktop build. The
+> pywebview launcher (`netseer/desktop.py`), the in-app Python self-updater (`netseer/updater.py` and
+> the `/api/update/*` endpoints), the classic PyInstaller/Inno-Setup/AppImage packaging, and the
+> `windows.yml` / `linux.yml` workflows have all been removed. The Electron artifacts took the
+> canonical `NetSeer-*` names (`NetSeer-Setup-<version>.exe`, the portable zip, the AppImage, and a
+> new Linux `.tar.gz`). `/api/health` reports `"updater": false`; the browser's Settings → Updates
+> pane links to releases, and only the Electron shell self-updates. The rest of this document is kept
+> as the historical design record.
 
 > **Status (Phase 1 complete):** the Electron shell lives in [`../electron/`](../electron/) — it
 > starts the Python backend as a managed sidecar, health-checks it, and shows it in a window with
@@ -118,8 +127,10 @@ Each phase is shippable and reversible; pywebview stays the default until parity
   4. **Teach the UI about the shell** — *done*. Under Electron, Settings → Updates drops the pywebview
      install flow and uses the Electron updater (a *Check for updates* button over the preload bridge,
      plus a link to Releases).
-  5. **Retire pywebview** once the Electron build has ridden a couple of releases cleanly — then the
-     Electron artifacts take the canonical `NetSeer-*` names.
+  5. **Retire pywebview** — *done*. After the Electron build rode several releases cleanly, the
+     pywebview launcher, the Python self-updater and its `/api/update/*` endpoints, the classic
+     packaging, and the `windows.yml` / `linux.yml` workflows were deleted, and the Electron
+     artifacts took the canonical `NetSeer-*` names (adding a Linux `.tar.gz`).
 
 ## Packaging, signing, and updates
 

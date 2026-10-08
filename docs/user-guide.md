@@ -367,30 +367,8 @@ Use a backup to move your maps to another computer or browser, or before trying 
 
 *The releases in this picture are an example.*
 
-- **Update** gets a newer version. Newer versions and the one you have each get a card.
-- **Earlier versions** is folded away. Open it, pick a version from the list, and click **Roll back** to go back to it, if a new release gives you trouble. Your maps stay where they are either way.
-- In the **desktop app** (version 0.4.0 or later), either button opens the update wizard, described below.
-- From **source**, the button copies a `uv tool install` command for that version instead.
-
-#### The update wizard
-
-![Update wizard: the new version's notes, a Back up my maps first switch, and Download update](images/update-wizard.png)
-
-1. **What's new.** The wizard shows the release notes and the download size. Leave **Back up my maps first** on to save a backup file before anything changes.
-2. **Download.** A progress bar shows the download from GitHub. NetSeer then checks the file's SHA-256 checksum against the one GitHub publishes for it. If they don't match, NetSeer deletes the file and installs nothing.
-3. **Restart and update.** NetSeer closes, puts the new version in place, and reopens on its own with a message saying which version you're on.
-
-![Update wizard, ready: downloaded and checked, with Restart and update](images/update-ready.png)
-
-How the new version goes in depends on how you installed NetSeer:
-
-| Install | What happens |
-| --- | --- |
-| Windows installer | The installer runs silently and reopens NetSeer. If NetSeer is installed for all users, Windows asks for permission first. |
-| Windows portable zip, Linux `.tar.gz` | The new version goes in NetSeer's folder. The version you had is kept beside it in a folder ending in `.previous` until the next update. |
-| Linux AppImage | The AppImage file is replaced where it is. |
-
-Versions before 0.4.0 can't update themselves. If you go back to one, download later versions from GitHub yourself.
+- In the **desktop app**, NetSeer updates itself. Leave **Update NetSeer automatically** on (the default) and it downloads a new release in the background and asks before restarting to install it — the Windows installer runs silently, the Linux AppImage is replaced in place. Turn it off to stay on your version and use **Check for updates** when you want one. Your maps are untouched either way.
+- From **source** or online, the pane lists the releases. Each links to its **Release notes** and the download for your platform; older ones fold under **Earlier versions**. From source, the button copies a `uv tool install` command for that version instead.
 - **Check when NetSeer opens** (off by default) checks at most once a day and tells you once about each new release.
 - The [online copy](https://netseer.onrender.com) updates itself, so it shows no list.
 
@@ -414,9 +392,8 @@ NetSeer never changes your capture files. Maps, names, notes, edits, and positio
 
 | | Windows | Linux |
 | --- | --- | --- |
-| Saved maps (desktop app) | `%LOCALAPPDATA%\NetSeer\webview` | `~/.local/share/NetSeer/browser` |
+| Saved maps (desktop app) | `%APPDATA%\NetSeer` | `~/.config/NetSeer` |
 | Unwanted files | `Documents\NetSeer\Unwanted` | `~/Documents/NetSeer/Unwanted` |
-| Log | `%LOCALAPPDATA%\NetSeer\netseer.log` | `~/.local/share/NetSeer/netseer.log` |
 
 If you run NetSeer from source and use your normal browser, maps are saved in that browser for `http://127.0.0.1:47331`. Clearing that site's data removes them.
 
@@ -428,17 +405,15 @@ To keep a copy, or to move your maps somewhere else, use **Settings** → **Your
 
 **"NetSeer is already open."** Only one copy runs at a time. Look for its window on the taskbar.
 
-**My maps are missing.** Maps are saved per address and per browser. If another program was using port 47331, NetSeer picked the next free port and its maps are kept separately; the log says which port it used. On Linux, maps saved in the app window and maps saved in your normal browser are separate too.
-
-**NetSeer opened in my web browser instead of a window.** On Windows, install [Microsoft Edge WebView2](https://go.microsoft.com/fwlink/p/?LinkId=2124703). On Linux, install Chrome, Chromium, Edge, Brave, or Vivaldi for a separate app window. In the browser, NetSeer quits by itself a couple of minutes after you close its tab.
+**My maps are missing.** Maps are saved per address and per browser. If another program was using port 47331, NetSeer picked the next free port and its maps are kept separately. Maps saved in the desktop app and maps saved in your normal browser from source are separate too.
 
 **A capture won't open.** Check that it's one of the [supported formats](#open-your-captures). In the online copy, it must be under 20 MB; installed copies have no limit. Files that parse but contain no devices say "No hosts, access points, or links were found".
 
-**A new version is misbehaving.** Open **Settings** → **Updates**, click **Check for updates**, and open **Earlier versions**, pick the version that worked, and click **Roll back**. The wizard backs up your maps first.
+**A new version is misbehaving.** Turn off **Update NetSeer automatically** under **Settings** → **Updates** to stay put. To go back to an earlier release, download it from [GitHub Releases](https://github.com/ardyn-systems/NetSeer/releases) and install it over the current one. Back up your maps first under **Your data**.
 
-**An update didn't finish.** Open NetSeer from the Start menu or app menu. On Windows, the installer's log is `%LOCALAPPDATA%\NetSeer\update-install.log`. For a portable copy, the version you had is still in the folder ending in `.previous`. You can always download the release from GitHub and install it the usual way.
+**An update didn't finish.** Reopen NetSeer from the Start menu or app menu; it checks again on the next launch. You can always download the release from [GitHub](https://github.com/ardyn-systems/NetSeer/releases) and install it the usual way.
 
-**Something else looks wrong.** The log (see the table above) has the details. Run `NetSeer --smoke-test` (or `NetSeer.exe --smoke-test`) to check the installation; exit code 0 means it's working.
+**Something else looks wrong.** Start the desktop app with `ELECTRON_ENABLE_LOGGING=1` to see the backend's log on the console. Run `NetSeer --smoke-test` (or `NetSeer.exe --smoke-test`) to check the installation; exit code 0 means it's working.
 
 ---
 

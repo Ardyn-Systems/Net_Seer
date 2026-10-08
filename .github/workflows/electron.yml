@@ -42,7 +42,7 @@ jobs:
         run: xvfb-run -a npm run smoke -- --no-sandbox
 
   package-linux:
-    name: Package + smoke (Linux AppImage)
+    name: Package + smoke (Linux)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -81,34 +81,36 @@ jobs:
         working-directory: electron
         shell: bash
         run: npm version "${{ steps.version.outputs.version }}" --no-git-tag-version --allow-same-version
-      - name: Build the AppImage (bundles the sidecar)
+      - name: Build the AppImage + tar.gz (bundles the sidecar)
         working-directory: electron
         # -p never: build the update metadata (latest-linux.yml) but don't upload; the release step
         # below attaches everything.
-        run: npm install && npx electron-builder --linux AppImage -p never
+        run: npm install && npx electron-builder --linux AppImage tar.gz -p never
       - name: Smoke the packaged AppImage
         env:
           ELECTRON_ENABLE_LOGGING: "1"
           APPIMAGE_EXTRACT_AND_RUN: "1"
         run: xvfb-run -a electron/dist/*.AppImage --smoke-test --no-sandbox
       - name: Checksums
-        run: (cd electron/dist && sha256sum *.AppImage | tee SHA256SUMS-electron-linux.txt)
+        run: (cd electron/dist && sha256sum *.AppImage *.tar.gz | tee SHA256SUMS-linux.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: NetSeer-electron-linux
+          name: NetSeer-linux
           if-no-files-found: warn
           path: |
             electron/dist/*.AppImage
+            electron/dist/*.tar.gz
             electron/dist/latest-linux.yml
-            electron/dist/SHA256SUMS-electron-linux.txt
+            electron/dist/SHA256SUMS-linux.txt
       - name: Attach to release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
         with:
           files: |
             electron/dist/*.AppImage
+            electron/dist/*.tar.gz
             electron/dist/latest-linux.yml
-            electron/dist/SHA256SUMS-electron-linux.txt
+            electron/dist/SHA256SUMS-linux.txt
 
   package-windows:
     name: Package + smoke (Windows)
@@ -151,16 +153,16 @@ jobs:
           if ($p.ExitCode -ne 0) { throw "smoke failed with exit $($p.ExitCode)" }
       - name: Checksums
         shell: bash
-        run: (cd electron/dist && sha256sum *.exe *.zip | tee SHA256SUMS-electron-windows.txt)
+        run: (cd electron/dist && sha256sum *.exe *.zip | tee SHA256SUMS-windows.txt)
       - uses: actions/upload-artifact@v4
         with:
-          name: NetSeer-electron-windows
+          name: NetSeer-windows
           if-no-files-found: warn
           path: |
             electron/dist/*.exe
             electron/dist/*.zip
             electron/dist/latest.yml
-            electron/dist/SHA256SUMS-electron-windows.txt
+            electron/dist/SHA256SUMS-windows.txt
       - name: Attach to release
         if: github.ref_type == 'tag'
         uses: softprops/action-gh-release@v2
@@ -169,4 +171,4 @@ jobs:
             electron/dist/*.exe
             electron/dist/*.zip
             electron/dist/latest.yml
-            electron/dist/SHA256SUMS-electron-windows.txt
+            electron/dist/SHA256SUMS-windows.txt

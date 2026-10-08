@@ -37,7 +37,7 @@ def integration_dir() -> Path:
     if override:
         path = Path(override).expanduser()
     else:
-        from netseer.desktop import data_dir
+        from netseer.paths import data_dir
 
         path = data_dir() / "integration"
     path.mkdir(parents=True, exist_ok=True)

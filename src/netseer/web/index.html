@@ -646,53 +646,6 @@
       </div>
     </dialog>
 
-    <dialog id="update-dialog" class="dialog update-dialog" aria-labelledby="upd-title">
-      <h2 id="upd-title">Update NetSeer</h2>
-      <p id="upd-sub" class="hint"></p>
-
-      <section class="upd-step" data-step="intro">
-        <div id="upd-notes" class="release-notes"></div>
-        <p id="upd-old-warning" class="upd-warning hidden">Versions before 0.4.0 can't update themselves. After going back, you'd download newer versions from GitHub yourself.</p>
-        <label class="switch-row"><span>Back up my maps first<small>Saves a backup file to your Downloads folder before anything changes</small></span>
-          <input id="upd-backup" type="checkbox" role="switch" checked /></label>
-        <div class="row-actions end">
-          <button class="btn ghost" type="button" data-upd="close">Not now</button>
-          <button id="upd-download" class="btn primary" type="button">Download</button>
-        </div>
-      </section>
-
-      <section class="upd-step hidden" data-step="progress">
-        <div class="progress" role="progressbar" aria-labelledby="upd-progress-text" aria-valuemin="0" aria-valuemax="100"><div id="upd-bar"></div></div>
-        <p id="upd-progress-text" class="hint">Starting the download&hellip;</p>
-        <div class="row-actions end">
-          <button class="btn ghost" type="button" data-upd="cancel">Cancel</button>
-        </div>
-      </section>
-
-      <section class="upd-step hidden" data-step="ready">
-        <p class="upd-ok">Downloaded and checked against GitHub's checksum.</p>
-        <p id="upd-ready-text"></p>
-        <div class="row-actions end">
-          <button class="btn ghost" type="button" data-upd="cancel">Not now</button>
-          <button id="upd-install" class="btn primary" type="button">Restart and update</button>
-        </div>
-      </section>
-
-      <section class="upd-step hidden" data-step="installing">
-        <div class="progress indeterminate"><div></div></div>
-        <p id="upd-installing-text">NetSeer is closing to finish the update. It will reopen by itself in a moment.</p>
-      </section>
-
-      <section class="upd-step hidden" data-step="error">
-        <p id="upd-error" class="upd-error"></p>
-        <div class="row-actions end">
-          <a id="upd-manual" class="btn ghost" target="_blank" rel="noopener">Download from GitHub</a>
-          <button class="btn ghost" type="button" data-upd="close">Close</button>
-          <button class="btn primary" type="button" data-upd="retry">Try again</button>
-        </div>
-      </section>
-    </dialog>
-
     <div id="tour" class="tour hidden" role="dialog" aria-modal="true" aria-labelledby="tour-title">
       <div id="tour-spot" class="tour-spot"></div>
       <div id="tour-card" class="tour-card">

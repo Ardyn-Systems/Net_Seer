@@ -15,14 +15,8 @@ dependencies = [
     "uvicorn[standard]>=0.32",
 ]
 
-[project.optional-dependencies]
-desktop = ["pywebview>=5.3"]
-
 [project.scripts]
 netseer = "netseer.cli:main"
-
-[project.gui-scripts]
-netseer-desktop = "netseer.desktop:main"
 
 [build-system]
 requires = ["uv_build>=0.12.17,<0.13.0"]

@@ -577,25 +577,6 @@ def test_export_api_accepts_layout_hints():
     assert client.post("/api/export/drawio", json=body).status_code == 200
 
 
-def test_desktop_smoke_test_runs_in_process(tmp_path, monkeypatch):
-    import netseer.desktop as desktop
-
-    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
-    monkeypatch.setenv("NETSEER_UNWANTED_DIR", str(tmp_path / "Unwanted"))
-    assert desktop.smoke_test() == 0
-
-
-def test_desktop_port_choice_reuses_netseer_and_skips_strangers(monkeypatch):
-    import netseer.desktop as desktop
-
-    states = {47331: "busy", 47332: "netseer"}
-    monkeypatch.setattr(desktop, "port_state", lambda port: states.get(port, "free"))
-    assert desktop.choose_port() == (47332, True)
-    states[47332] = "busy"
-    assert desktop.choose_port() == (47333, False)
-    assert desktop.choose_port(5000) == (5000, False)
-
-
 def test_version_matches_pyproject():
     import tomllib
     from pathlib import Path
@@ -696,52 +677,6 @@ def test_heartbeat_tracks_open_and_closed_pages():
     assert webmod.PRESENCE["bye"] >= webmod.PRESENCE["last"]
 
 
-def test_browser_fallback_quits_after_the_page_goes_quiet(monkeypatch):
-    import netseer.desktop as desktop
-    import netseer.web as webmod
-
-    clock = {"t": 1000.0}
-    monkeypatch.setattr(desktop.time, "sleep", lambda s: clock.__setitem__("t", clock["t"] + s))
-    monkeypatch.setattr(desktop.time, "monotonic", lambda: clock["t"])
-    # Page said goodbye and didn't come back: quit after the grace period.
-    webmod.PRESENCE.update(last=1000.0, bye=1001.0)
-    desktop.wait_for_page_close()
-    assert clock["t"] - 1001.0 > desktop.PAGE_BYE_GRACE_SECONDS
-    # Page just stopped checking in (browser crashed, laptop slept): quit after the idle window.
-    clock["t"] = 2000.0
-    webmod.PRESENCE.update(last=2000.0, bye=None)
-    desktop.wait_for_page_close()
-    assert clock["t"] - 2000.0 > desktop.PAGE_IDLE_SECONDS
-    # Nobody ever opened the page.
-    clock["t"] = 3000.0
-    webmod.PRESENCE.update(last=None, bye=None)
-    desktop.wait_for_page_close(first_visit=30)
-    assert 30 < clock["t"] - 3000.0 < 40
-
-
-def test_linux_launcher_helpers(monkeypatch, tmp_path):
-    import sys
-
-    import netseer.desktop as desktop
-
-    monkeypatch.setattr(desktop, "IS_LINUX", True)
-    monkeypatch.setattr(sys, "frozen", True, raising=False)
-    monkeypatch.setenv("LD_LIBRARY_PATH", "/tmp/_MEIxyz")
-    monkeypatch.setenv("LD_LIBRARY_PATH_ORIG", "/usr/local/lib")
-    assert desktop.child_env()["LD_LIBRARY_PATH"] == "/usr/local/lib"
-    monkeypatch.delenv("LD_LIBRARY_PATH_ORIG")
-    assert "LD_LIBRARY_PATH" not in desktop.child_env()
-
-    monkeypatch.setattr(desktop.Path, "home", classmethod(lambda cls: tmp_path))
-    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "data"))
-    assert desktop.app_mode_profile("/snap/bin/chromium") == tmp_path / "snap" / "chromium" / "common" / "NetSeer"
-    assert desktop.app_mode_profile("/usr/bin/google-chrome") == tmp_path / "data" / "NetSeer" / "browser"
-
-    entry = desktop.desktop_entry("/home/me/Apps/NetSeer 0.1.0.AppImage", "netseer")
-    assert 'Exec="/home/me/Apps/NetSeer 0.1.0.AppImage"' in entry
-    assert "Icon=netseer" in entry and "Terminal=false" in entry
-
-
 def test_logo_assets_are_self_contained():
     from pathlib import Path
 
@@ -807,7 +742,6 @@ def test_upload_limit_and_port_come_from_the_environment(monkeypatch):
 def test_health_reports_how_netseer_runs(monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
 
-    import netseer.desktop as desktop
     import netseer.web as webmod
 
     client = TestClient(webmod.app)
@@ -816,24 +750,15 @@ def test_health_reports_how_netseer_runs(monkeypatch, tmp_path):
     info = client.get("/api/health").json()
     assert info["mode"] == "server" and info["package"] == "source" and info["frozen"] is False
     assert info["repo"] == "ardyn-systems/NetSeer" and info["platform"] in {"windows", "linux", "macos"}
+    assert info["updater"] is False
 
+    # The Electron shell sets these; the API just reports them back.
     monkeypatch.setenv("NETSEER_MODE", "desktop")
-    monkeypatch.setenv("NETSEER_PACKAGE", "portable")
+    monkeypatch.setenv("NETSEER_PACKAGE", "installer")
     info = client.get("/api/health").json()
-    assert info["mode"] == "desktop" and info["package"] == "portable"
+    assert info["mode"] == "desktop" and info["package"] == "installer"
     monkeypatch.setenv("NETSEER_HOSTED", "1")
     assert client.get("/api/health").json()["mode"] == "hosted"
-
-    # Which download a desktop build came from.
-    assert desktop.package_type() == "source"
-    monkeypatch.setattr(desktop.sys, "frozen", True, raising=False)
-    monkeypatch.setattr(desktop.sys, "executable", str(tmp_path / "NetSeer.exe"))
-    monkeypatch.setattr(desktop.sys, "platform", "win32")
-    assert desktop.package_type() == "portable"
-    (tmp_path / "unins000.exe").write_bytes(b"")
-    assert desktop.package_type() == "installer"
-    monkeypatch.setenv("APPIMAGE", "/home/me/NetSeer.AppImage")
-    assert desktop.package_type() == "appimage"
 
 
 def test_links_added_by_a_person_are_marked_in_exports():
@@ -887,11 +812,3 @@ def test_page_and_files_are_never_reused_unchecked():
     etag = client.get("/static/app.js").headers["etag"]
     assert client.get("/static/app.js", headers={"If-None-Match": etag}).status_code == 304
     assert "cache-control" not in client.get("/api/samples").headers
-
-
-def test_desktop_window_url_carries_the_version():
-    import inspect
-
-    from netseer import desktop
-
-    assert 'url = f"http://127.0.0.1:{port}/?v={__version__}"' in inspect.getsource(desktop.main)
