@@ -12,6 +12,17 @@ NetSeer's back end becomes a small local **hub** that companion apps talk to. Th
 All three live in the existing Python/FastAPI back end and reuse the existing parse-and-merge
 pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the window shell.
 
+**Implementation status**
+
+| Piece | State |
+| --- | --- |
+| Pairing + device tokens (`/api/v1/pair/start`, `/api/v1/pair`), discovery (`/api/v1/info`) | **shipped** ([`integration.py`](../src/netseer/integration.py)) |
+| Capture push (`POST /api/v1/ingest/capture`) | **shipped** — becomes a normal reading job |
+| Surfacing a pushed capture in the running UI (events channel) | next slice |
+| Live-view WebSocket session | planned |
+| AI analysis | planned |
+| mDNS discovery, LAN binding toggle, Settings → Integrations UI (pairing code + device list) | planned |
+
 ## Principles
 
 - **Local-first and private.** Default binding stays `127.0.0.1`. Reaching NetSeer from another
@@ -48,7 +59,9 @@ sequenceDiagram
     W->>N: Authorization: Bearer <token>
 ```
 
-- The pairing code is short-lived (e.g. 5 minutes) and single-use.
+- NetSeer's own window mints the code via `POST /api/v1/pair/start` (guarded by host +
+  `X-NetSeer-Window: 1`, so only the app's page can start pairing); the user reads it off the screen.
+- The pairing code is short-lived (5 minutes) and single-use.
 - The returned **device token** is long-lived, scoped to that device, and listed/revocable in
   Settings → Integrations.
 - Every `/api/v1/*` call carries `Authorization: Bearer <token>`.

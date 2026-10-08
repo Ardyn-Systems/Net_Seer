@@ -18,7 +18,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from netseer import __version__, updater
+from netseer import __version__, integration, updater
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
 from netseer.compare import compare_graphs
 from netseer.security import assess_graph
@@ -358,6 +358,10 @@ async def start_parse_job(request: Request, name: str = "upload"):
     except BaseException:
         shutil.rmtree(folder, ignore_errors=True)
         raise
+    return _job_status(_launch_parse_job(name, path, folder, size))
+
+
+def _launch_parse_job(name: str, path: Path, folder: Path, size: int) -> dict:
     job = {
         "id": uuid.uuid4().hex, "name": Path(name).name or "upload", "path": path, "folder": folder, "bytes": size,
         "state": "running", "started": time.monotonic(), "stop": threading.Event(), "discard": False,
@@ -365,7 +369,7 @@ async def start_parse_job(request: Request, name: str = "upload"):
     with _jobs_lock:
         PARSE_JOBS[job["id"]] = job
     threading.Thread(target=_run_job, args=(job,), name=f"netseer-read-{job['id'][:6]}", daemon=True).start()
-    return _job_status(job)
+    return job
 
 
 @app.get("/api/parse/jobs/{job_id}")
@@ -402,6 +406,92 @@ def parse_job_result(job_id: str):
     if job["state"] == "error":
         raise HTTPException(status_code=job.get("status", 400), detail=job["error"])
     return JSONResponse(job["result"])
+
+
+# ---------- Integration API (companion apps, e.g. WaveTop) ----------
+# See docs/integration-api.md. Versioned under /api/v1. Off on the hosted copy; every call
+# except discovery and pairing needs a device token issued through the pairing handshake.
+
+WINDOW_HEADER = "x-netseer-window"
+
+
+def _require_integration() -> None:
+    if hosted_mode():
+        raise HTTPException(status_code=404, detail="The integration API isn't available on the hosted copy.")
+
+
+def _guard_own_window(request: Request) -> None:
+    """Only NetSeer's own page may create a pairing code (defense-in-depth, like updates)."""
+    host = (request.headers.get("host") or "").rsplit(":", 1)[0].lower()
+    origin = request.headers.get("origin")
+    if request.headers.get(WINDOW_HEADER) != "1" or host not in LOCAL_HOSTS:
+        raise HTTPException(status_code=403, detail="Pairing can only be started from NetSeer's own window.")
+    if origin and origin.rstrip("/") != f"http://{request.headers.get('host')}":
+        raise HTTPException(status_code=403, detail="Pairing can only be started from NetSeer's own window.")
+
+
+def _require_device(request: Request) -> integration.Device:
+    _require_integration()
+    auth = request.headers.get("authorization") or ""
+    token = auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+    device = integration.verify_token(token)
+    if device is None:
+        raise HTTPException(status_code=401, detail="Pair this device with NetSeer first.")
+    return device
+
+
+@app.get("/api/v1/info")
+def integration_info() -> dict:
+    """Capabilities and version, so a companion app can feature-detect before pairing."""
+    _require_integration()
+    return {
+        "product": PRODUCT_NAME,
+        "version": __version__,
+        "api": integration.API_VERSION,
+        "capabilities": integration.CAPABILITIES,
+        "formats": integration.SUPPORTED_FORMATS,
+    }
+
+
+@app.post("/api/v1/pair/start")
+def pair_start(request: Request) -> dict:
+    """NetSeer's own window asks for a one-time pairing code to show the user."""
+    _require_integration()
+    _guard_own_window(request)
+    return integration.start_pairing()
+
+
+@app.post("/api/v1/pair")
+def pair(body: dict) -> dict:
+    """A companion app exchanges the code the user typed for a long-lived device token."""
+    _require_integration()
+    result = integration.redeem_pairing(str(body.get("code", "")), str(body.get("device_name") or "device"))
+    if result is None:
+        raise HTTPException(status_code=400, detail="That pairing code is wrong or has expired.")
+    return result
+
+
+@app.post("/api/v1/ingest/capture")
+async def ingest_capture(request: Request):
+    """A paired app pushes a capture's bytes directly; it becomes a reading job like any upload."""
+    device = _require_device(request)
+    fmt = request.headers.get("x-netseer-format", "")
+    filename = integration.filename_for(fmt, request.headers.get("x-netseer-name"))
+    if filename is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported or missing capture format '{fmt}'. Use one of: {', '.join(integration.SUPPORTED_FORMATS)}.",
+        )
+    _forget_old_jobs()
+    folder, path = _upload_folder(filename)
+    try:
+        size = await _save_stream(request.stream(), path)
+    except BaseException:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+    job = _launch_parse_job(filename, path, folder, size)
+    log.info("Capture pushed by %s: %s (%d bytes), job %s", device.name, filename, size, job["id"][:6])
+    return {**_job_status(job), "source": device.name}
 
 
 def _layout_hints(body: dict) -> dict:
