@@ -4811,6 +4811,73 @@ async function loadFile(file) {
   }
 }
 
+/* ---------- Integration: live events from companion apps (e.g. WaveTop) ---------- */
+
+let eventsSocket = null;
+let eventsRetry = 0;
+
+function connectEvents() {
+  if (state.server.mode === "hosted") return; // the public copy has no integration API
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  let sock;
+  try {
+    sock = new WebSocket(`${proto}//${location.host}/api/v1/events`);
+  } catch {
+    return;
+  }
+  eventsSocket = sock;
+  sock.onopen = () => {
+    eventsRetry = 0;
+  };
+  sock.onmessage = (e) => {
+    let msg;
+    try {
+      msg = JSON.parse(e.data);
+    } catch {
+      return;
+    }
+    if (msg && msg.type === "capture-received") receivePushedCapture(msg);
+  };
+  sock.onclose = () => {
+    if (eventsSocket === sock) eventsSocket = null;
+    // Reconnect with backoff; the server may just be restarting after an update.
+    eventsRetry = Math.min(eventsRetry + 1, 6);
+    setTimeout(connectEvents, 500 * 2 ** (eventsRetry - 1));
+  };
+  sock.onerror = () => {
+    try {
+      sock.close();
+    } catch {
+      /* onclose handles the retry */
+    }
+  };
+}
+
+// A companion app pushed a capture: follow the reading job it started and show it as a map.
+async function receivePushedCapture(msg) {
+  const name = msg.name || "capture";
+  const source = msg.source || "A device";
+  toast(`${source} sent ${name} — reading…`, { timeout: 4000 });
+  try {
+    for (;;) {
+      const status = await parseResponse(await fetch(`/api/parse/jobs/${encodeURIComponent(msg.job_id)}`));
+      if (status.state !== "running") break;
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    const graph = await parseResponse(await fetch(`/api/parse/jobs/${encodeURIComponent(msg.job_id)}/result`));
+    const id = `push:${msg.job_id}`;
+    const item = { id, kind: "upload", name, summary: `Pushed by ${source}`, graph };
+    const at = state.surveys.findIndex((s) => s.id === id);
+    if (at >= 0) state.surveys.splice(at, 1, item);
+    else state.surveys.unshift(item);
+    unhideSurvey(id);
+    applyGraph(graph, name, id);
+    toast(`${source} sent ${name}`, { timeout: 3000 });
+  } catch (err) {
+    toast(`Couldn't read the capture ${source} sent: ${err.message || err}`, { error: true, timeout: 7000 });
+  }
+}
+
 /* ---------- Reading big captures: upload, progress, stop, cancel ---------- */
 
 const readJob = { current: null };
@@ -7389,6 +7456,7 @@ async function init() {
   if (state.server.mode === "desktop") requestPersistentStorage();
   if (!updated) offerTour();
   autoCheckUpdates();
+  connectEvents(); // hear when a companion app pushes a capture
   state.ready = true;
 }
 
