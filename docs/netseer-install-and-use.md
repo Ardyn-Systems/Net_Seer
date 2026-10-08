@@ -122,7 +122,7 @@ The CLI name is `netseer`. Leave the process running while you use the UI.
 The full guide, area by area, is [[netseer-how-to]] / [docs/netseer-how-to.md](netseer-how-to.md). The short version:
 
 - The campus survey opens on first visit. **Open survey** (or drop files anywhere) to map your own captures; each becomes a map.
-- The left sidebar has **Maps** (switch, rename, merge, delete, and the **Unwanted** holding area), **Surveys** (captures you've opened, and any demo samples from **Settings → Demo**), and **Layers** (how devices are arranged, link toggles, and the legend).
+- The left sidebar has **Maps** (switch, rename, merge, delete, and the **Unwanted** holding area), **Surveys** (captures you've opened, and any demo samples from **Settings → Help**), and **Layers** (how devices are arranged, link toggles, and the legend).
 - Click a device to see everything NetSeer found in the **Details** panel: rename it, add a caption and notes, copy values, export it, or edit any extracted field.
 - Select devices to get **Copy**, **Cut**, **Move to**, **Set aside**, and **Delete**. Copying an access point brings its clients and bridged APs. Ctrl+Z undoes up to 30 steps.
 - **Find a device** (`/`) searches names, IPs, MACs, SSIDs, and notes.

@@ -210,7 +210,9 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.mouse.move(5, 5)
         shots.save("welcome", full=True)
         page.click("#empty-sample")
-        page.wait_for_selector('#settings-dialog[open] .settings-pane[data-pane="demo"]:not(.hidden)')
+        page.wait_for_selector('#settings-dialog[open] .settings-pane[data-pane="help"]:not(.hidden)')
+        page.wait_for_selector('#demo-list [data-demo="office-lan"]')
+        page.evaluate("() => document.getElementById('demo-compare-row').scrollIntoView({ block: 'start' })")
         page.mouse.move(5, 5)
         shots.save("settings-demo", selectors=["#settings-dialog"], pad=0)
         page.click('#demo-list [data-demo="office-lan"]')
@@ -418,7 +420,7 @@ def capture(url: str, channel: str | None) -> list[str]:
 
         # Compare surveys: the bundled branch office, a week apart.
         page.click("#btn-settings")
-        page.click('.settings-nav [data-pane="demo"]')
+        page.click('.settings-nav [data-pane="help"]')
         page.click("#demo-compare")
         page.wait_for_selector("#compare-dialog[open]")
         page.wait_for_function("() => [...document.querySelectorAll('.compare-row')].every((r) => r._src)")

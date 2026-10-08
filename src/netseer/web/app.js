@@ -5639,7 +5639,7 @@ function showSettingsPane(name) {
   document.querySelectorAll(".settings-pane").forEach((p) => p.classList.toggle("hidden", p.dataset.pane !== name));
   if (name === "data") refreshDataSummary();
   if (name === "updates") renderUpdates();
-  if (name === "demo") renderDemo();
+  if (name === "help") renderDemo(); // the sample captures now live inside Help
   if (name === "security") renderSecurityPane();
   if (name === "integrations") renderIntegrations();
 }
@@ -6747,7 +6747,7 @@ function isTypingTarget(target) {
 function bindUi() {
   el("btn-open").addEventListener("click", () => el("file").click());
   el("empty-open").addEventListener("click", () => el("file").click());
-  el("empty-sample").addEventListener("click", () => openSettings("demo"));
+  el("empty-sample").addEventListener("click", () => openSettings("help"));
   el("file").addEventListener("change", (e) => {
     const files = [...(e.target.files || [])];
     e.target.value = "";

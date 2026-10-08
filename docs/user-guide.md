@@ -1,6 +1,6 @@
 # NetSeer user guide
 
-**Turn traffic into terrain.** NetSeer turns packet captures and wireless surveys into a network map you can explore, annotate, and export. This guide walks through it with screenshots from the campus sample, one of the demo captures in **Settings → Demo**.
+**Turn traffic into terrain.** NetSeer turns packet captures and wireless surveys into a network map you can explore, annotate, and export. This guide walks through it with screenshots from the campus sample, one of the demo captures in **Settings → Help**.
 
 To follow along without installing anything, open **[netseer.onrender.com](https://netseer.onrender.com)**; click **Try a demo** and open the campus sample to see the same map (the first visit can take about 50 seconds while the free server wakes up). For installing, see the [README](../README.md#get-netseer). For a terse reference of every control, see the [How to](netseer-how-to.md).
 
@@ -43,9 +43,9 @@ NetSeer starts empty. Click **Open survey**, or drag capture files anywhere onto
 
 ![A fresh start: the welcome card with Open survey and Try a demo](images/welcome.png)
 
-**Try a demo** (or **Settings** → **Demo**) lists sample captures to explore without any of your own. **Open** loads one as a survey and a map; it's marked **Opened** after that. **Compare the branch office samples** opens a pair surveyed a week apart and sets up [Compare surveys](#compare-surveys-for-changes) with them.
+**Try a demo** (or **Settings** → **Help**) lists sample captures to explore without any of your own. **Open** loads one as a survey and a map; it's marked **Opened** after that. **Compare the branch office samples** opens a pair surveyed a week apart and sets up [Compare surveys](#compare-surveys-for-changes) with them.
 
-![Settings, Demo: Compare the branch office samples, then each sample capture with Open](images/settings-demo.png)
+![Settings, Help: the tour, shortcuts, and the sample captures with Open](images/settings-demo.png)
 
 ![Surveys tab with a drop zone and two opened captures](images/surveys-tab.png)
 
@@ -70,7 +70,7 @@ The **Surveys** tab lists your captures, and any demo samples you've opened. Cli
 - **Remove from list** hides the survey and keeps its map under **Maps**. Click **Bring back** in the message to restore it.
 - **Delete survey and its map…** removes both after asking. **Undo** brings the map back; **Bring back** in the message restores the survey to the list.
 
-Drag surveys up or down to put them in the order you like. A demo sample you remove from the list comes back when you open it again from **Settings** → **Demo**.
+Drag surveys up or down to put them in the order you like. A demo sample you remove from the list comes back when you open it again from **Settings** → **Help**.
 
 ## Read the map
 
@@ -130,9 +130,9 @@ Every device's details include a **Security** section. NetSeer only reports what
 - **Wi-Fi handshakes** are noted when a WPA four-way handshake between a device and its access point was captured. If enough was captured on a password network, it's flagged: someone with the capture could try the Wi-Fi password offline. **Export** it for your own testing as a **pcap** (opens in Wireshark, converts to anything) or a **hashcat** `.hc22000` file. This repackages frames already in your capture — it recovers no password itself; use it only on networks you're allowed to test.
 - **Shade the map by security:** in **Layers → Security**, turn on **Shade by security** to tint every device by its most serious finding (red for Critical down to blue for Low), with a count of each.
 
-The vulnerability data is bundled with NetSeer, so this works with no internet. Keep it current under **Settings → Security** (see [Settings](#settings-updates-and-the-tour)) — an update also looks up any product it saw in your captures that wasn't in the data yet, so unusual services get covered over time.
+The vulnerability data is bundled with NetSeer, so this works with no internet. Keep it current under **Settings → Vulnerability Database** (see [Settings](#settings-updates-and-the-tour)) — an update also looks up any product it saw in your captures that wasn't in the data yet, so unusual services get covered over time.
 
-To try it, open **Settings → Demo** and open **Small office: security check**.
+To try it, open **Settings → Help** and open **Small office: security check**.
 
 ## Look at a time window
 
@@ -218,7 +218,7 @@ Each changed device also says what happened under its name (**+ Joined Branch-St
 - **Show unchanged devices** in **Layers** hides the faded ones, leaving only what changed.
 - Your names, captions, and notes come along from the surveys you compared. Undo removes the new maps.
 
-To try it, open **Settings** → **Demo** and click **Compare the branch office samples**: a branch surveyed twice, a week apart, with one of every kind of change.
+To try it, open **Settings** → **Help** and click **Compare the branch office samples**: a branch surveyed twice, a week apart, with one of every kind of change.
 
 ## Add what the capture didn't show
 
@@ -338,11 +338,11 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 **General.** Pick a theme, choose how far one notch of the mouse wheel zooms (**Gentle**, **Normal**, or **Quick**), and turn SSIDs under access points and hover fading on or off. **Time** sets the time zone and 12- or 24-hour clock used for capture times on the timeline and in Details.
 
-**Demo.** Sample captures to try NetSeer with; see [Open your captures](#open-your-captures).
+The **sample captures** to try NetSeer with are under **Help** — see [Open your captures](#open-your-captures).
 
-**Security.** Shows the vulnerability data NetSeer uses for the Security findings, and when it was built. **Update database** downloads the latest from NVD, FIRST (EPSS), and CISA in a few minutes; it sends only product names, nothing about you or your maps. It also looks up products NetSeer saw in your captures but didn't recognize — when it finds one, it says so ("NetSeer saw 1 service it doesn't recognize yet…") and the button lights up. On an installed copy the button also brightens when the data is getting old, and is held back with a reason when you're offline. Without updating, the data is as current as your version of NetSeer.
+**Vulnerability Database.** Shows the vulnerability data NetSeer uses for the device **Security** findings, and when it was built. **Update database** downloads the latest from NVD, FIRST (EPSS), and CISA in a few minutes; it sends only product names, nothing about you or your maps. It also looks up products NetSeer saw in your captures but didn't recognize — when it finds one, it says so ("NetSeer saw 1 service it doesn't recognize yet…") and the button lights up. On an installed copy the button also brightens when the data is getting old, and is held back with a reason when you're offline. Without updating, the data is as current as your version of NetSeer.
 
-![Settings, Security: the vulnerability data in use and a highlighted Update database button](images/settings-security.png)
+![Settings, Vulnerability Database: the data in use and a highlighted Update database button](images/settings-security.png)
 
 **Your data.** Shows how many maps and devices are saved in this browser.
 
