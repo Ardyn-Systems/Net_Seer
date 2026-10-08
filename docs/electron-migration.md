@@ -17,8 +17,15 @@ the web UI are unchanged.
 > the shell from source and the **packaged** app on both OSes on every PR, and on a version tag it
 > builds, signs (when the Windows cert secrets exist — see
 > [packaging/windows/SIGNING.md](../packaging/windows/SIGNING.md)), and **attaches the artifacts to
-> the release**. Next: **Phase 2** — the frameless title bar and native menus/tray/deep-links — and
-> eventually making Electron the default desktop build (Phase 5).
+> the release**.
+>
+> **Phase 2 (started):** the Electron window now runs **frameless** with a **custom title bar** drawn
+> by the web UI — the top bar is the drag region, with themed minimize / maximize-restore / close
+> controls wired to the shell over a locked-down preload bridge; edge-resize, Aero Snap, and
+> double-click-to-maximize come free from Electron. It appears only in the Electron shell (gated on
+> `window.netseerShell`), so the browser, hosted, and pywebview builds are untouched. Still in
+> Phase 2: a system tray, a native application menu, and `netseer://` deep links. Then making
+> Electron the default desktop build (Phase 5).
 
 ## Goals and non-goals
 

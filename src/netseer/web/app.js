@@ -7604,7 +7604,22 @@ function synthwave(ctx, fx) {
   return { every: 40, fit: draw, draw, still: draw };
 }
 
+// Frameless title bar: wire the min/max/close buttons to the Electron shell (no-op elsewhere).
+function setupWindowChrome() {
+  const shell = window.netseerShell;
+  if (!shell || shell.kind !== "electron" || !shell.window) return;
+  document.documentElement.dataset.shell = "electron";
+  const w = shell.window;
+  el("win-min").addEventListener("click", () => w.minimize());
+  el("win-max").addEventListener("click", () => w.toggleMaximize());
+  el("win-close").addEventListener("click", () => w.close());
+  const sync = (max) => document.documentElement.classList.toggle("win-maximized", !!max);
+  Promise.resolve(w.isMaximized()).then(sync).catch(() => {});
+  w.onMaximizeChange(sync);
+}
+
 async function init() {
+  setupWindowChrome();
   startHeartbeat();
   mapResize.observe(el("map"));
   // Capture phase on the stage, so this runs before Cytoscape's listener on the map.

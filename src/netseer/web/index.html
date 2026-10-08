@@ -79,6 +79,18 @@
           <span id="update-dot" class="update-dot hidden" aria-hidden="true"></span>
         </button>
       </div>
+      <div id="window-controls" class="window-controls">
+        <button id="win-min" class="win-btn" type="button" aria-label="Minimize">
+          <svg viewBox="0 0 10 10" width="10" height="10"><path d="M1 5 H9" /></svg>
+        </button>
+        <button id="win-max" class="win-btn" type="button" aria-label="Maximize">
+          <svg class="ic-max" viewBox="0 0 10 10" width="10" height="10"><rect x="1" y="1" width="8" height="8" /></svg>
+          <svg class="ic-restore" viewBox="0 0 10 10" width="10" height="10"><path d="M3 3 V1 H9 V7 H7" /><rect x="1" y="3" width="6" height="6" /></svg>
+        </button>
+        <button id="win-close" class="win-btn win-close" type="button" aria-label="Close">
+          <svg viewBox="0 0 10 10" width="10" height="10"><path d="M1 1 L9 9 M9 1 L1 9" /></svg>
+        </button>
+      </div>
       <input id="file" type="file" accept=".pcap,.pcapng,.cap,.kismet,.netxml,.csv,.json" multiple hidden />
     </header>
 
