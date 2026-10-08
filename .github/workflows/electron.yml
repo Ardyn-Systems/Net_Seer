@@ -1,12 +1,13 @@
-name: Electron smoke
+name: Electron
 
 on:
   workflow_dispatch:
   pull_request:
-    paths: ["electron/**", "src/**", "pyproject.toml", ".github/workflows/electron.yml"]
+    paths: ["electron/**", "packaging/electron/**", "src/**", "pyproject.toml", ".github/workflows/electron.yml"]
 
 jobs:
   smoke:
+    name: Smoke (from source)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -33,3 +34,73 @@ jobs:
           NETSEER_PYTHON: python
           ELECTRON_ENABLE_LOGGING: "1"
         run: xvfb-run -a npm run smoke -- --no-sandbox
+
+  package-linux:
+    name: Package + smoke (Linux AppImage)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install NetSeer + PyInstaller
+        run: python -m pip install --upgrade pip && python -m pip install . "pyinstaller>=6.10"
+      - name: Freeze the server sidecar
+        run: pyinstaller packaging/electron/netseer-server.spec --noconfirm --clean
+      - name: Smoke the frozen sidecar
+        run: |
+          ./dist/netseer-server/netseer-server --host 127.0.0.1 --port 8765 &
+          sid=$!
+          ok=
+          for _ in $(seq 1 40); do if curl -sf http://127.0.0.1:8765/api/health >/dev/null; then ok=1; break; fi; sleep 0.5; done
+          kill $sid 2>/dev/null || true
+          [ -n "$ok" ] || { echo "sidecar never answered"; exit 1; }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: System libraries for headless Electron
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libnss3 libasound2 libgbm1 \
+            libatk1.0-0 libatk-bridge2.0-0 libcups2 libdrm2 libxcomposite1 \
+            libxdamage1 libxrandr2 libxkbcommon0 libpango-1.0-0 libcairo2
+      - name: Build the AppImage (bundles the sidecar)
+        working-directory: electron
+        run: npm install && npx electron-builder --linux AppImage
+      - name: Smoke the packaged AppImage
+        env:
+          ELECTRON_ENABLE_LOGGING: "1"
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: xvfb-run -a electron/dist/*.AppImage --smoke-test --no-sandbox
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NetSeer-electron-linux
+          path: electron/dist/*.AppImage
+
+  package-windows:
+    name: Package + smoke (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install NetSeer + PyInstaller
+        run: python -m pip install --upgrade pip; python -m pip install . "pyinstaller>=6.10"
+      - name: Freeze the server sidecar
+        run: pyinstaller packaging/electron/netseer-server.spec --noconfirm --clean
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Build the portable app (bundles the sidecar)
+        working-directory: electron
+        run: npm install; npx electron-builder --win zip
+      - name: Smoke the packaged app
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "electron/dist/win-unpacked/NetSeer.exe" -ArgumentList "--smoke-test" -PassThru -Wait
+          if ($p.ExitCode -ne 0) { throw "smoke failed with exit $($p.ExitCode)" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NetSeer-electron-windows
+          path: electron/dist/*.zip
