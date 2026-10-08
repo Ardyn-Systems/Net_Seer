@@ -467,10 +467,9 @@
       <div class="settings-body">
         <nav class="settings-nav" role="tablist" aria-label="Settings sections">
           <button role="tab" type="button" data-pane="general" aria-selected="true">General</button>
-          <button role="tab" type="button" data-pane="data" aria-selected="false">Your data</button>
-          <button role="tab" type="button" data-pane="demo" aria-selected="false">Demo</button>
-          <button role="tab" type="button" data-pane="security" aria-selected="false">Security</button>
           <button id="nav-integrations" role="tab" type="button" data-pane="integrations" aria-selected="false">Integrations</button>
+          <button role="tab" type="button" data-pane="data" aria-selected="false">Your data</button>
+          <button role="tab" type="button" data-pane="security" aria-selected="false">Vulnerability Database</button>
           <button role="tab" type="button" data-pane="updates" aria-selected="false">Updates<span id="updates-badge" class="nav-badge hidden">New</span></button>
           <button role="tab" type="button" data-pane="help" aria-selected="false">Help</button>
           <button role="tab" type="button" data-pane="about" aria-selected="false">About</button>
@@ -525,15 +524,6 @@
             </div>
           </section>
 
-          <section class="settings-pane hidden" data-pane="demo" role="tabpanel">
-            <h3>Try NetSeer with sample captures</h3>
-            <p class="hint">NetSeer starts empty. Open a sample here to see what it does without capturing anything yourself. Each one opens as a survey and a map, which you can remove from the lists any time.</p>
-            <div id="demo-compare-row" class="demo-compare">
-              <div><strong>Compare surveys</strong><span class="hint">A branch office surveyed twice, a week apart, with one of every kind of change.</span></div>
-              <button id="demo-compare" class="btn primary small" type="button">Compare the branch office samples</button>
-            </div>
-            <ol id="demo-list" class="release-list"></ol>
-          </section>
 
           <section class="settings-pane hidden" data-pane="security" role="tabpanel">
             <h3>Vulnerability data</h3>
@@ -617,6 +607,13 @@
               <a class="chip-btn" data-link="issue" target="_blank" rel="noopener">Report a problem<small>Opens a new issue on GitHub</small></a>
             </div>
             <p class="hint">When you report a problem, include the version shown under <a href="#" data-goto="about">About</a>. Don't attach captures from a network you need to keep private.</p>
+            <h3>Try NetSeer with sample captures</h3>
+            <p class="hint">NetSeer starts empty. Open a sample here to see what it does without capturing anything yourself. Each one opens as a survey and a map, which you can remove from the lists any time.</p>
+            <div id="demo-compare-row" class="demo-compare">
+              <div><strong>Compare surveys</strong><span class="hint">A branch office surveyed twice, a week apart, with one of every kind of change.</span></div>
+              <button id="demo-compare" class="btn primary small" type="button">Compare the branch office samples</button>
+            </div>
+            <ol id="demo-list" class="release-list"></ol>
           </section>
 
           <section class="settings-pane hidden" data-pane="about" role="tabpanel">
