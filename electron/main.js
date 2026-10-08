@@ -9,6 +9,7 @@ const { spawn } = require("node:child_process");
 const net = require("node:net");
 const http = require("node:http");
 const path = require("node:path");
+const fs = require("node:fs");
 
 const SMOKE = process.argv.includes("--smoke-test");
 const BG = "#15140f";
@@ -198,6 +199,27 @@ function setupTray() {
 
 let updateManualCheck = false;
 
+// A tiny persisted setting for the shell itself (the backend has its own settings). Default on.
+function shellSettingsPath() {
+  return path.join(app.getPath("userData"), "shell-settings.json");
+}
+function readShellSettings() {
+  try {
+    return { autoUpdate: true, ...JSON.parse(fs.readFileSync(shellSettingsPath(), "utf8")) };
+  } catch {
+    return { autoUpdate: true };
+  }
+}
+function writeShellSettings(patch) {
+  const next = { ...readShellSettings(), ...patch };
+  try {
+    fs.writeFileSync(shellSettingsPath(), JSON.stringify(next, null, 2));
+  } catch (err) {
+    log("couldn't save shell settings:", err.message);
+  }
+  return next;
+}
+
 function setupUpdates() {
   if (SMOKE || !app.isPackaged) return;
   autoUpdater.autoDownload = true;
@@ -221,7 +243,8 @@ function setupUpdates() {
     if (response === 0) {
       shuttingDown = true;
       stopSidecar();
-      autoUpdater.quitAndInstall();
+      // isSilent: install without the setup wizard; isForceRunAfter: relaunch when done.
+      autoUpdater.quitAndInstall(true, true);
     }
   });
   autoUpdater.on("error", (err) => {
@@ -229,7 +252,10 @@ function setupUpdates() {
     if (updateManualCheck) notify("Couldn't check for updates", "Try again later, or download the newest version from GitHub.");
     updateManualCheck = false;
   });
-  autoUpdater.checkForUpdatesAndNotify().catch((err) => log("update check error:", err.message));
+  // Only check on launch when the user leaves auto-update on; the Check-for-updates button always works.
+  if (readShellSettings().autoUpdate) {
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => log("update check error:", err.message));
+  }
 }
 
 function checkForUpdatesNow() {
@@ -312,6 +338,11 @@ ipcMain.on("window:toggle-maximize", (e) => {
 ipcMain.on("window:close", (e) => BrowserWindow.fromWebContents(e.sender)?.close());
 ipcMain.handle("window:is-maximized", (e) => !!BrowserWindow.fromWebContents(e.sender)?.isMaximized());
 ipcMain.on("updates:check", () => checkForUpdatesNow());
+ipcMain.handle("updates:get-auto", () => readShellSettings().autoUpdate);
+ipcMain.on("updates:set-auto", (_e, on) => {
+  writeShellSettings({ autoUpdate: !!on });
+  if (on && app.isPackaged) autoUpdater.checkForUpdates().catch((err) => log("update check error:", err.message));
+});
 
 function failFast(message) {
   log("ERROR:", message);

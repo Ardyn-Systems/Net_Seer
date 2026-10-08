@@ -50,9 +50,8 @@
       "target": ["nsis", "zip"]
     },
     "nsis": {
-      "oneClick": false,
+      "oneClick": true,
       "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
       "artifactName": "NetSeer-Electron-Setup-${version}.${ext}"
     },
     "linux": {
