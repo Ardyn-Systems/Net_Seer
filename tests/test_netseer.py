@@ -131,6 +131,10 @@ def test_wigle_and_craxiom_wardrive_csv():
     assert any(n.kind == "bluetooth" and "77:c4:b5:07:0c:3f" in n.macs for n in g.nodes)
     cell = next(n for n in g.nodes if n.kind == "cell")
     assert cell.extra.get("radio") == "LTE" and cell.extra.get("plmn") == "310260" and cell.label == "T-Mobile USA"
+    # Each sighting is time-stamped and tracked (lat, lon, t, signal).
+    assert all(n.seen for n in g.nodes)
+    ap = next(n for n in g.nodes if "HomeNet" in n.ssids)
+    assert len(ap.track) == 1 and ap.track[0][0] == 34.8 and ap.track[0][3] == -55.0 and ap.track[0][2]
 
     # WiGLE 1.4 has no Frequency column; it must still parse.
     wigle14 = (
@@ -158,6 +162,24 @@ def test_wigle_and_craxiom_wardrive_csv():
     assert any("WPA3" in e for e in next(n for n in gc.nodes if "Netgear15" in n.ssids).encryption)
     assert any("WPS" in e for e in next(n for n in gc.nodes if "ARLO" in n.ssids).encryption)
     assert next(n for n in gc.nodes if "Guest" in n.ssids).encryption == ["OPEN"]
+
+
+def test_estimate_location_is_signal_weighted():
+    from netseer.graph import estimate_location
+
+    # Heard three times; loudest (-40 dBm) near (10.0, 10.001). The estimate should lean that way.
+    track = [
+        [10.000, 10.000, 1.0, -90.0],
+        [10.002, 10.000, 2.0, -85.0],
+        [10.000, 10.001, 3.0, -40.0],
+    ]
+    est = estimate_location(track)
+    assert est and est["n"] == 3 and est["method"] == "rssi-weighted-centroid"
+    assert abs(est["lat"] - 10.000) < abs(est["lat"] - 10.002)  # pulled toward the loud sighting
+    assert est["lon"] > 10.000 and est["radius_m"] >= 0 and est["span_m"] > 0
+    # Not enough to say: fewer than three points, or no signal.
+    assert estimate_location(track[:2]) is None
+    assert estimate_location([[1.0, 1.0, 0.0, None], [2.0, 2.0, 0.0, None], [3.0, 3.0, 0.0, None]]) is None
 
 
 def test_mac_roles_from_wired_and_dot11():

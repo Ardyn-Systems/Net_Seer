@@ -11,12 +11,26 @@ from __future__ import annotations
 import csv
 import io
 import re
+from datetime import datetime, timezone
 
 from netseer.graph import GraphBuilder
 from netseer.models import GpsFix
 
 # Bracketed AuthMode tokens that describe the BSS or features, not the encryption.
 _NON_SECURITY = {"ESS", "IBSS", "MESH"}
+
+
+def _wigle_time(text: str) -> float | None:
+    """WiGLE FirstSeen like '2024-11-14 04:41:46' (device-local, no zone) -> Unix seconds."""
+    text = text.strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"):
+        try:
+            return datetime.strptime(text, fmt).replace(tzinfo=timezone.utc).timestamp()
+        except ValueError:
+            continue
+    return None
 
 
 def _wigle_encryption(authmode: str) -> str | None:
@@ -60,48 +74,50 @@ def parse_wigle_csv(builder: GraphBuilder, data: bytes, filename: str) -> None:
         except ValueError:
             return None
 
-    for row in reader:
-        mac = col(row, "MAC")
-        if not mac:
-            continue
-        rtype = col(row, "Type").upper()
-        sig = num(col(row, "RSSI"), float)
-        lat, lon, alt = col(row, "CurrentLatitude"), col(row, "CurrentLongitude"), col(row, "AltitudeMeters")
-        gps = None
-        try:
-            if lat and lon:
-                gps = GpsFix(lat=float(lat), lon=float(lon), alt=float(alt) if alt else None)
-        except ValueError:
-            gps = None
-        builder.packet_count += 1
-        if rtype in ("BT", "BLE", "BTLE"):
-            builder.add_bluetooth(
-                mac,
-                name=col(row, "SSID") or None,
-                device_class=col(row, "AuthMode") or None,
-                variant="BLE" if rtype in ("BLE", "BTLE") else "BT",
-                signal_dbm=sig,
-                gps=gps,
-            )
-        elif rtype in ("GSM", "CDMA", "WCDMA", "UMTS", "LTE", "NR"):
-            auth = col(row, "AuthMode")  # "LTE;310260" -> radio;PLMN
-            plmn = auth.split(";", 1)[1].strip() if ";" in auth else None
-            builder.add_cell_tower(
-                mac,
-                carrier=col(row, "SSID") or None,
-                radio=rtype,
-                plmn=plmn,
-                channel_arfcn=col(row, "Channel") or None,
-                signal_dbm=sig,
-                gps=gps,
-            )
-        else:  # WIFI, W, or blank -> an access point
-            builder.add_ap(
-                mac,
-                ssid=col(row, "SSID") or None,
-                channel=num(col(row, "Channel"), int),
-                frequency_mhz=num(col(row, "Frequency"), float),
-                encryption=_wigle_encryption(col(row, "AuthMode")),
-                signal_dbm=sig,
-                gps=gps,
-            )
+    try:
+        for row in reader:
+            mac = col(row, "MAC")
+            if not mac:
+                continue
+            rtype = col(row, "Type").upper()
+            sig = num(col(row, "RSSI"), float)
+            lat, lon, alt = num(col(row, "CurrentLatitude"), float), num(col(row, "CurrentLongitude"), float), num(col(row, "AltitudeMeters"), float)
+            gps = GpsFix(lat=lat, lon=lon, alt=alt) if lat is not None and lon is not None else None
+            t = _wigle_time(col(row, "FirstSeen"))
+            builder.now = t  # so each sighting is time-stamped (the device's "seen" window and timeline)
+            builder.packet_count += 1
+            if rtype in ("BT", "BLE", "BTLE"):
+                node_id = builder.add_bluetooth(
+                    mac,
+                    name=col(row, "SSID") or None,
+                    device_class=col(row, "AuthMode") or None,
+                    variant="BLE" if rtype in ("BLE", "BTLE") else "BT",
+                    signal_dbm=sig,
+                    gps=gps,
+                )
+            elif rtype in ("GSM", "CDMA", "WCDMA", "UMTS", "LTE", "NR"):
+                auth = col(row, "AuthMode")  # "LTE;310260" -> radio;PLMN
+                plmn = auth.split(";", 1)[1].strip() if ";" in auth else None
+                node_id = builder.add_cell_tower(
+                    mac,
+                    carrier=col(row, "SSID") or None,
+                    radio=rtype,
+                    plmn=plmn,
+                    channel_arfcn=col(row, "Channel") or None,
+                    signal_dbm=sig,
+                    gps=gps,
+                )
+            else:  # WIFI, W, or blank -> an access point
+                node_id = builder.add_ap(
+                    mac,
+                    ssid=col(row, "SSID") or None,
+                    channel=num(col(row, "Channel"), int),
+                    frequency_mhz=num(col(row, "Frequency"), float),
+                    encryption=_wigle_encryption(col(row, "AuthMode")),
+                    signal_dbm=sig,
+                    gps=gps,
+                )
+            if node_id:
+                builder.observe_track(node_id, lat, lon, t, sig)
+    finally:
+        builder.now = None
