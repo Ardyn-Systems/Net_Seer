@@ -16,7 +16,9 @@
     <link rel="icon" type="image/png" href="/static/favicon.png" />
     <link rel="apple-touch-icon" href="/static/logo-192.png" />
     <link rel="stylesheet" href="/static/styles.css?v=ui29" />
+    <link rel="stylesheet" href="/static/vendor/leaflet.css?v=1.9.4" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
+    <script src="/static/vendor/leaflet.js?v=1.9.4"></script>
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -37,6 +39,7 @@
         <symbol id="i-layout" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" /></symbol>
         <symbol id="i-dots" viewBox="0 0 24 24"><path d="M5 12h.01M12 12h.01M19 12h.01" stroke-width="3" /></symbol>
         <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" /></symbol>
+        <symbol id="i-geo" viewBox="0 0 24 24"><path d="M12 21s-6-5.3-6-10a6 6 0 0 1 12 0c0 4.7-6 10-6 10Z" /><circle cx="12" cy="11" r="2.3" /></symbol>
         <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16" /></symbol>
         <symbol id="i-paste" viewBox="0 0 24 24"><rect x="6" y="5" width="12" height="16" rx="2" /><path d="M9 5V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1" /></symbol>
       </defs>
@@ -68,6 +71,9 @@
             <svg class="icon"><use href="#i-download" /></svg><span>Export</span><svg class="icon chev"><use href="#i-chevron" /></svg>
           </button>
         </div>
+        <button id="btn-geo" class="icon-btn hidden" type="button" aria-label="Geo map" title="Show this survey on a map (GPS)">
+          <svg class="icon"><use href="#i-geo" /></svg>
+        </button>
         <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" aria-haspopup="dialog" title="Settings, help, and updates">
           <svg class="icon"><use href="#i-cog" /></svg>
           <span id="update-dot" class="update-dot hidden" aria-hidden="true"></span>
@@ -641,6 +647,7 @@
             <h3>Built with</h3>
             <ul class="credits">
               <li><span>Cytoscape.js</span><span>MIT</span></li>
+              <li><span>Leaflet</span><span>BSD-2-Clause</span></li>
               <li><span>FastAPI</span><span>MIT</span></li>
               <li><span>Uvicorn</span><span>BSD-3-Clause</span></li>
               <li><span>Scapy</span><span>GPL-2.0</span></li>
@@ -675,6 +682,35 @@
         <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
       </div>
     </div>
+
+    <div id="geo-view" class="geo-view hidden" role="dialog" aria-modal="true" aria-label="Geo map">
+      <div class="geo-toolbar">
+        <div class="geo-tools">
+          <strong class="geo-heading"><svg class="icon"><use href="#i-geo" /></svg> Geo map</strong>
+          <div class="seg" role="tablist" aria-label="What to show">
+            <button id="geo-mode-whole" class="seg-btn" type="button" role="tab" aria-selected="true" title="Every device with a location">Whole capture</button>
+            <button id="geo-mode-added" class="seg-btn" type="button" role="tab" aria-selected="false" title="Only devices you add with Show on map">Added devices</button>
+          </div>
+          <button id="geo-clear" class="btn small ghost hidden" type="button">Clear added</button>
+          <span id="geo-count" class="geo-count hint"></span>
+        </div>
+        <div class="geo-tools">
+          <label class="geo-toggle"><input id="geo-estimates" type="checkbox" checked /> Estimated locations</label>
+          <label class="geo-toggle"><input id="geo-path" type="checkbox" /> Operator path</label>
+          <label class="geo-toggle" title="Loads map tiles from OpenStreetMap — this goes online."><input id="geo-street" type="checkbox" /> Street map</label>
+          <button id="geo-close" class="icon-btn" type="button" aria-label="Close map"><svg class="icon"><use href="#i-x" /></svg></button>
+        </div>
+      </div>
+      <div id="geo-map" class="geo-map"></div>
+      <div id="geo-legend" class="geo-legend"></div>
+      <div id="geo-timebar" class="geo-timebar hidden">
+        <span class="geo-time-label" id="geo-time-from"></span>
+        <input id="geo-time" type="range" min="0" max="1000" value="1000" class="geo-time-slider" aria-label="Show sightings up to this time" />
+        <span class="geo-time-label" id="geo-time-to"></span>
+      </div>
+      <p id="geo-street-note" class="geo-street-note hidden">Street tiles load from openstreetmap.org — this goes online.</p>
+    </div>
+
     <script src="/static/app.js?v=ui50"></script>
   </body>
 </html>

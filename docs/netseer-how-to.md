@@ -274,6 +274,19 @@ Access points show their SSID as a second line (`HQ-Secure`, `HQ-Secure +2` for 
 
 ---
 
+## Geo map (GPS)
+
+When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), the **map-pin button** in the top bar opens a real-world map of where devices were seen. **Show on map** in a device's Details — or right-click → **Show on map** — opens it focused on that one device.
+
+- **Offline by default.** Devices are drawn on a pannable, zoomable map with a distance scale. Nothing about your locations leaves your machine. Turn on **Street map** to load an OpenStreetMap basemap — that one option goes online (it fetches map tiles from openstreetmap.org).
+- **Each device** sits at its best-known spot: its **estimated location** (see [Details panel](#details-panel)) when it has one, otherwise where it was heard. Click a marker for its name, signal, sightings, and **Open details**. **Estimated locations** also draws a faint circle for the estimate's spread.
+- **Focused on one device**, every sighting is a small dot joined in the order it was seen — the device's own path, with the estimate marked.
+- **Operator path** draws the route the survey took: every sighting, in time order.
+- **Time** slider: drag to reveal sightings up to a chosen time and replay the drive.
+- **Whole capture** shows every located device; switch to **Added devices** to start empty and build the map up with **Show on map** as you go.
+
+---
+
 ## Layers
 
 **Layers** tab:
