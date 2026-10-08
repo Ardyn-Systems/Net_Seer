@@ -348,7 +348,7 @@ Click the **cog** at the right of the top bar. A dot on the cog means a newer ve
 
 ![Settings, Your data: a summary, Back up all maps, Restore a backup, and Clear all data](images/settings-data.png)
 
-**Integrations.** Pair companion apps — such as WaveTop — so they can push captures straight into NetSeer, with no file to save and open. **Pair a device** shows a one-time code to type into the app; paired devices are listed with when you added them and last used each, and a **Revoke** button removes access. It's on installed and source copies, not the public online one; pairing over your network is coming.
+**Integrations.** Pair companion apps — such as WaveTop — so they can push captures straight into NetSeer, with no file to save and open. **Pair a device** shows a one-time code to type into the app; paired devices are listed with when you added them and last used each, and a **Revoke** button removes access. Turn on **Allow devices on my network** to let a paired app on another device (like a phone running WaveTop) reach NetSeer over your Wi-Fi or LAN — it's off by default, takes effect after you restart NetSeer, and your operating system's firewall may ask you to allow it the first time. Even then, NetSeer answers only the integration API over the network, and only to paired devices; the map and the rest of the app stay on your computer. It's on installed and source copies, not the public online one.
 
 ![Settings, Integrations: a pairing code and the paired devices list](images/settings-integrations.png)
 

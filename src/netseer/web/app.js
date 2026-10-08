@@ -4883,17 +4883,61 @@ async function receivePushedCapture(msg) {
 let pairTimer = null;
 const intgWhen = (sec) => (sec ? new Date(sec * 1000).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "");
 
+let intgNet = { enabled: false, reachable: false, addresses: [], restart_needed: false };
+
 // These management calls only answer NetSeer's own window (see _guard_own_window in web.py).
-async function intgApi(path, { method = "GET" } = {}) {
-  const res = await fetch(`/api/v1${path}`, { method, headers: { "X-NetSeer-Window": "1" } });
+async function intgApi(path, { method = "GET", body } = {}) {
+  const headers = { "X-NetSeer-Window": "1" };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
+  const res = await fetch(`/api/v1${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   if (res.status === 204) return null;
   return parseResponse(res);
 }
 
+// Where a companion app should reach this NetSeer: a network address when shared, else this computer.
+function pairAddress() {
+  if (intgNet.reachable && intgNet.addresses.length) {
+    return `${intgNet.addresses[0]}:${location.port || (location.protocol === "https:" ? "443" : "80")}`;
+  }
+  return location.host;
+}
+
 function renderIntegrations() {
-  el("intg-address").textContent = `${location.host} (on this computer)`;
   clearPairingCode();
+  renderNetwork();
   renderDevices();
+}
+
+async function renderNetwork() {
+  try {
+    intgNet = await intgApi("/network");
+  } catch {
+    intgNet = { enabled: false, reachable: false, addresses: [], restart_needed: false };
+  }
+  el("intg-lan").checked = !!intgNet.enabled;
+  el("intg-address").textContent =
+    intgNet.reachable && intgNet.addresses.length ? `${pairAddress()} (on your network)` : `${location.host} (on this computer)`;
+  const info = el("intg-lan-info");
+  if (!intgNet.enabled) {
+    info.textContent = "Off — only apps on this computer can reach NetSeer.";
+  } else if (intgNet.restart_needed) {
+    info.innerHTML = "On — <strong>restart NetSeer</strong> so devices on your network can reach it.";
+  } else if (intgNet.addresses.length) {
+    info.innerHTML = `On — companion apps can reach NetSeer at <code>${escapeHtml(pairAddress())}</code>.`;
+  } else {
+    info.textContent = "On — but NetSeer couldn't find a network address.";
+  }
+}
+
+async function setLan(enabled) {
+  try {
+    intgNet = await intgApi("/network", { method: "POST", body: { enabled } });
+    renderNetwork();
+    if (enabled && intgNet.restart_needed) toast("Restart NetSeer so devices on your network can reach it.", { timeout: 6000 });
+  } catch (err) {
+    toast(`Couldn't change network sharing: ${err.message || err}`, { error: true });
+    renderNetwork();
+  }
 }
 
 function clearPairingCode() {
@@ -4925,7 +4969,7 @@ function showPairingCode(code, seconds) {
     const mm = Math.floor(left / 60);
     const ss = String(left % 60).padStart(2, "0");
     box.innerHTML = `<div class="pair-code">${escapeHtml(digits)}</div>
-      <div class="hint">In WaveTop, add NetSeer at <code>${escapeHtml(location.host)}</code> and enter this code. It expires in ${mm}:${ss}.</div>`;
+      <div class="hint">In WaveTop, add NetSeer at <code>${escapeHtml(pairAddress())}</code> and enter this code. It expires in ${mm}:${ss}.</div>`;
   };
   paint();
   pairTimer = setInterval(() => {
@@ -5990,6 +6034,7 @@ function bindSettings() {
   });
   dialog.querySelectorAll(".settings-nav [data-pane]").forEach((b) => b.addEventListener("click", () => showSettingsPane(b.dataset.pane)));
   el("intg-pair").addEventListener("click", startPairing);
+  el("intg-lan").addEventListener("change", (e) => setLan(e.target.checked));
   dialog.addEventListener("close", clearPairingCode);
   dialog.querySelectorAll("[data-goto]").forEach((a) =>
     a.addEventListener("click", (e) => {

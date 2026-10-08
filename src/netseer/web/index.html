@@ -556,10 +556,13 @@
               <button id="intg-pair" class="btn primary" type="button">Pair a device</button>
             </div>
             <div id="intg-code" class="intg-code hidden" role="status" aria-live="polite"></div>
+            <h3>On your network</h3>
+            <label class="switch-row"><span>Allow devices on my network<small>Let paired apps on your Wi-Fi or LAN reach NetSeer, not just apps on this computer. NetSeer still answers only the integration API over the network, and only to paired devices.</small></span>
+              <input id="intg-lan" type="checkbox" role="switch" /></label>
+            <p id="intg-lan-info" class="hint"></p>
             <h3>Paired devices</h3>
             <ul id="intg-devices" class="intg-devices"></ul>
             <p id="intg-empty" class="hint">No devices are paired yet.</p>
-            <p class="hint">Reaching NetSeer from another device (like a phone running WaveTop) over your network needs the upcoming <strong>Allow devices on my network</strong> setting; today pairing works for apps on this computer.</p>
           </section>
 
           <section class="settings-pane hidden" data-pane="updates" role="tabpanel">

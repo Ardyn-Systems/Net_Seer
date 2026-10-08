@@ -20,9 +20,10 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | Capture push (`POST /api/v1/ingest/capture`) | **shipped** — becomes a normal reading job |
 | Surfacing a pushed capture in the running UI (`WS /api/v1/events`) | **shipped** — the map opens on its own |
 | Settings → Integrations UI (pairing code + device list + revoke) | **shipped** |
+| LAN binding toggle (**Allow devices on my network**) — pair/push over the network | **shipped** |
 | Live-view WebSocket session | planned |
 | AI analysis | planned |
-| mDNS discovery, LAN binding toggle (pair over the network) | planned |
+| mDNS discovery (auto-find NetSeer on the network) | planned |
 
 ## Principles
 

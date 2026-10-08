@@ -5,6 +5,7 @@ import os
 
 import uvicorn
 
+from netseer import integration
 from netseer.brand import MOTTO, PRODUCT_NAME
 
 
@@ -29,4 +30,11 @@ def main() -> None:
     parser.add_argument("--host", default=DEFAULT_HOST, help="Bind address (default 127.0.0.1; 0.0.0.0 exposes it to the LAN)")
     parser.add_argument("--port", type=int, default=default_port(), help="Bind port (default $PORT, else 47331)")
     args = parser.parse_args()
-    uvicorn.run("netseer.web:app", host=args.host, port=args.port, log_level="info")
+    host = args.host
+    # Honor "Allow devices on my network" (Settings → Integrations) unless --host was given or this
+    # is the public hosted copy. The LAN guard in web.py still limits non-local clients to the API.
+    hosted = os.environ.get("NETSEER_HOSTED", "").strip().lower() in {"1", "true", "yes", "on"}
+    if host == DEFAULT_HOST and not hosted and integration.lan_enabled():
+        host = "0.0.0.0"
+    os.environ["NETSEER_BOUND_HOST"] = host
+    uvicorn.run("netseer.web:app", host=host, port=args.port, log_level="info")
