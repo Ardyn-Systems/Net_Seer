@@ -21,7 +21,7 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | Surfacing a pushed capture in the running UI (`WS /api/v1/events`) | **shipped** — the map opens on its own |
 | Settings → Integrations UI (pairing code + device list + revoke) | **shipped** |
 | LAN binding toggle (**Allow devices on my network**) — pair/push over the network | **shipped** |
-| Live-view WebSocket session | planned |
+| Live-view WebSocket session (stream a wardrive onto the map as it happens) | **shipped** ([`live.py`](../src/netseer/live.py)) |
 | AI analysis | planned |
 | mDNS discovery (auto-find NetSeer on the network) | planned |
 

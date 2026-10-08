@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import json
 import time
 
 import pytest
 from fastapi.testclient import TestClient
 
 from netseer.samples import files_for_sample
+
+OBSERVATION = {
+    "type": "observation",
+    "devices": [
+        {"mac": "AA:BB:CC:00:00:01", "kind": "ap", "ssid": "Cafe", "channel": 6, "security": "wpa2", "signal_dbm": -50},
+        {"mac": "AA:BB:CC:00:00:02", "kind": "client", "signal_dbm": -61},
+    ],
+    "links": [{"from": "AA:BB:CC:00:00:02", "to": "AA:BB:CC:00:00:01", "kind": "assoc", "ssid": "Cafe"}],
+    "position": {"lat": 40.0, "lon": -105.0},
+}
 
 
 def _client(monkeypatch, tmp_path):
@@ -189,6 +200,45 @@ def test_lan_guard_limits_non_local_clients(monkeypatch, tmp_path):
     _, local = _client_at(monkeypatch, tmp_path, ("127.0.0.1", 5000))
     assert local.get("/api/health").status_code == 200
     assert local.get("/").status_code == 200
+
+
+def test_live_accumulator_builds_a_graph():
+    from netseer.live import LiveSession
+
+    session = LiveSession("x", "WaveTop")
+    session.apply(OBSERVATION)
+    graph = session.graph_dict()
+    assert graph is not None
+    assert len(graph["nodes"]) >= 2 and len(graph["links"]) >= 1
+    assert "Cafe" in json.dumps(graph)
+    # Nothing observed yet -> nothing to render.
+    assert LiveSession("y", "WaveTop").graph_dict() is None
+
+
+def test_live_session_requires_a_token(monkeypatch, tmp_path):
+    _, client = _client(monkeypatch, tmp_path)
+    assert client.post("/api/v1/live/sessions").status_code == 401
+
+
+def test_live_session_create_returns_a_ws_url(monkeypatch, tmp_path):
+    _, client = _client(monkeypatch, tmp_path)
+    token = _pair(client)
+    res = client.post("/api/v1/live/sessions", headers={"authorization": f"Bearer {token}"}).json()
+    assert res["session_id"] and res["ws_url"].endswith("/stream")
+
+
+def test_live_stream_rejected_without_a_token(monkeypatch, tmp_path):
+    _, client = _client(monkeypatch, tmp_path)
+    token = _pair(client)
+    ws_url = client.post("/api/v1/live/sessions", headers={"authorization": f"Bearer {token}"}).json()["ws_url"]
+    with pytest.raises(Exception):
+        with client.websocket_connect(ws_url):  # no Authorization header -> closed before accept
+            pass
+
+
+# The full stream -> merge -> live-update-to-UI path can't be driven through Starlette's test
+# client (two concurrent client WebSockets don't interleave); it's exercised against a real server
+# in the live check. The accumulator, auth, and session lifecycle above cover the units.
 
 
 def test_lan_guard_inactive_on_loopback_bind(monkeypatch, tmp_path):

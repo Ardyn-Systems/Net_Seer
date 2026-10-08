@@ -4836,7 +4836,10 @@ function connectEvents() {
     } catch {
       return;
     }
-    if (msg && msg.type === "capture-received") receivePushedCapture(msg);
+    if (!msg) return;
+    if (msg.type === "capture-received") receivePushedCapture(msg);
+    else if (msg.type === "live-update") applyLiveUpdate(msg);
+    else if (msg.type === "session-ended") endLiveSession(msg);
   };
   sock.onclose = () => {
     if (eventsSocket === sock) eventsSocket = null;
@@ -4876,6 +4879,40 @@ async function receivePushedCapture(msg) {
   } catch (err) {
     toast(`Couldn't read the capture ${source} sent: ${err.message || err}`, { error: true, timeout: 7000 });
   }
+}
+
+// A companion app is streaming a wardrive live: keep a map that updates as observations arrive.
+const liveSeen = new Set();
+
+function applyLiveUpdate(msg) {
+  if (!msg.graph) return;
+  const id = `live:${msg.session_id}`;
+  const mapId = `map:${id}`;
+  const name = `Live wardrive${msg.source ? ` · ${msg.source}` : ""}`;
+  const first = !liveSeen.has(id);
+  liveSeen.add(id);
+  const item = { id, kind: "upload", name, summary: msg.source ? `Live from ${msg.source}` : "Live wardrive", graph: msg.graph };
+  const at = state.surveys.findIndex((s) => s.id === id);
+  if (at >= 0) state.surveys.splice(at, 1, item);
+  else state.surveys.unshift(item);
+  unhideSurvey(id);
+  upsertMap({ id: mapId, name, kind: "survey", sourceId: id, captures: [], graph: msg.graph });
+  if (first) {
+    toast(`${msg.source || "A device"} started a live wardrive`, { timeout: 3500 });
+    showMap(mapId); // switch to it so the wardrive builds in front of you
+  } else if (state.activeMapId === mapId) {
+    state.graph = getMap(mapId).graph;
+    refreshAll({ fit: false }); // grow in place without yanking the view
+  } else {
+    renderSurveyList();
+  }
+}
+
+function endLiveSession(msg) {
+  const id = `live:${msg.session_id}`;
+  if (!liveSeen.has(id)) return;
+  liveSeen.delete(id);
+  toast(`${msg.source || "The device"} ended the wardrive`, { timeout: 3500 });
 }
 
 /* ---------- Settings: Integrations (pairing + paired devices) ---------- */
