@@ -1217,37 +1217,10 @@ input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
   .tour-spot, .tour-card { transition: none; }
 }
 
-/* ---------- Update wizard ---------- */
+/* ---------- Progress bars ---------- */
 
-.update-dialog { width: min(560px, calc(100% - 2rem)); max-height: calc(100vh - 3rem); overflow: auto; }
-.release-notes {
-  max-height: 260px;
-  overflow: auto;
-  margin: 0.25rem 0 0.75rem;
-  padding: 0.6rem 0.85rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--bg);
-  font-size: 13.5px;
-  line-height: 1.5;
-}
-.release-notes h4 { margin: 0.7rem 0 0.3rem; font-size: 13.5px; }
-.release-notes h4:first-child { margin-top: 0.2rem; }
-.release-notes p { margin: 0.35rem 0; }
-.release-notes ul { margin: 0.3rem 0; padding-left: 1.2rem; }
-.release-notes li { margin: 0.15rem 0; }
-.release-notes a { color: var(--accent); }
-.release-notes table { border-collapse: collapse; margin: 0.4rem 0; font-size: 12.5px; }
-.release-notes td, .release-notes th { padding: 0.25rem 0.5rem; border: 1px solid var(--line); text-align: left; vertical-align: top; }
-.upd-warning { margin: 0 0 0.6rem; padding: 0.5rem 0.7rem; border-radius: 8px; background: var(--accent-soft); font-size: 13px; }
-.upd-ok { color: var(--node-host); font-weight: 600; margin: 0.4rem 0; }
-.upd-error { color: var(--danger); margin: 0.4rem 0; }
-.upd-step > p { font-size: 13.5px; }
 .progress { height: 10px; margin: 0.9rem 0 0.4rem; overflow: hidden; border-radius: 999px; background: var(--raised); border: 1px solid var(--line); }
 .progress > div { width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width 0.3s ease; }
-.progress.indeterminate > div { width: 35%; animation: upd-slide 1.2s ease-in-out infinite; }
-@keyframes upd-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
-@media (prefers-reduced-motion: reduce) { .progress.indeterminate > div { animation: none; width: 100%; opacity: 0.5; } }
 
 /* ---------- Dragging list rows ---------- */
 
