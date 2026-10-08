@@ -536,6 +536,24 @@ def pair(body: dict) -> dict:
     return result
 
 
+@app.get("/api/v1/devices")
+def list_paired_devices(request: Request) -> dict:
+    """The paired devices, for Settings → Integrations (NetSeer's own window only)."""
+    _require_integration()
+    _guard_own_window(request)
+    return {"devices": integration.list_devices()}
+
+
+@app.delete("/api/v1/devices/{device_id}", status_code=204)
+def revoke_paired_device(request: Request, device_id: str) -> Response:
+    """Revoke a device's token so it can no longer push captures."""
+    _require_integration()
+    _guard_own_window(request)
+    if not integration.revoke(device_id):
+        raise HTTPException(status_code=404, detail="That device isn't paired.")
+    return Response(status_code=204)
+
+
 @app.post("/api/v1/ingest/capture")
 async def ingest_capture(request: Request):
     """A paired app pushes a capture's bytes directly; it becomes a reading job like any upload."""
