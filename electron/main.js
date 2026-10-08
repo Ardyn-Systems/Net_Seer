@@ -64,7 +64,13 @@ function startSidecar(port) {
   const { cmd, args } = sidecarCommand(port);
   log("starting backend:", cmd, args.join(" "));
   const env = { ...process.env, NETSEER_MODE: "desktop", NETSEER_PACKAGE: "electron", NETSEER_BOUND_HOST: "127.0.0.1" };
-  sidecar = spawn(cmd, args, { env, stdio: "inherit" });
+  // windowsHide + piped stdio: the Python sidecar is a console program, so without this it pops up
+  // a terminal window on Windows — and closing that terminal would kill the backend and take NetSeer
+  // down with it. We hide it and forward its output to our own streams (shown in dev, nowhere in the
+  // packaged GUI app).
+  sidecar = spawn(cmd, args, { env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+  sidecar.stdout?.on("data", (d) => process.stdout.write(d));
+  sidecar.stderr?.on("data", (d) => process.stderr.write(d));
   sidecar.on("exit", (code) => {
     sidecarExited = true;
     if (shuttingDown) return; // we killed it on purpose
