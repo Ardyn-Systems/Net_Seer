@@ -18,7 +18,7 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | --- | --- |
 | Pairing + device tokens (`/api/v1/pair/start`, `/api/v1/pair`), discovery (`/api/v1/info`) | **shipped** ([`integration.py`](../src/netseer/integration.py)) |
 | Capture push (`POST /api/v1/ingest/capture`) | **shipped** — becomes a normal reading job |
-| Surfacing a pushed capture in the running UI (events channel) | next slice |
+| Surfacing a pushed capture in the running UI (`WS /api/v1/events`) | **shipped** — the map opens on its own |
 | Live-view WebSocket session | planned |
 | AI analysis | planned |
 | mDNS discovery, LAN binding toggle, Settings → Integrations UI (pairing code + device list) | planned |

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from netseer.samples import files_for_sample
@@ -110,3 +111,28 @@ def test_hosted_copy_disables_integration(monkeypatch, tmp_path):
     monkeypatch.setenv("NETSEER_HOSTED", "1")
     assert client.get("/api/v1/info").status_code == 404
     assert client.post("/api/v1/pair", json={"code": "123456"}).status_code == 404
+
+
+def test_events_channel_announces_a_pushed_capture(monkeypatch, tmp_path):
+    _, client = _client(monkeypatch, tmp_path)
+    token = _pair(client)
+    _, data = files_for_sample("office-lan")[0]
+    with client.websocket_connect("/api/v1/events") as ws:
+        r = client.post(
+            "/api/v1/ingest/capture",
+            headers={"authorization": f"Bearer {token}", "x-netseer-format": "pcap", "x-netseer-name": "Live drive"},
+            content=data,
+        )
+        assert r.status_code == 200, r.text
+        evt = ws.receive_json()
+    assert evt["type"] == "capture-received"
+    assert evt["source"] == "WaveTop" and evt["name"] == "Live drive.pcap"
+    assert evt["job_id"] == r.json()["id"]
+
+
+def test_events_channel_closed_on_hosted_copy(monkeypatch, tmp_path):
+    _, client = _client(monkeypatch, tmp_path)
+    monkeypatch.setenv("NETSEER_HOSTED", "1")
+    with pytest.raises(Exception):
+        with client.websocket_connect("/api/v1/events") as ws:
+            ws.receive_text()

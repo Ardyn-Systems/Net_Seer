@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -12,8 +13,9 @@ import time
 import uuid
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -440,6 +442,69 @@ def _require_device(request: Request) -> integration.Device:
     return device
 
 
+class _EventsHub:
+    """Fan-out of integration events to NetSeer's own open pages (same-origin WebSockets)."""
+
+    def __init__(self) -> None:
+        self._clients: set[WebSocket] = set()
+        self._lock = asyncio.Lock()
+
+    async def register(self, ws: WebSocket) -> None:
+        async with self._lock:
+            self._clients.add(ws)
+
+    async def unregister(self, ws: WebSocket) -> None:
+        async with self._lock:
+            self._clients.discard(ws)
+
+    async def broadcast(self, event: dict) -> None:
+        async with self._lock:
+            clients = list(self._clients)
+        dead: list[WebSocket] = []
+        for ws in clients:
+            try:
+                await ws.send_json(event)
+            except Exception:  # a page that went away mid-send
+                dead.append(ws)
+        if dead:
+            async with self._lock:
+                self._clients.difference_update(dead)
+
+
+events_hub = _EventsHub()
+
+
+def _own_page_ws(websocket: WebSocket) -> bool:
+    """A WebSocket safe to accept: not a cross-site browser page.
+
+    Browsers always send an Origin on a WebSocket handshake, so a cross-site page (or a
+    DNS-rebinding attempt) is caught by its non-local Origin. A missing Origin means a local tool
+    or test, not a web page, so it's allowed on the loopback server.
+    """
+    origin = websocket.headers.get("origin")
+    if not origin:
+        return True
+    host = (urlsplit(origin).hostname or "").lower()
+    return host in {"127.0.0.1", "localhost", "::1"}
+
+
+@app.websocket("/api/v1/events")
+async def integration_events(websocket: WebSocket) -> None:
+    """NetSeer's page subscribes here to hear when a companion app pushes a capture."""
+    if hosted_mode() or not _own_page_ws(websocket):
+        await websocket.close(code=1008)
+        return
+    await websocket.accept()
+    await events_hub.register(websocket)
+    try:
+        while True:
+            await websocket.receive_text()  # no client messages expected; this detects disconnect
+    except WebSocketDisconnect:
+        pass
+    finally:
+        await events_hub.unregister(websocket)
+
+
 @app.get("/api/v1/info")
 def integration_info() -> dict:
     """Capabilities and version, so a companion app can feature-detect before pairing."""
@@ -491,6 +556,14 @@ async def ingest_capture(request: Request):
         raise
     job = _launch_parse_job(filename, path, folder, size)
     log.info("Capture pushed by %s: %s (%d bytes), job %s", device.name, filename, size, job["id"][:6])
+    await events_hub.broadcast({
+        "type": "capture-received",
+        "job_id": job["id"],
+        "name": filename,
+        "source": device.name,
+        "bytes": size,
+        "ts": time.time(),
+    })
     return {**_job_status(job), "source": device.name}
 
 
