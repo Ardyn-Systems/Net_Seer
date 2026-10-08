@@ -614,6 +614,82 @@ def set_integration_network(request: Request, body: dict) -> dict:
     return _network_state()
 
 
+# ---------- Live wardrive sessions ----------
+# A companion app opens a session, streams observation deltas over the WebSocket, and NetSeer
+# merges them into a graph and pushes throttled live-update events to its own open pages.
+
+LIVE_SESSIONS: dict[str, Any] = {}
+_live_lock = threading.Lock()
+LIVE_BROADCAST_INTERVAL = 0.8  # seconds between full-graph pushes to the UI
+
+
+def _bearer_token(headers) -> str:
+    auth = headers.get("authorization") or ""
+    return auth[7:].strip() if auth[:7].lower() == "bearer " else ""
+
+
+@app.post("/api/v1/live/sessions")
+def start_live_session(request: Request) -> dict:
+    """A paired app opens a live wardrive; it then streams observations to ws_url."""
+    device = _require_device(request)
+    import netseer.live as live_module
+
+    session_id = uuid.uuid4().hex
+    with _live_lock:
+        LIVE_SESSIONS[session_id] = live_module.LiveSession(session_id, device.name)
+    return {"session_id": session_id, "ws_url": f"/api/v1/live/sessions/{session_id}/stream"}
+
+
+async def _broadcast_live(session) -> None:
+    graph = await run_in_threadpool(session.graph_dict)
+    if graph is not None:
+        await events_hub.broadcast({"type": "live-update", "session_id": session.id, "source": session.device, "graph": graph})
+
+
+@app.websocket("/api/v1/live/sessions/{session_id}/stream")
+async def live_stream(websocket: WebSocket, session_id: str) -> None:
+    """Receive observation deltas for a session and merge them into its graph."""
+    if hosted_mode() or integration.verify_token(_bearer_token(websocket.headers)) is None:
+        await websocket.close(code=1008)
+        return
+    with _live_lock:
+        session = LIVE_SESSIONS.get(session_id)
+    if session is None:
+        await websocket.close(code=1008)
+        return
+    await websocket.accept()
+    last = 0.0
+    try:
+        while True:
+            message = await websocket.receive_json()
+            await run_in_threadpool(session.apply, message)
+            now = time.monotonic()
+            if now - last >= LIVE_BROADCAST_INTERVAL:
+                last = now
+                await _broadcast_live(session)
+    except WebSocketDisconnect:
+        pass
+    except (ValueError, KeyError, TypeError):
+        pass  # a malformed message ends the stream
+    finally:
+        await _broadcast_live(session)  # a final frame with everything seen
+        with _live_lock:
+            LIVE_SESSIONS.pop(session_id, None)
+        await events_hub.broadcast({"type": "session-ended", "session_id": session_id, "source": session.device})
+
+
+@app.delete("/api/v1/live/sessions/{session_id}", status_code=204)
+async def end_live_session(request: Request, session_id: str) -> Response:
+    """End a live session (the companion app, or NetSeer, closing it)."""
+    _require_device(request)
+    with _live_lock:
+        session = LIVE_SESSIONS.pop(session_id, None)
+    if session is None:
+        raise HTTPException(status_code=404, detail="That live session isn't running.")
+    await events_hub.broadcast({"type": "session-ended", "session_id": session_id, "source": session.device})
+    return Response(status_code=204)
+
+
 @app.post("/api/v1/ingest/capture")
 async def ingest_capture(request: Request):
     """A paired app pushes a capture's bytes directly; it becomes a reading job like any upload."""
