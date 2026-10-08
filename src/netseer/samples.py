@@ -56,6 +56,13 @@ SAMPLES: list[dict[str, Any]] = [
         "files": ["airodump-ng.csv"],
     },
     {
+        "id": "wardrive",
+        "name": "Wardrive (WiGLE)",
+        "kind": "wigle-csv",
+        "summary": "A short drive past access points, Bluetooth gadgets, and a cell tower — open the geo map to see tracks and estimated locations.",
+        "files": ["wardrive.wiglewifi.csv"],
+    },
+    {
         "id": "branch-baseline",
         "name": "Branch Wi-Fi: baseline (pcapng)",
         "kind": "pcapng",

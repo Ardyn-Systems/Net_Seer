@@ -286,6 +286,10 @@ When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — the **
 - Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked.
 - **Operator path** traces the route the survey drove; the **time** slider replays it; and you can show the **whole capture** at once or switch to **Added devices** to build the map up with **Show on map** as you go.
 
+Try it with the **Wardrive (WiGLE)** sample in **Settings → Help**.
+
+![The wardrive sample on the geo map: access points, Bluetooth, and a cell tower with their estimated-location spread circles, and the operator's path dashed through them](images/geo-map.png)
+
 ## Export diagrams and files
 
 ![Export menu: draw.io diagram, Visio drawing, Visio XML, and Report](images/export-menu.png)

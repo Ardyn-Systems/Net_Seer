@@ -430,6 +430,19 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("settings-security", selectors=["#settings-dialog"], pad=0)
         page.evaluate("() => el('settings-dialog').close()")
 
+        # Geo map: the wardrive demo on a real-world map (offline, no street tiles).
+        page.evaluate("() => { const t = el('toast'); t.classList.add('hidden'); try { t.hidePopover(); } catch {} }")
+        page.evaluate("() => openDemo('wardrive')")
+        page.wait_for_function("() => state.graph && state.graph.nodes.some((n) => (n.track || []).length)")
+        page.wait_for_timeout(300)
+        page.evaluate("() => { el('geo-path').checked = true; openGeoMap(); }")
+        page.wait_for_function("() => typeof geo !== 'undefined' && geo.features && geo.features.getLayers().length > 0")
+        page.wait_for_timeout(600)
+        page.evaluate("() => { if (geo.map) { geo.map.invalidateSize(); renderGeo(true); } }")
+        page.wait_for_timeout(500)
+        shots.save("geo-map", selectors=["#geo-view"], pad=0)
+        page.evaluate("() => closeGeoMap()")
+
         browser.close()
         return shots.taken
 
