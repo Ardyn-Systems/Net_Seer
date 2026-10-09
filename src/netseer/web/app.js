@@ -6260,6 +6260,7 @@ function bindSettings() {
     r.addEventListener("change", () => {
       state.prefs.zoomSpeed = r.value;
       savePrefs();
+      applyGeoZoomSpeed(); // keep an open geo map in step with the setting
     })
   );
   el("settings-ssid").addEventListener("change", (e) => {
@@ -7693,9 +7694,14 @@ function geoTimeRange(devs) {
   return Number.isFinite(lo) && hi > lo ? [lo, hi] : null;
 }
 
-// Leaflet's default wheel zoom jumps ~2 levels per notch. These px-per-level values make it ease in
-// gently, roughly matching the network map's ~6/10/16% per notch (Settings → Scroll to zoom).
-const GEO_WHEEL_PX = { slow: 1100, normal: 700, fast: 450 };
+// Leaflet's default wheel zoom (60 px/level) jumps ~2 levels per notch. These px-per-level values
+// ease in more smoothly while still feeling responsive, and track Settings → Scroll to zoom: a
+// smaller number zooms faster. applyGeoZoomSpeed() pushes a changed setting to a live map.
+const GEO_WHEEL_PX = { slow: 320, normal: 180, fast: 110 };
+
+function applyGeoZoomSpeed() {
+  if (geo.map) geo.map.options.wheelPxPerZoomLevel = GEO_WHEEL_PX[state.prefs.zoomSpeed] || GEO_WHEEL_PX.normal;
+}
 
 // A bottom-right zoom control with a slider, so you can drag to a zoom level like the network map.
 const GeoZoomControl = L.Control.extend({
