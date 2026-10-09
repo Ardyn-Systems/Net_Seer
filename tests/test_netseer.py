@@ -1090,6 +1090,21 @@ def test_offline_map_pack_save_and_append(monkeypatch, tmp_path):
     assert res2.json()["maxzoom"] == 13
     assert client.get("/api/mappacks/sf-area/13/1310/3166").status_code == 200
 
+    # Rename the pack: display name changes and the id follows the new slug.
+    r = client.post("/api/mappacks/sf-area/rename", json={"name": "Downtown SF"})
+    assert r.status_code == 200, r.text
+    renamed = r.json()
+    assert renamed["id"] == "downtown-sf" and renamed["name"] == "Downtown SF"
+    # Tiles still serve under the new id; the old id is gone.
+    assert client.get("/api/mappacks/downtown-sf/12/655/1583").status_code == 200
+    assert not any(p["id"] == "sf-area" for p in client.get("/api/mappacks").json()["packs"])
+    # An empty name is refused; a missing pack is 400.
+    assert client.post("/api/mappacks/downtown-sf/rename", json={"name": "  "}).status_code == 400
+    assert client.post("/api/mappacks/nope/rename", json={"name": "x"}).status_code == 400
+    # Renaming is blocked on the hosted copy.
+    monkeypatch.setenv("NETSEER_HOSTED", "1")
+    assert client.post("/api/mappacks/downtown-sf/rename", json={"name": "y"}).status_code == 403
+
 
 def test_offline_map_pack_save_rejects_bad_input(monkeypatch, tmp_path):
     import base64
