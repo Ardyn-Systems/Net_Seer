@@ -97,12 +97,17 @@ Click a device to see what NetSeer found.
 - **Name on map** and **Caption under the name** change how the device appears on the map. Here the router is renamed "Core router" with the caption "Server room, rack A". **Use auto name** goes back to the name NetSeer inferred.
 - **Identity** shows IP and MAC addresses (with their TX/RX/DA/RA roles when the frames show them), the manufacturer from the MAC prefix, and VLANs.
 - **Radio** (for wireless devices) shows SSIDs, channel, frequency, signal range, security, and GPS.
+- **Location** (GPS surveys) shows how many times the device was seen, its estimated location, and — under **_N_ GPS fixes with times** — every fix listed out with its time and signal. Click a coordinate to copy it.
 - **Services** and **Routing** show what it serves and what NetSeer learned from OSPF, DHCP, and DNS.
 - **Notes** keeps anything you want to remember: asset tags, site notes, contacts.
 - **Security** lists what NetSeer found about the device's safety. See [Check security](#check-security).
 - **Click any value** to copy it.
 
 The buttons below copy a text summary of the device, export it, move it to another map, set it aside, or delete it from this map.
+
+For a device from a GPS survey, **Location** lists every fix the device was seen at — expand **_N_ GPS fixes with times** for the time, coordinates, and signal of each.
+
+![The Location section for a device, with every GPS fix listed by time, coordinates, and signal](images/device-gps-fixes.png)
 
 ### Edit any field
 
