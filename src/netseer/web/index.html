@@ -269,6 +269,47 @@
         <div id="drop-overlay" class="drop-overlay hidden">
           <div><svg class="icon"><use href="#i-upload" /></svg><p>Drop to add these captures</p></div>
         </div>
+
+        <div id="geo-view" class="geo-view hidden" role="group" aria-label="Geo map">
+          <div class="geo-toolbar">
+            <div class="geo-tools">
+              <div id="geo-view-toggle" class="seg view-toggle" role="tablist" aria-label="Map view">
+                <button id="geoview-network" class="seg-btn" type="button" role="tab" aria-selected="false" title="Back to the network map">Network</button>
+                <button id="geoview-geo" class="seg-btn" type="button" role="tab" aria-selected="true" title="Where devices were seen (GPS)"><svg class="icon"><use href="#i-geo" /></svg> Geo map</button>
+              </div>
+              <div class="seg" role="tablist" aria-label="What to show">
+                <button id="geo-mode-whole" class="seg-btn" type="button" role="tab" aria-selected="true" title="Every device with a location">Whole capture</button>
+                <button id="geo-mode-added" class="seg-btn" type="button" role="tab" aria-selected="false" title="Only the devices you add">Added only</button>
+              </div>
+              <button id="geo-clear" class="btn small ghost hidden" type="button">Clear</button>
+              <span id="geo-count" class="geo-count hint"></span>
+            </div>
+            <div class="geo-tools">
+              <label class="geo-toggle"><input id="geo-estimates" type="checkbox" checked /> Estimated locations</label>
+              <label class="geo-toggle"><input id="geo-path" type="checkbox" checked /> Operator path</label>
+              <label class="geo-base" title="The map background"><span>Basemap</span>
+                <select id="geo-basemap" class="geo-select" aria-label="Map background"></select>
+              </label>
+              <button id="geo-pack-add" class="btn small ghost" type="button" title="Load an offline .mbtiles map pack">Load pack…</button>
+              <button id="geo-pack-remove" class="btn small ghost hidden" type="button" title="Remove the selected offline map pack">Remove pack</button>
+              <input id="geo-pack-file" type="file" accept=".mbtiles,application/octet-stream" hidden />
+              <button id="geo-export" class="btn small" type="button" aria-haspopup="menu" title="Save the map as an image or PDF"><svg class="icon"><use href="#i-download" /></svg> Export</button>
+            </div>
+          </div>
+          <div class="geo-stage">
+            <div id="geo-map" class="geo-map"></div>
+            <details id="geo-legend" class="geo-legend">
+              <summary class="geo-legend-summary"><svg class="icon"><use href="#i-chevron" /></svg> Legend</summary>
+              <div id="geo-legend-body" class="geo-legend-body"></div>
+            </details>
+            <p id="geo-street-note" class="geo-street-note hidden">Street tiles load from openstreetmap.org — this goes online.</p>
+          </div>
+          <div id="geo-timebar" class="geo-timebar hidden">
+            <span class="geo-time-label" id="geo-time-from"></span>
+            <input id="geo-time" type="range" min="0" max="1000" value="1000" class="geo-time-slider" aria-label="Show sightings up to this time" />
+            <span class="geo-time-label" id="geo-time-to"></span>
+          </div>
+        </div>
       </main>
 
       <aside class="inspector" id="inspector" aria-label="Details">
@@ -689,42 +730,6 @@
         <div class="egg-out" id="egg-out"></div>
         <label class="egg-line"><span id="egg-prompt"></span><input id="egg-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" aria-label="Command" /></label>
       </div>
-    </div>
-
-    <div id="geo-view" class="geo-view hidden" role="dialog" aria-modal="true" aria-label="Geo map">
-      <div class="geo-toolbar">
-        <div class="geo-tools">
-          <div id="geo-view-toggle" class="seg view-toggle" role="tablist" aria-label="Map view">
-            <button id="geoview-network" class="seg-btn" type="button" role="tab" aria-selected="false" title="Back to the network map">Network</button>
-            <button id="geoview-geo" class="seg-btn" type="button" role="tab" aria-selected="true" title="Where devices were seen (GPS)"><svg class="icon"><use href="#i-geo" /></svg> Geo map</button>
-          </div>
-          <div class="seg" role="tablist" aria-label="What to show">
-            <button id="geo-mode-whole" class="seg-btn" type="button" role="tab" aria-selected="true" title="Every device with a location">Whole capture</button>
-            <button id="geo-mode-added" class="seg-btn" type="button" role="tab" aria-selected="false" title="Only the devices you add">Added only</button>
-          </div>
-          <button id="geo-clear" class="btn small ghost hidden" type="button">Clear</button>
-          <span id="geo-count" class="geo-count hint"></span>
-        </div>
-        <div class="geo-tools">
-          <label class="geo-toggle"><input id="geo-estimates" type="checkbox" checked /> Estimated locations</label>
-          <label class="geo-toggle"><input id="geo-path" type="checkbox" checked /> Operator path</label>
-          <label class="geo-base" title="The map background"><span>Basemap</span>
-            <select id="geo-basemap" class="geo-select" aria-label="Map background"></select>
-          </label>
-          <button id="geo-pack-add" class="btn small ghost" type="button" title="Load an offline .mbtiles map pack">Load pack…</button>
-          <button id="geo-pack-remove" class="btn small ghost hidden" type="button" title="Remove the selected offline map pack">Remove pack</button>
-          <input id="geo-pack-file" type="file" accept=".mbtiles,application/octet-stream" hidden />
-          <button id="geo-export" class="btn small" type="button" aria-haspopup="menu" title="Save the map as an image or PDF"><svg class="icon"><use href="#i-download" /></svg> Export</button>
-        </div>
-      </div>
-      <div id="geo-map" class="geo-map"></div>
-      <div id="geo-legend" class="geo-legend"></div>
-      <div id="geo-timebar" class="geo-timebar hidden">
-        <span class="geo-time-label" id="geo-time-from"></span>
-        <input id="geo-time" type="range" min="0" max="1000" value="1000" class="geo-time-slider" aria-label="Show sightings up to this time" />
-        <span class="geo-time-label" id="geo-time-to"></span>
-      </div>
-      <p id="geo-street-note" class="geo-street-note hidden">Street tiles load from openstreetmap.org — this goes online.</p>
     </div>
 
     <script src="/static/app.js?v=ui50"></script>

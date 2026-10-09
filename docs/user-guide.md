@@ -275,7 +275,7 @@ Your layer choices are remembered.
 
 ## The geo map
 
-When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** for a real-world map of where devices were seen; the same toggle sits in the geo map's toolbar, so **Network** switches back. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
+When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** and a real-world map of where devices were seen fills the map area (the title bar and sidebar stay put); the same toggle sits in the geo map's toolbar, so **Network** switches back. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
 
 - The **Basemap** menu picks the map background. It starts on **Streets — online**, which fetches map tiles from openstreetmap.org — the one option that goes online. Choose **No basemap** for a plain grid where nothing leaves your computer.
 - **Offline map packs.** In the field, where the street tiles aren't reachable, load a map pack: **Load pack…** takes an `.mbtiles` file (a standard offline tile pack of a chosen area), and it then appears in the **Basemap** menu. Packs are kept on this computer; **Remove pack** deletes the selected one. This option is hidden on the hosted copy.
@@ -283,6 +283,7 @@ When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Ne
 - **Accuracy** grades each estimate **Good**, **Fair**, or **Rough** from its margin (±metres) and how many spots the device was heard from — an estimate from only a couple of readings is never better than Rough. It shows in the popup, on the device's **Details**, and on hover over the spread ring.
 - Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked and the device **pulsing** so it's easy to find.
 - **Operator path** traces the route the survey drove, with an **arrow at the operator's position** for the time you're viewing; the **time** slider replays the drive. Show the **whole capture** at once, or switch to **Added only** to build the map up with **Show on map** as you go.
+- The **Legend** button (top-left of the map) opens a key for the markers, rings, and operator path; click it again to tuck it away so it doesn't cover the map.
 - **Export** saves the current view — markers, route, legend and all — as a **PNG image** or a one-page **PDF**, for a briefing or a report. You can also tick **Geo map** when making a [PDF report](#create-a-pdf-report) to drop the map in as its own page.
 
 Try it with the **Wardrive (WiGLE)** sample in **Settings → Help**.
