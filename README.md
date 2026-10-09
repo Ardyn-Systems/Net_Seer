@@ -146,7 +146,7 @@ From the frames and survey rows, NetSeer extracts:
   - a **PDF report** where you choose the sections, device types, and fields; it estimates the page count before you make it
   - per-device **PDF, CSV, XML, or text**
 - **Five themes:** Terrain (the default, over a topographic map), Midnight, Daylight (good for printing), Blueprint, and Retrowave (soft synthwave).
-- **Settings** (the cog): scroll-zoom speed, integrations, back up and restore all your maps, the vulnerability database, updates (the desktop app updates itself; everywhere else links to the latest release), a one-minute guided tour, and an About page.
+- **Settings** (the cog): scroll-zoom speed, integrations (pair WaveTop over Wi-Fi or a USB cable — NetSeer links plugged-in phones itself), back up and restore all your maps, the vulnerability database, updates (the desktop app updates itself; everywhere else links to the latest release), a one-minute guided tour, and an About page.
 
 The [user guide](docs/user-guide.md) walks through all of it with screenshots; the [How to](docs/netseer-how-to.md) lists every control and keyboard shortcut.
 

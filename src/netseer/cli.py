@@ -37,4 +37,9 @@ def main() -> None:
     if host == DEFAULT_HOST and not hosted and integration.lan_enabled():
         host = "0.0.0.0"
     os.environ["NETSEER_BOUND_HOST"] = host
+    if not hosted and not os.environ.get("NETSEER_NO_USB"):
+        # Plugged-in phones (USB debugging allowed) reach this NetSeer at their own 127.0.0.1:47331.
+        from netseer import usb
+
+        usb.start(args.port)
     uvicorn.run("netseer.web:app", host=host, port=args.port, log_level="info")

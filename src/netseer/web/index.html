@@ -575,6 +575,10 @@
             <label class="switch-row"><span>Allow devices on my network<small>Let paired apps on your Wi-Fi or LAN reach NetSeer, not just apps on this computer. NetSeer still answers only the integration API over the network, and only to paired devices.</small></span>
               <input id="intg-lan" type="checkbox" role="switch" /></label>
             <p id="intg-lan-info" class="hint"></p>
+            <h3>Over USB</h3>
+            <label class="switch-row"><span>Connect phones over USB<small>When a phone with USB debugging allowed is plugged into this computer, NetSeer links it, so WaveTop's USB cable option reaches this NetSeer with nothing to type. Needs Android's adb (platform-tools, which comes with Android Studio).</small></span>
+              <input id="intg-usb" type="checkbox" role="switch" /></label>
+            <p id="intg-usb-info" class="hint"></p>
             <h3>Paired devices</h3>
             <ul id="intg-devices" class="intg-devices"></ul>
             <p id="intg-empty" class="hint">No devices are paired yet.</p>
