@@ -27,7 +27,7 @@
     "directories": {
       "output": "dist"
     },
-    "files": ["main.js", "preload.js"],
+    "files": ["main.js", "preload.js", "selfupdate.js", "download.js"],
     "publish": [
       {
         "provider": "github",

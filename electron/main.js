@@ -5,6 +5,7 @@
 
 const { app, BrowserWindow, Menu, Tray, dialog, nativeImage, shell, ipcMain } = require("electron");
 const { autoUpdater } = require("electron-updater");
+const selfupdate = require("./selfupdate");
 const { spawn } = require("node:child_process");
 const net = require("node:net");
 const http = require("node:http");
@@ -279,6 +280,33 @@ function installUpdate() {
   autoUpdater.quitAndInstall(true, true);
 }
 
+// Install a specific release (the version list: roll back, reinstall, or a chosen version), via the
+// custom downloader. electron-updater handles only "update to the newest".
+let pendingVersion = null;
+
+function startVersionUpdate(tag) {
+  pendingVersion = null;
+  sendUpdate({ state: "downloading", manual: true, percent: 0 });
+  selfupdate
+    .prepare(tag, (status, pct) => sendUpdate({ state: "downloading", manual: true, percent: pct, verifying: status === "verifying" }))
+    .then((res) => {
+      pendingVersion = res;
+      sendUpdate({ state: "ready", manual: true, version: res.version, versionInstall: true });
+    })
+    .catch((err) => {
+      log("version update error:", err == null ? "unknown" : err.message);
+      sendUpdate({ state: "error", manual: true, message: err?.message || "Couldn't download that version." });
+    });
+}
+
+function applyVersionUpdate() {
+  if (!pendingVersion) return;
+  shuttingDown = true;
+  stopSidecar();
+  selfupdate.applyInstaller(pendingVersion.path);
+  setTimeout(() => app.quit(), 600);
+}
+
 function checkForUpdatesNow() {
   if (!app.isPackaged) {
     sendUpdate({ state: "error", manual: true, message: "Auto-update runs in the installed app. From source, update with git/uv as usual." });
@@ -359,6 +387,10 @@ ipcMain.on("updates:download", () => {
   if (app.isPackaged) autoUpdater.downloadUpdate().catch((err) => log("update download error:", err.message));
 });
 ipcMain.on("updates:install", () => installUpdate());
+ipcMain.on("updates:start-version", (_e, tag) => {
+  if (app.isPackaged && tag) startVersionUpdate(String(tag));
+});
+ipcMain.on("updates:apply-version", () => applyVersionUpdate());
 ipcMain.handle("updates:get-auto", () => readShellSettings().autoUpdate);
 ipcMain.on("updates:set-auto", (_e, on) => {
   writeShellSettings({ autoUpdate: !!on });

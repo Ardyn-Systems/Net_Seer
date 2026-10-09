@@ -14,9 +14,12 @@ same ones that run online and from source. See
   background, `NETSEER_MODE=desktop`) with a web-UI title bar.
 - Adds a system tray, a native application menu, and `netseer://` deep links (the companion-app
   handoff).
-- Updates itself with `electron-updater` (GitHub provider): a background check on launch, a
-  **Check for updates** control, and a restart-to-install prompt, gated on the user's
-  auto-update toggle.
+- Updates itself with `electron-updater` (GitHub provider): a background check on launch and a
+  restart-to-install prompt, gated on the user's auto-update toggle.
+- **Version list** (`selfupdate.js` + `download.js`): **Check for updates** lists every release;
+  the user can update, reinstall, or **roll back** to an earlier version. The shell downloads that
+  release's asset, verifies its SHA-256 against the release's `SHA256SUMS`, and runs the installer
+  (Windows NSIS silent) / AppImage.
 - Opens external links in the user's browser.
 - Kills the sidecar when the app quits, and quits if the backend dies.
 - Security: `contextIsolation` on, `nodeIntegration` off, sandboxed renderer, a minimal preload.

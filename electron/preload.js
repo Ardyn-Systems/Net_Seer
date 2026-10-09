@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld("netseerShell", {
   downloadUpdate: () => ipcRenderer.send("updates:download"),
   // Restart and install a downloaded update now.
   installUpdate: () => ipcRenderer.send("updates:install"),
+  // Version list: download+verify a specific release (roll back / reinstall / chosen version), then install it.
+  startVersionUpdate: (tag) => ipcRenderer.send("updates:start-version", tag),
+  applyVersionUpdate: () => ipcRenderer.send("updates:apply-version"),
   // The persisted "update automatically" preference.
   getAutoUpdate: () => ipcRenderer.invoke("updates:get-auto"),
   setAutoUpdate: (on) => ipcRenderer.send("updates:set-auto", on),
