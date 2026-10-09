@@ -3973,8 +3973,19 @@ function renderMapList() {
   }
 }
 
+const mapHasGeo = (map) => (map?.graph?.nodes || []).some((n) => isDeviceNode(n) && geoLocated(n));
+
+// Switch to a map and open the geo map on its whole capture (from a survey's right-click menu).
+function showMapOnGeo(mapId) {
+  showMap(mapId);
+  closeNarrowPanels();
+  setGeoMode("whole");
+  openGeoMap();
+}
+
 function mapMenuItems(map) {
   const items = [{ label: "Rename…", onSelect: () => renameMap(map.id) }];
+  if (mapHasGeo(map)) items.push({ label: "Show on geo map", onSelect: () => showMapOnGeo(map.id) });
   if (map.kind === "unwanted") {
     items.push({ label: "Save to files and empty…", disabled: !mapNodeCount(map), onSelect: () => emptyUnwanted() });
   } else {
@@ -7494,6 +7505,14 @@ function geoPoint(n) {
   return null;
 }
 
+// Compass bearing (degrees, 0 = north) from one lat/lon to another, for the operator arrow.
+function geoBearing(lat1, lon1, lat2, lon2) {
+  const r = Math.PI / 180;
+  const y = Math.sin((lon2 - lon1) * r) * Math.cos(lat2 * r);
+  const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos((lon2 - lon1) * r);
+  return (Math.atan2(y, x) / r + 360) % 360;
+}
+
 function geoTimeRange(devs) {
   let lo = Infinity;
   let hi = -Infinity;
@@ -7502,8 +7521,10 @@ function geoTimeRange(devs) {
 }
 
 function initGeoMap() {
-  geo.map = L.map("geo-map", { zoomControl: true, attributionControl: true, preferCanvas: true });
+  // Zoom sits bottom-right so it never covers the legend or the street-map note (both at the top).
+  geo.map = L.map("geo-map", { zoomControl: false, attributionControl: true, preferCanvas: true });
   geo.map.setView([0, 0], 2);
+  L.control.zoom({ position: "bottomright" }).addTo(geo.map);
   L.control.scale({ imperial: true, metric: true }).addTo(geo.map);
   geo.features = L.layerGroup().addTo(geo.map);
   geo.path = L.layerGroup().addTo(geo.map);
@@ -7527,8 +7548,20 @@ function geoPopup(n) {
   const e = n.extra?.est_location;
   const est = e ? `Estimated from ${e.n} readings (±${formatMetres(e.radius_m)}).` : "";
   const sightings = n.track?.length ? `${n.track.length} GPS ${n.track.length === 1 ? "fix" : "fixes"}` : "";
+  // Identifiers, so a device can be told apart when the map is crowded.
+  const ssid = (n.ssids || []).map((s) => String(s || "").trim()).filter(Boolean)[0];
+  const mac = (n.macs || [])[0];
+  const ip = (n.ips || [])[0];
+  const ch = (n.channels || []).find((c) => Number.isFinite(Number(c)));
+  const idRows = [
+    ssid ? ["SSID", ssid] : null,
+    mac ? ["MAC", mac] : null,
+    ip ? ["IP", ip] : null,
+    ch != null ? ["Channel", ch] : null,
+  ].filter(Boolean);
   return `<div class="geo-pop"><strong>${escapeHtml(displayName(n))}</strong>
     <div class="geo-pop-sub">${escapeHtml([inferredName(n), sig].filter(Boolean).join(" · "))}</div>
+    ${idRows.map(([k, v]) => `<div class="geo-pop-row"><span class="geo-pop-k">${escapeHtml(k)}</span> ${escapeHtml(String(v))}</div>`).join("")}
     ${sightings ? `<div class="geo-pop-row">${escapeHtml(sightings)}</div>` : ""}
     ${est ? `<div class="geo-pop-row hint">${escapeHtml(est)}</div>` : ""}
     <button type="button" class="btn small" data-geo-open="${escapeHtml(n.id)}">Open details</button></div>`;
@@ -7546,26 +7579,52 @@ function renderGeo(fit = false) {
     const pt = geoPoint(n);
     if (!pt) continue;
     const color = geoColor(n);
+    const focused = n.id === geo.focusId;
     if (showEst && n.extra?.est_location) {
-      L.circle([pt.lat, pt.lon], { radius: n.extra.est_location.radius_m || 1, color, weight: 1, opacity: 0.5, fillColor: color, fillOpacity: 0.06 }).addTo(geo.features);
+      L.circle([pt.lat, pt.lon], { radius: n.extra.est_location.radius_m || 1, color, weight: 1, opacity: 0.55, fillColor: color, fillOpacity: 0.08 }).addTo(geo.features);
     }
+    // A white casing around a solid fill keeps points readable over both dark markers and
+    // street tiles. Estimated positions read as hollow (thicker ring, light fill).
     const m = L.circleMarker([pt.lat, pt.lon], {
-      radius: n.id === geo.focusId ? 8 : 6,
-      color,
-      weight: n.id === geo.focusId ? 3 : 2,
+      radius: focused ? 9 : 7,
+      color: "#ffffff",
+      weight: 2,
       fillColor: color,
-      fillOpacity: pt.estimated ? 0.25 : 0.7,
+      fillOpacity: pt.estimated ? 0.45 : 0.95,
     });
     m.bindPopup(geoPopup(n));
     m.addTo(geo.features);
     bounds.push([pt.lat, pt.lon]);
+    // Pulse ring to pick the focused device out of a crowd.
+    if (focused) {
+      L.marker([pt.lat, pt.lon], {
+        interactive: false,
+        icon: L.divIcon({ className: "geo-pulse-icon", html: `<span class="geo-pulse" style="--geo-pulse:${color}"></span>`, iconSize: [26, 26], iconAnchor: [13, 13] }),
+      }).addTo(geo.focusLayer);
+    }
   }
   // Operator path: every sighting across visible devices, in time order, up to the cutoff.
   if (el("geo-path").checked) {
     const pts = [];
     for (const n of devs) for (const p of n.track || []) if (Number.isFinite(p[0]) && Number.isFinite(p[1]) && (geo.cutoff == null || !Number.isFinite(p[2]) || p[2] <= geo.cutoff)) pts.push(p);
     pts.sort((a, b) => (a[2] || 0) - (b[2] || 0));
-    if (pts.length > 1) L.polyline(pts.map((p) => [p[0], p[1]]), { color: themeColors().muted, weight: 2, opacity: 0.6, dashArray: "4 4" }).addTo(geo.path);
+    if (pts.length > 1) {
+      const line = pts.map((p) => [p[0], p[1]]);
+      // Dark casing under a bright line so the route stands out on street tiles.
+      L.polyline(line, { color: "#1b1b1b", weight: 5, opacity: 0.35 }).addTo(geo.path);
+      L.polyline(line, { color: themeColors().select || "#3aa0ff", weight: 2.5, opacity: 0.95 }).addTo(geo.path);
+      // Operator position "now": the most recent sighting up to the cutoff.
+      const last = pts[pts.length - 1];
+      const prev = pts.length > 1 ? pts[pts.length - 2] : null;
+      const heading = prev ? geoBearing(prev[0], prev[1], last[0], last[1]) : 0;
+      L.marker([last[0], last[1]], {
+        interactive: true,
+        zIndexOffset: 1000,
+        icon: L.divIcon({ className: "geo-operator-icon", html: `<span class="geo-operator" style="transform:rotate(${heading}deg)"></span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
+      })
+        .bindTooltip(`Operator${Number.isFinite(last[2]) ? ` · ${new Date(last[2] * 1000).toLocaleString()}` : ""}`)
+        .addTo(geo.path);
+    }
   }
   // Focused device: show each of its sightings as a small dot, joined in the order they were seen.
   const focus = geo.focusId && devs.find((n) => n.id === geo.focusId);
@@ -7582,6 +7641,7 @@ function renderGeo(fit = false) {
     }
   }
   el("geo-count").textContent = `${devs.length} ${devs.length === 1 ? "device" : "devices"}${geo.mode === "added" ? " added" : ""}`;
+  geoLegend();
   if (fit && bounds.length) geo.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
 }
 
@@ -7603,17 +7663,26 @@ function syncGeoModeUi() {
 }
 
 function geoLegend() {
+  // Only show device types that are actually on the map, so the key stays short.
+  const present = new Set(geoVisibleDevices().map((n) => nodeRole(n)));
   const items = [
     ["ap", "Access point"],
     ["wireless", "Wireless client"],
     ["bluetooth", "Bluetooth"],
     ["cell", "Cell tower"],
     ["host", "Other device"],
-  ];
+  ].filter(([k]) => present.has(k) || (k === "host" && present.size === 0));
   const c = themeColors();
+  const route = c.select || "#3aa0ff";
   el("geo-legend").innerHTML =
+    `<div class="geo-leg-group">` +
     items.map(([k, label]) => `<span class="geo-leg"><i style="background:${c[k] || c.host}"></i>${escapeHtml(label)}</span>`).join("") +
-    `<span class="geo-leg"><i class="ring"></i>Estimated location (± spread)</span>`;
+    `<span class="geo-leg"><i class="ring"></i>Estimated position (ring = margin)</span>` +
+    `</div><div class="geo-leg-group">` +
+    `<span class="geo-leg"><i class="line" style="background:${route}"></i>Operator route</span>` +
+    `<span class="geo-leg"><i class="op"></i>Operator now</span>` +
+    (geo.focusId ? `<span class="geo-leg"><i class="pulse"></i>Selected device</span>` : "") +
+    `</div>`;
 }
 
 function openGeoMap(focusId = null) {
@@ -7648,6 +7717,7 @@ function openGeoMap(focusId = null) {
   requestAnimationFrame(() => {
     if (!geo.map) return;
     geo.map.invalidateSize();
+    setGeoStreet(el("geo-street").checked);
     renderGeo(true);
   });
 }
@@ -7678,6 +7748,7 @@ function setGeoStreet(on) {
 function bindGeoMap() {
   el("btn-geo").addEventListener("click", () => openGeoMap());
   el("geo-close").addEventListener("click", closeGeoMap);
+  el("geo-back").addEventListener("click", closeGeoMap);
   el("geo-mode-whole").addEventListener("click", () => setGeoMode("whole"));
   el("geo-mode-added").addEventListener("click", () => setGeoMode("added"));
   el("geo-clear").addEventListener("click", () => {
