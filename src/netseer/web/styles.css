@@ -333,26 +333,28 @@ kbd {
 }
 
 /* Custom title bar — only in the Electron shell, which runs frameless (see electron/). */
-.window-controls { display: none; align-items: stretch; }
+/* Rounded, spaced min/max/close to match NineLives' title bar. */
+.window-controls { display: none; align-items: center; gap: 2px; margin-left: 0.15rem; }
 .win-btn {
-  width: 46px;
-  height: 100%;
+  width: 42px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
 }
 .win-btn:hover { background: var(--hover); color: var(--text); }
-.win-close:hover { background: #e2483d; color: #fff; }
-.window-controls svg { pointer-events: none; }
+.win-close:hover { background: var(--danger); color: #fff; }
+.window-controls svg { pointer-events: none; width: 10px; height: 10px; }
 .window-controls path, .window-controls rect { fill: none; stroke: currentColor; stroke-width: 1.1; stroke-linecap: square; }
 .win-btn .ic-restore { display: none; }
 [data-shell="electron"] .window-controls { display: flex; }
-[data-shell="electron"] .topbar { -webkit-app-region: drag; padding-right: 0; }
+[data-shell="electron"] .topbar { -webkit-app-region: drag; padding-right: 0.35rem; }
 [data-shell="electron"] .topbar button,
 [data-shell="electron"] .topbar a,
 [data-shell="electron"] .topbar input,
@@ -391,7 +393,8 @@ kbd {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  z-index: 40;
+  /* Above the geo map overlay (60) and the Layers panel (50) so menus opened over them work. */
+  z-index: 70;
   min-width: 220px;
   padding: 0.3rem;
   border: 1px solid var(--line);
@@ -439,6 +442,10 @@ kbd {
 .geo-count { white-space: nowrap; }
 .geo-map { flex: 1; min-height: 0; background: var(--canvas); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+/* The Network / Geo map switch floating over the map (top-left). */
+.view-toggle { height: 38px; background: var(--panel); box-shadow: var(--shadow); flex-shrink: 0; }
+.view-toggle .seg-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0 0.7rem; }
+.view-toggle .seg-btn .icon { width: 15px; height: 15px; }
 .seg-btn { background: none; border: 0; padding: 0.3rem 0.7rem; font: inherit; font-size: 13px; color: var(--muted); cursor: pointer; }
 .seg-btn[aria-selected="true"] { background: var(--accent-soft); color: var(--text); }
 .geo-timebar { display: flex; align-items: center; gap: 0.7rem; padding: 0.45rem 0.9rem; border-top: 1px solid var(--line); background: var(--raised); }
@@ -460,6 +467,12 @@ kbd {
 .geo-pop-row { font-size: 12px; margin: 0.12rem 0; }
 .geo-pop-k { display: inline-block; min-width: 4.5ch; color: var(--muted); }
 .geo-pop .btn { margin-top: 0.35rem; }
+.geo-acc-row { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.1rem; }
+/* Accuracy badge: green/amber/red for Good/Fair/Rough, used in popups and the Details panel. */
+.geo-acc { display: inline-block; padding: 0.04rem 0.4rem; border-radius: 999px; font-size: 11.5px; font-weight: 600; color: #0b0f14; white-space: nowrap; }
+.geo-acc-good { background: #3fb950; }
+.geo-acc-fair { background: #d29922; }
+.geo-acc-rough { background: #f0883e; }
 /* Focused-device pulse + operator "now" marker (Leaflet divIcons) */
 .geo-pulse-icon, .geo-operator-icon { background: none; border: 0; }
 .geo-pulse { display: block; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--geo-pulse, #3aa0ff); animation: geo-pulse 1.6s ease-out infinite; }

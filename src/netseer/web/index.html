@@ -76,9 +76,6 @@
         <button id="btn-layers" class="btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Layers: arrangement, link types, and the device key">
           <svg class="icon"><use href="#i-layout" /></svg><span>Layers</span>
         </button>
-        <button id="btn-geo" class="icon-btn hidden" type="button" aria-label="Geo map" title="Show this survey on a map (GPS)">
-          <svg class="icon"><use href="#i-geo" /></svg>
-        </button>
         <button id="btn-settings" class="icon-btn" type="button" aria-label="Settings" aria-haspopup="dialog" title="Settings, help, and updates">
           <svg class="icon"><use href="#i-cog" /></svg>
           <span id="update-dot" class="update-dot hidden" aria-hidden="true"></span>
@@ -171,6 +168,10 @@
         <div id="map" class="map" role="application" aria-label="Network map"></div>
 
         <div class="canvas-top">
+          <div id="view-toggle" class="seg view-toggle hidden" role="tablist" aria-label="Map view">
+            <button id="view-network" class="seg-btn" type="button" role="tab" aria-selected="true" title="The network map">Network</button>
+            <button id="view-geo" class="seg-btn" type="button" role="tab" aria-selected="false" title="Where devices were seen (GPS)"><svg class="icon"><use href="#i-geo" /></svg> Geo map</button>
+          </div>
           <div class="search">
             <svg class="icon"><use href="#i-search" /></svg>
             <input id="search" type="search" placeholder="Find a device by name, IP, MAC, or SSID" autocomplete="off" aria-label="Find a device" />

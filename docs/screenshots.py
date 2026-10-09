@@ -259,6 +259,8 @@ def capture(url: str, channel: str | None) -> list[str]:
         aps = page.evaluate("() => state.graph.nodes.filter(n => nodeRole(overlayNode(n)) === 'ap').map(n => n.id)")
         page.evaluate("(ids) => selectNodes(ids)", aps)
         shots.save("multi-select", full=True)
+        # A single device (Office LAN is already open as a second map, so "Send to" shows a real target).
+        page.evaluate("(id) => selectNodes([id])", aps[0])
         x, y = node_screen_pos(page, aps[0])
         page.mouse.click(x, y, button="right")
         page.wait_for_selector("body > .menu")
