@@ -7594,11 +7594,14 @@ function syncGeoButton() {
   syncViewToggle();
 }
 
-// Reflect which view is showing in the toggle's two tabs.
+// Reflect which view is showing in both toggles (the one on the network map and the one in the
+// geo map's toolbar).
 function syncViewToggle() {
   const onGeo = !el("geo-view").classList.contains("hidden");
   el("view-network").setAttribute("aria-selected", String(!onGeo));
   el("view-geo").setAttribute("aria-selected", String(onGeo));
+  el("geoview-network").setAttribute("aria-selected", String(!onGeo));
+  el("geoview-geo").setAttribute("aria-selected", String(onGeo));
 }
 
 // Keep the geo map in step when the active map changes: forget devices that are gone, and redraw
@@ -8103,8 +8106,8 @@ async function exportGeoPdf() {
 function bindGeoMap() {
   el("view-geo").addEventListener("click", () => openGeoMap());
   el("view-network").addEventListener("click", () => closeGeoMap());
-  el("geo-close").addEventListener("click", closeGeoMap);
-  el("geo-back").addEventListener("click", closeGeoMap);
+  el("geoview-network").addEventListener("click", () => closeGeoMap());
+  el("geoview-geo").addEventListener("click", () => {}); // already on the geo map
   el("geo-mode-whole").addEventListener("click", () => setGeoMode("whole"));
   el("geo-mode-added").addEventListener("click", () => setGeoMode("added"));
   el("geo-clear").addEventListener("click", () => {
