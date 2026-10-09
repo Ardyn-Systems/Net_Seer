@@ -35,7 +35,7 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 3. **Find a device.** Search by name, IP, MAC, SSID, or notes.
 4. **The map.** Devices, the subnets they belong to, and the links between them. A toolbar appears at the bottom when you select something.
 5. **Details.** Everything NetSeer found about the selected device or link.
-6. **Zoom.** Tidy layout, zoom out, zoom level, zoom in, and fit to screen.
+6. **Zoom.** Tidy layout, zoom out, a zoom slider, zoom in, the zoom level, and fit to screen.
 
 ## Open your captures
 
@@ -282,13 +282,14 @@ When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Ne
 - Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), with a faint ring for the estimate's spread. Turn **Estimated locations** off to put every device back where it was actually heard, with no ring. Markers carry a bright casing so they stand out over streets; click one for its SSID, MAC, channel, signal, and an **accuracy** badge.
 - **Accuracy** grades each estimate **Good**, **Fair**, or **Rough** from its margin (±metres) and how many spots the device was heard from — an estimate from only a couple of readings is never better than Rough. It shows in the popup, on the device's **Details**, and on hover over the spread ring.
 - Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked and the device **pulsing** so it's easy to find.
-- **Operator path** traces the route the survey drove, with an **arrow at the operator's position** for the time you're viewing; the **time** slider replays the drive. Show the **whole capture** at once, or switch to **Added only** to build the map up with **Show on map** as you go.
+- **Operator path** traces the route the survey drove, with a **diamond at the operator's position** for the time you're viewing (the same marker shown in the legend); the **time** slider replays the drive. Show the **whole capture** at once, or switch to **Added only** to build the map up with **Show on map** as you go.
+- **Zoom** with the mouse wheel (gentled to match the network map), the **+ / −** buttons, or the **slider** beside them; both maps have one.
 - The **Legend** button (top-left of the map) opens a key for the markers, rings, and operator path; click it again to tuck it away so it doesn't cover the map.
 - **Export** saves the current view — markers, route, legend and all — as a **PNG image** or a one-page **PDF**, for a briefing or a report. You can also tick **Geo map** when making a [PDF report](#create-a-pdf-report) to drop the map in as its own page.
 
 Try it with the **Wardrive (WiGLE)** sample in **Settings → Help**.
 
-![The wardrive sample on the geo map over a street basemap: access points, Bluetooth, and a cell tower with their estimated-location spread rings, the operator's route, and an arrow at the operator's position](images/geo-map.png)
+![The wardrive sample on the geo map over a street basemap: access points, Bluetooth, and a cell tower with their estimated-location spread rings, the operator's route, and a diamond at the operator's position](images/geo-map.png)
 
 ## Export diagrams and files
 

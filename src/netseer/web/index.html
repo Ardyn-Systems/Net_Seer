@@ -213,8 +213,9 @@
           </button>
           <span class="divider"></span>
           <button id="zoom-out" class="icon-btn" type="button" aria-label="Zoom out"><svg class="icon"><use href="#i-minus" /></svg></button>
-          <span id="zoom-pct" class="zoom-pct">100%</span>
+          <input type="range" id="net-zoom" class="zoom-slider" min="0" max="1000" value="500" aria-label="Zoom level" />
           <button id="zoom-in" class="icon-btn" type="button" aria-label="Zoom in"><svg class="icon"><use href="#i-plus" /></svg></button>
+          <span id="zoom-pct" class="zoom-pct">100%</span>
           <button id="zoom-fit" class="icon-btn" type="button" aria-label="Fit to screen" title="Fit to screen"><svg class="icon"><use href="#i-fit" /></svg></button>
           <span class="divider tl-only hidden"></span>
           <button id="tl-toggle" class="icon-btn tl-only hidden" type="button" aria-label="Timeline" aria-pressed="false" title="Timeline: show devices seen in a time window"><svg class="icon"><use href="#i-clock" /></svg></button>
