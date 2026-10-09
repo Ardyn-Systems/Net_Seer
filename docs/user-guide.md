@@ -279,16 +279,17 @@ Your layer choices are remembered.
 
 ## The geo map
 
-When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — the **map-pin button** in the top bar opens a real-world map of where devices were seen. You can also open it focused on one device from its **Details** (**Show on map**) or by right-clicking it.
+When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — the **map-pin button** in the top bar opens a real-world map of where devices were seen. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list. **← Network map** (top left) takes you back.
 
-- It's **offline by default**: devices on a pannable map with a distance scale, and nothing about your locations leaves your computer. Tick **Street map** to add an OpenStreetMap basemap — the one option that goes online, fetching map tiles from openstreetmap.org.
-- Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), otherwise where it was heard. **Estimated locations** also draws a faint circle for the estimate's spread. Click a marker for its details.
-- Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked.
-- **Operator path** traces the route the survey drove; the **time** slider replays it; and you can show the **whole capture** at once or switch to **Added devices** to build the map up with **Show on map** as you go.
+- The **Basemap** menu picks the map background. It starts on **Streets — online**, which fetches map tiles from openstreetmap.org — the one option that goes online. Choose **No basemap** for a plain grid where nothing leaves your computer.
+- **Offline map packs.** In the field, where the street tiles aren't reachable, load a map pack: **Load pack…** takes an `.mbtiles` file (a standard offline tile pack of a chosen area), and it then appears in the **Basemap** menu. Packs are kept on this computer; **Remove pack** deletes the selected one. This option is hidden on the hosted copy.
+- Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), otherwise where it was heard. **Estimated locations** also draws a faint ring for the estimate's spread. Markers carry a bright casing so they stand out over streets; click one for its SSID, MAC, channel, and signal.
+- Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked and the device **pulsing** so it's easy to find.
+- **Operator path** traces the route the survey drove, with an **arrow at the operator's position** for the time you're viewing; the **time** slider replays the drive. Show the **whole capture** at once, or switch to **Added only** to build the map up with **Show on map** as you go.
 
 Try it with the **Wardrive (WiGLE)** sample in **Settings → Help**.
 
-![The wardrive sample on the geo map: access points, Bluetooth, and a cell tower with their estimated-location spread circles, and the operator's path dashed through them](images/geo-map.png)
+![The wardrive sample on the geo map over a street basemap: access points, Bluetooth, and a cell tower with their estimated-location spread rings, the operator's route, and an arrow at the operator's position](images/geo-map.png)
 
 ## Export diagrams and files
 

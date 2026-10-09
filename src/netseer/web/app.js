@@ -7461,7 +7461,9 @@ const geo = {
   features: null, // device markers + estimate spread circles
   path: null, // operator path polyline
   focusLayer: null, // focused device's own sightings
-  tiles: null,
+  baseLayer: null, // the current basemap tile layer (online streets or an offline pack)
+  basemap: "online", // "none" | "online" | "pack:<id>"
+  packs: [], // loaded offline map packs (from /api/mappacks)
   mode: "whole", // "whole" | "added"
   added: new Set(),
   focusId: null,
@@ -7714,10 +7716,11 @@ function openGeoMap(focusId = null) {
   syncGeoModeUi();
   // The container just became visible; let it lay out before Leaflet measures and fits, or the
   // first open draws nothing until the next interaction.
+  loadGeoPacks();
   requestAnimationFrame(() => {
     if (!geo.map) return;
     geo.map.invalidateSize();
-    setGeoStreet(el("geo-street").checked);
+    setBasemap(geo.basemap);
     renderGeo(true);
   });
 }
@@ -7734,15 +7737,106 @@ function setGeoMode(mode) {
   renderGeo(true);
 }
 
-function setGeoStreet(on) {
+// Basemap: the map background. "none" draws markers on a plain grid; "online" fetches OpenStreetMap
+// street tiles (the one option that goes online); "pack:<id>" serves an offline .mbtiles pack from
+// the backend, so roads and terrain work with nothing leaving the machine.
+function setBasemap(value) {
   if (!geo.map) return;
-  show("geo-street-note", on);
-  if (on && !geo.tiles) {
-    geo.tiles = L.tileLayer(OSM_TILES, { maxZoom: 19, attribution: "© OpenStreetMap contributors" }).addTo(geo.map);
-  } else if (!on && geo.tiles) {
-    geo.map.removeLayer(geo.tiles);
-    geo.tiles = null;
+  geo.basemap = value;
+  if (geo.baseLayer) {
+    geo.map.removeLayer(geo.baseLayer);
+    geo.baseLayer = null;
   }
+  const online = value === "online";
+  show("geo-street-note", online);
+  const pack = value && value.startsWith("pack:") ? geo.packs.find((p) => `pack:${p.id}` === value) : null;
+  if (online) {
+    geo.baseLayer = L.tileLayer(OSM_TILES, { maxZoom: 19, attribution: "© OpenStreetMap contributors" });
+  } else if (pack) {
+    const opts = { maxNativeZoom: pack.maxzoom, maxZoom: 19, minNativeZoom: pack.minzoom, attribution: pack.attribution || "Offline map pack" };
+    if (Array.isArray(pack.bounds) && pack.bounds.length === 4) {
+      opts.bounds = L.latLngBounds([pack.bounds[1], pack.bounds[0]], [pack.bounds[3], pack.bounds[2]]);
+    }
+    geo.baseLayer = L.tileLayer(`/api/mappacks/${encodeURIComponent(pack.id)}/{z}/{x}/{y}`, opts);
+  } else if (value !== "none") {
+    // The chosen pack is gone (removed elsewhere); fall back to markers only.
+    geo.basemap = "none";
+  }
+  if (geo.baseLayer) geo.baseLayer.addTo(geo.map);
+  syncBasemapUi();
+}
+
+// Reflect the current basemap in the select and show Remove only for a loaded pack.
+function syncBasemapUi() {
+  const sel = el("geo-basemap");
+  if (sel && sel.value !== geo.basemap) sel.value = geo.basemap;
+  show("geo-pack-remove", String(geo.basemap).startsWith("pack:"));
+}
+
+// Rebuild the basemap <select>: Markers only, Streets (online), then each loaded offline pack.
+function renderBasemapOptions() {
+  const sel = el("geo-basemap");
+  if (!sel) return;
+  const opts = [
+    `<option value="none">No basemap</option>`,
+    `<option value="online">Streets — online</option>`,
+    ...geo.packs.map((p) => `<option value="pack:${escapeHtml(p.id)}">${escapeHtml(p.name)} (offline)</option>`),
+  ];
+  sel.innerHTML = opts.join("");
+  // Keep the current choice if it's still available, else fall back to online.
+  if (geo.basemap.startsWith("pack:") && !geo.packs.some((p) => `pack:${p.id}` === geo.basemap)) geo.basemap = "online";
+  sel.value = geo.basemap;
+}
+
+async function loadGeoPacks() {
+  try {
+    const res = await fetch("/api/mappacks");
+    if (!res.ok) throw new Error();
+    const data = await res.json();
+    geo.packs = Array.isArray(data.packs) ? data.packs : [];
+    show("geo-pack-add", data.can_add !== false);
+  } catch {
+    geo.packs = [];
+  }
+  renderBasemapOptions();
+  syncBasemapUi();
+}
+
+async function addGeoPack(file) {
+  if (!file) return;
+  if (!/\.mbtiles$/i.test(file.name)) {
+    toast("Choose a .mbtiles map pack.");
+    return;
+  }
+  toast(`Loading ${file.name}…`);
+  try {
+    const res = await fetch(`/api/mappacks?name=${encodeURIComponent(file.name)}`, { method: "POST", body: file });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || "Couldn't load that map pack.");
+    await loadGeoPacks();
+    geo.basemap = `pack:${data.id}`;
+    setBasemap(geo.basemap);
+    toast(`Loaded “${data.name}”.`);
+  } catch (e) {
+    toast(e.message || "Couldn't load that map pack.");
+  }
+}
+
+async function removeGeoPack(id) {
+  if (!id) return;
+  const pack = geo.packs.find((p) => p.id === id);
+  const ok = await openDialog({ title: `Remove “${pack ? pack.name : id}”?`, body: "The offline map pack is deleted from this computer.", okLabel: "Remove", danger: true });
+  if (!ok) return;
+  try {
+    const res = await fetch(`/api/mappacks/${encodeURIComponent(id)}`, { method: "DELETE" });
+    if (!res.ok && res.status !== 204) throw new Error();
+  } catch {
+    toast("Couldn't remove that map pack.");
+    return;
+  }
+  if (geo.basemap === `pack:${id}`) geo.basemap = "online";
+  await loadGeoPacks();
+  setBasemap(geo.basemap);
 }
 
 function bindGeoMap() {
@@ -7755,7 +7849,16 @@ function bindGeoMap() {
     geo.added.clear();
     renderGeo(true);
   });
-  el("geo-street").addEventListener("change", (e) => setGeoStreet(e.target.checked));
+  el("geo-basemap").addEventListener("change", (e) => setBasemap(e.target.value));
+  el("geo-pack-add").addEventListener("click", () => el("geo-pack-file").click());
+  el("geo-pack-file").addEventListener("change", (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = "";
+    addGeoPack(file);
+  });
+  el("geo-pack-remove").addEventListener("click", () => {
+    if (String(geo.basemap).startsWith("pack:")) removeGeoPack(geo.basemap.slice(5));
+  });
   el("geo-path").addEventListener("change", () => renderGeo(false));
   el("geo-estimates").addEventListener("change", () => renderGeo(false));
   el("geo-time").addEventListener("input", () => {

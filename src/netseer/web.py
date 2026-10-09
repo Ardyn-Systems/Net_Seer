@@ -44,6 +44,7 @@ from netseer.exporters.reports import ReportOptions, device_properties
 from netseer.ingest import ingest_files, ingest_sources, max_upload_bytes, size_error
 from netseer.samples import SAMPLES, files_for_sample
 from netseer.serialize import graph_from_dict
+from netseer import tiles
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -213,6 +214,75 @@ def sample_graph(sample_id: str):
     except (UnsupportedSurveyError, ValueError, OSError) as exc:
         raise _http_error(exc) from exc
     return graph.to_dict()
+
+
+# ---------- Offline basemap packs (MBTiles) ----------
+# Load a raster MBTiles file so the geo map has roads/terrain without going online. Packs live in
+# the user data dir; serving a tile is a read from that SQLite file. Off on the hosted copy, which
+# never writes to the server's disk.
+
+MAX_MAPPACK_BYTES = tiles.MAX_PACK_BYTES
+_mappack_tile_cache = "public, max-age=604800, immutable"  # a pack's tiles never change under an id
+
+
+def _require_local_disk(what: str) -> None:
+    if hosted_mode():
+        raise HTTPException(status_code=403, detail=f"{what} isn't available on this public site.")
+
+
+@app.get("/api/mappacks")
+def list_mappacks() -> dict:
+    """The offline basemap packs that are loaded, with their coverage and zoom range."""
+    return {"packs": tiles.list_packs(), "can_add": not hosted_mode()}
+
+
+@app.post("/api/mappacks")
+async def add_mappack(request: Request, name: str = "pack.mbtiles"):
+    """Upload a raster .mbtiles pack. It's validated, then kept in the user data dir."""
+    _require_local_disk("Loading offline map packs")
+    if not name.lower().endswith(".mbtiles"):
+        raise HTTPException(status_code=400, detail="An offline map pack must be a .mbtiles file.")
+    folder, path = _upload_folder(name)
+    total = 0
+    try:
+        with open(path, "wb") as out:
+            async for chunk in request.stream():
+                total += len(chunk)
+                if total > MAX_MAPPACK_BYTES:
+                    raise HTTPException(status_code=413, detail="That map pack is larger than 2 GB.")
+                out.write(chunk)
+        if not total:
+            raise HTTPException(status_code=400, detail="The file is empty.")
+        pack = await run_in_threadpool(tiles.add_pack, name, path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    return pack
+
+
+@app.get("/api/mappacks/{pack_id}/{z}/{x}/{y}")
+async def mappack_tile(pack_id: str, z: int, x: int, y: int):
+    """Serve one tile from a loaded pack (XYZ scheme; the pack's TMS rows are flipped for us)."""
+    data = await run_in_threadpool(tiles.read_tile, pack_id, z, x, y)
+    if data is None:
+        # A missing tile is normal where a pack has no coverage; 204 keeps Leaflet quiet.
+        return Response(status_code=204)
+    ctype = "image/png"
+    if data[:3] == b"\xff\xd8\xff":
+        ctype = "image/jpeg"
+    elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        ctype = "image/webp"
+    return Response(content=data, media_type=ctype, headers={"Cache-Control": _mappack_tile_cache})
+
+
+@app.delete("/api/mappacks/{pack_id}", status_code=204)
+def delete_mappack(pack_id: str) -> Response:
+    """Remove a loaded pack (deletes its file from the user data dir)."""
+    _require_local_disk("Managing offline map packs")
+    if not tiles.delete_pack(pack_id):
+        raise HTTPException(status_code=404, detail="That map pack isn't loaded.")
+    return Response(status_code=204)
 
 
 log = logging.getLogger("netseer.web")

@@ -276,14 +276,15 @@ Access points show their SSID as a second line (`HQ-Secure`, `HQ-Secure +2` for 
 
 ## Geo map (GPS)
 
-When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), the **map-pin button** in the top bar opens a real-world map of where devices were seen. **Show on map** in a device's Details — or right-click → **Show on map** — opens it focused on that one device.
+When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), the **map-pin button** in the top bar opens a real-world map of where devices were seen. **Show on map** in a device's Details — or right-click → **Show on map**, or right-click a survey in the **Maps** list — opens it there; **← Network map** goes back.
 
-- **Offline by default.** Devices are drawn on a pannable, zoomable map with a distance scale. Nothing about your locations leaves your machine. Turn on **Street map** to load an OpenStreetMap basemap — that one option goes online (it fetches map tiles from openstreetmap.org).
-- **Each device** sits at its best-known spot: its **estimated location** (see [Details panel](#details-panel)) when it has one, otherwise where it was heard. Click a marker for its name, signal, sightings, and **Open details**. **Estimated locations** also draws a faint circle for the estimate's spread.
-- **Focused on one device**, every sighting is a small dot joined in the order it was seen — the device's own path, with the estimate marked.
-- **Operator path** draws the route the survey took: every sighting, in time order.
-- **Time** slider: drag to reveal sightings up to a chosen time and replay the drive.
-- **Whole capture** shows every located device; switch to **Added devices** to start empty and build the map up with **Show on map** as you go.
+- **Basemap** menu: **Streets — online** (the default; fetches OpenStreetMap tiles — the one thing that goes online), or **No basemap** (a plain grid, fully offline).
+- **Offline map packs** (`GET/POST/DELETE /api/mappacks`). **Load pack…** uploads a raster `.mbtiles` pack (PNG/JPEG tiles); it's validated, kept in the user data dir (`<data>/mappacks/`), and added to the **Basemap** menu, which then serves its tiles from `GET /api/mappacks/{id}/{z}/{x}/{y}`. **Remove pack** deletes the selected one. Not available on the hosted copy, which never writes to the server's disk. Vector (`pbf`) packs are rejected with a message.
+- **Each device** sits at its best-known spot: its **estimated location** (see [Details panel](#details-panel)) when it has one, otherwise where it was heard. Markers have a bright casing to read over street tiles; click one for its SSID, MAC, channel, signal, sightings, and **Open details**. **Estimated locations** also draws a faint ring for the estimate's spread.
+- **Focused on one device**, every sighting is a small dot joined in the order it was seen — the device's own path, with the estimate marked — and the device **pulses** so it stands out in a crowd.
+- **Operator path** draws the route the survey took (every sighting, in time order), with an **arrow at the operator's position** for the current time.
+- **Time** slider: drag to reveal sightings up to a chosen time and replay the drive; the operator arrow moves with it.
+- **Whole capture** shows every located device; switch to **Added only** to start empty and build the map up with **Show on map** as you go.
 
 Try it with the **Wardrive (WiGLE)** sample under **Settings → Help**.
 
