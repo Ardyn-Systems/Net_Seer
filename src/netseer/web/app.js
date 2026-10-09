@@ -6044,10 +6044,13 @@ function setUpdateStatus(text, kind = "") {
   status.className = `update-status ${kind}`;
 }
 
-// The download that matches how this copy was installed.
+// The download that matches how this copy was installed. The packaged desktop app reports
+// "electron" and installs any version itself (download + checksum + run), picking the Windows
+// installer or the Linux AppImage — same assets the shell's selfupdate.js uses.
 function assetFor(release) {
   const { platform, package: pkg } = state.server;
   const pick = (re) => release.assets.find((a) => re.test(a.name)) || null;
+  if (pkg === "electron") return platform === "windows" ? pick(/setup.*\.exe$/i) : platform === "linux" ? pick(/\.appimage$/i) : null;
   if (pkg === "installer") return pick(/setup.*\.exe$/i);
   if (pkg === "appimage") return pick(/\.appimage$/i);
   if (pkg === "portable" && platform === "windows") return pick(/windows.*\.zip$/i);
