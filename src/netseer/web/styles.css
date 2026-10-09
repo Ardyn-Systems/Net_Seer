@@ -360,6 +360,9 @@ kbd {
 [data-shell="electron"] .topbar input,
 [data-shell="electron"] .topbar .menu-wrap,
 [data-shell="electron"] .topbar #brand-logo { -webkit-app-region: no-drag; }
+/* The Layers panel peeks over the top edge of the draggable title bar; keep it clickable (the geo map
+   fills the stage below the title bar, so it isn't affected). */
+[data-shell="electron"] #layers-panel { -webkit-app-region: no-drag; }
 [data-shell="electron"].win-maximized .ic-max { display: none; }
 [data-shell="electron"].win-maximized .ic-restore { display: inline; }
 .brand { display: flex; align-items: center; gap: 0.6rem; min-width: 0; }
@@ -429,20 +432,23 @@ kbd {
 .ctx-menu { position: fixed; top: 0; left: 0; min-width: 210px; }
 
 /* ---------- Geo map ---------- */
-.geo-view { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--canvas); }
+/* Fills the stage (the network map's area) rather than the whole window, so the title bar, sidebar,
+   and details panel stay put and nothing overlaps the draggable title bar. */
+.geo-view { position: absolute; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--canvas); }
 /* Rendered full-size but shifted off-screen, so a report can capture the map without it flashing up. */
 .geo-view.geo-capturing { transform: translateX(-200vw); }
-/* One row that scrolls if cramped, never wrapping — a wrapped second row would slide under the
-   legend and hide the Estimated locations / Operator path toggles. */
-.geo-toolbar { display: flex; flex-wrap: nowrap; gap: 0.6rem 1rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); background: var(--raised); overflow-x: auto; }
-.geo-tools { display: flex; gap: 0.6rem; align-items: center; flex-wrap: nowrap; flex-shrink: 0; }
+.geo-toolbar { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); background: var(--raised); }
+.geo-tools { display: flex; gap: 0.5rem 0.6rem; align-items: center; flex-wrap: wrap; }
 .geo-heading { display: inline-flex; align-items: center; gap: 0.4rem; }
 .geo-heading .icon { width: 18px; height: 18px; }
 .geo-toggle { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 13px; color: var(--muted); cursor: pointer; }
 .geo-base { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 13px; color: var(--muted); }
 .geo-select { font: inherit; font-size: 13px; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 0.2rem 0.4rem; max-width: 16ch; }
 .geo-count { white-space: nowrap; }
-.geo-map { flex: 1; min-height: 0; background: var(--canvas); }
+/* The map area below the toolbar. The legend and street-note anchor to this (not the toolbar), so
+   the toolbar can wrap without ever covering them. */
+.geo-stage { position: relative; flex: 1; min-height: 0; }
+.geo-map { position: absolute; inset: 0; background: var(--canvas); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 /* The Network / Geo map switch floating over the map (top-left). */
 .view-toggle { height: 38px; background: var(--panel); box-shadow: var(--shadow); flex-shrink: 0; }
@@ -454,7 +460,15 @@ kbd {
 .geo-time-slider { flex: 1; }
 .geo-time-label { font-size: 11.5px; color: var(--muted); white-space: nowrap; min-width: 11ch; }
 .geo-time-label:last-child { text-align: right; }
-.geo-legend { position: absolute; top: 78px; left: 12px; z-index: 500; display: flex; flex-direction: column; gap: 0.5rem; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.5rem 0.65rem; font-size: 12px; color: var(--muted); pointer-events: none; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
+/* The legend is collapsed to a small button by default; click it to open the key, click again to close. */
+.geo-legend { position: absolute; top: 12px; left: 12px; z-index: 500; font-size: 12px; color: var(--muted); }
+.geo-legend-summary { display: inline-flex; align-items: center; gap: 0.35rem; list-style: none; cursor: pointer; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.32rem 0.6rem; color: var(--muted); font-weight: 600; box-shadow: 0 2px 10px rgba(0,0,0,0.25); user-select: none; }
+.geo-legend-summary::-webkit-details-marker { display: none; }
+.geo-legend-summary:hover { color: var(--text); }
+.geo-legend-summary .icon { width: 12px; height: 12px; transition: transform 0.15s; }
+.geo-legend[open] .geo-legend-summary .icon { transform: rotate(90deg); }
+.geo-legend[open] .geo-legend-summary { border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+.geo-legend-body { display: flex; flex-direction: column; gap: 0.5rem; margin-top: -1px; background: var(--raised); border: 1px solid var(--line); border-radius: 0 8px 8px 8px; padding: 0.5rem 0.65rem; box-shadow: 0 2px 10px rgba(0,0,0,0.25); }
 .geo-leg-group { display: flex; flex-direction: column; gap: 0.3rem; }
 .geo-leg-group + .geo-leg-group { padding-top: 0.5rem; border-top: 1px solid var(--line); }
 .geo-leg { display: flex; align-items: center; gap: 0.5rem; }
@@ -463,7 +477,7 @@ kbd {
 .geo-leg i.line { width: 16px; height: 0; border: 0; border-radius: 0; border-top: 3px solid; }
 .geo-leg i.op { width: 13px; height: 13px; border: 2px solid #fff; background: #ff5a3c; border-radius: 3px; transform: rotate(45deg); }
 .geo-leg i.pulse { border: 2px solid var(--select, #3aa0ff); background: transparent; }
-.geo-street-note { position: absolute; top: 78px; right: 12px; z-index: 500; max-width: 230px; margin: 0; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem 0.6rem; font-size: 11.5px; color: var(--muted); }
+.geo-street-note { position: absolute; top: 12px; right: 12px; z-index: 500; max-width: 230px; margin: 0; background: var(--raised); border: 1px solid var(--line); border-radius: 8px; padding: 0.35rem 0.6rem; font-size: 11.5px; color: var(--muted); }
 .geo-pop strong { display: block; }
 .geo-pop-sub { color: var(--muted); font-size: 12px; margin-bottom: 0.3rem; }
 .geo-pop-row { font-size: 12px; margin: 0.12rem 0; }

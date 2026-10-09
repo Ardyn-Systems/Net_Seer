@@ -7830,7 +7830,7 @@ function geoLegend() {
   ].filter(([k]) => present.has(k) || (k === "host" && present.size === 0));
   const c = themeColors();
   const route = c.select || "#3aa0ff";
-  el("geo-legend").innerHTML =
+  el("geo-legend-body").innerHTML =
     `<div class="geo-leg-group">` +
     items.map(([k, label]) => `<span class="geo-leg"><i style="background:${c[k] || c.host}"></i>${escapeHtml(label)}</span>`).join("") +
     `<span class="geo-leg"><i class="ring"></i>Estimated position (ring = margin)</span>` +
@@ -8038,11 +8038,16 @@ async function captureGeoCanvas() {
   });
   const legend = el("geo-legend");
   if (legend && legend.offsetParent !== null) {
+    // Show the full legend for the picture even if it's collapsed on screen.
+    const wasOpen = legend.open;
+    legend.open = true;
     try {
       const legCanvas = await html2canvas(legend, { ...common, backgroundColor: null });
       mapCanvas.getContext("2d").drawImage(legCanvas, 12 * scale, 12 * scale);
     } catch {
       /* the legend is a nicety; skip it if it won't render */
+    } finally {
+      legend.open = wasOpen;
     }
   }
   return mapCanvas;
