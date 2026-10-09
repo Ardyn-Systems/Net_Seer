@@ -4996,6 +4996,53 @@ async function renderNetwork() {
   } else {
     info.textContent = "On — but NetSeer couldn't find a network address.";
   }
+  renderUsb();
+}
+
+// Over USB: NetSeer runs `adb reverse` for plugged-in phones (netseer/usb.py); this shows what's linked.
+function renderUsb() {
+  const usbOn = intgNet.usb_enabled !== false;
+  const usb = intgNet.usb || { adb_found: false, devices: [] };
+  el("intg-usb").checked = usbOn;
+  const info = el("intg-usb-info");
+  if (!usbOn) {
+    info.textContent = "Off — phones on a USB cable aren't linked.";
+  } else if (!usb.adb_found) {
+    info.textContent = "adb isn't installed on this computer, so phones can't be linked over USB. Install Android platform-tools (or Android Studio), then restart NetSeer.";
+  } else if (usb.devices.length) {
+    const names = usb.devices.map((d) => d.model).join(", ");
+    info.innerHTML = `Linked: <strong>${escapeHtml(names)}</strong>. In WaveTop choose <em>USB cable</em>.`;
+  } else {
+    info.textContent = "No phone linked yet. Plug one in and allow USB debugging when it asks.";
+  }
+}
+
+let usbTimer = null;
+
+// While Integrations is open, keep the USB line current as phones are plugged in and out.
+function watchUsb(on) {
+  if (usbTimer) clearInterval(usbTimer);
+  usbTimer = null;
+  if (!on) return;
+  usbTimer = setInterval(async () => {
+    if (!el("settings-dialog").open || el("intg-usb").closest(".settings-pane").classList.contains("hidden")) return watchUsb(false);
+    try {
+      intgNet = await intgApi("/network");
+      renderUsb();
+    } catch {
+      /* next tick */
+    }
+  }, 3000);
+}
+
+async function setUsb(enabled) {
+  try {
+    intgNet = await intgApi("/network", { method: "POST", body: { usb_enabled: enabled } });
+    renderUsb();
+  } catch (err) {
+    toast(`Couldn't change USB linking: ${err.message || err}`, { error: true });
+    renderNetwork();
+  }
 }
 
 async function setLan(enabled) {
@@ -5703,6 +5750,7 @@ function showSettingsPane(name) {
   if (name === "help") renderDemo(); // the sample captures now live inside Help
   if (name === "security") renderSecurityPane();
   if (name === "integrations") renderIntegrations();
+  watchUsb(name === "integrations");
 }
 
 function renderSettings() {
@@ -6177,6 +6225,7 @@ function bindSettings() {
   dialog.querySelectorAll(".settings-nav [data-pane]").forEach((b) => b.addEventListener("click", () => showSettingsPane(b.dataset.pane)));
   el("intg-pair").addEventListener("click", startPairing);
   el("intg-lan").addEventListener("change", (e) => setLan(e.target.checked));
+  el("intg-usb").addEventListener("change", (e) => setUsb(e.target.checked));
   dialog.addEventListener("close", clearPairingCode);
   dialog.querySelectorAll("[data-goto]").forEach((a) =>
     a.addEventListener("click", (e) => {

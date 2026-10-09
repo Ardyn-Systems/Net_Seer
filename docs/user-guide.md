@@ -361,6 +361,8 @@ The **sample captures** to try NetSeer with are under **Help** — see [Open you
 
 **Integrations.** Pair companion apps — such as WaveTop — so they can push captures straight into NetSeer, with no file to save and open. **Pair a device** shows a one-time code to type into the app; paired devices are listed with when you added them and last used each, and a **Revoke** button removes access. Turn on **Allow devices on my network** to let a paired app on another device (like a phone running WaveTop) reach NetSeer over your Wi-Fi or LAN — it's off by default, takes effect after you restart NetSeer, and your operating system's firewall may ask you to allow it the first time. Even then, NetSeer answers only the integration API over the network, and only to paired devices; the map and the rest of the app stay on your computer. It's on installed and source copies, not the public online one.
 
+**Connect phones over USB** (on by default) links a phone plugged into this computer by cable, so WaveTop's **USB cable** option reaches NetSeer with nothing to type — no Wi-Fi, no IP address, no commands. It works for phones with **USB debugging** turned on that have allowed this computer, and it needs Android's adb (part of Android platform-tools, which comes with Android Studio). The pane lists the phones linked right now; unplug and plug back in and NetSeer links the phone again by itself. Pair the phone once with **Pair a device** as usual. A pairing code stops working after five wrong tries; start a new one if that happens.
+
 Once paired, an app can **push a capture** — it arrives as a new survey and opens on its own, with no file to save — or **stream a live wardrive**: as the app reports access points and clients it sees, NetSeer opens a **Live wardrive** survey and builds the map in front of you, updating as you move, and tells you when the app ends the session.
 
 ![Settings, Integrations: a pairing code and the paired devices list](images/settings-integrations.png)
@@ -416,7 +418,9 @@ To keep a copy, or to move your maps somewhere else, use **Settings** → **Your
 
 **"NetSeer is already open."** Only one copy runs at a time. Look for its window on the taskbar.
 
-**My maps are missing.** Maps are saved per address and per browser. If another program was using port 47331, NetSeer picked the next free port and its maps are kept separately. Maps saved in the desktop app and maps saved in your normal browser from source are separate too.
+**My maps are missing.** Maps are saved per address and per browser. NetSeer always uses port 47331; if another program was using it, NetSeer picked a different free port for that run and its maps are kept separately. Maps saved in the desktop app and maps saved in your normal browser from source are separate too.
+
+**WaveTop can't reach NetSeer over USB.** Check **Settings** → **Integrations** → **Over USB**: it says whether adb was found and which phones are linked. If the phone isn't listed, unlock it and accept the **Allow USB debugging?** prompt, and make sure USB debugging is on in its Developer options. If another program had port 47331 when NetSeer started, close it and restart NetSeer.
 
 **A capture won't open.** Check that it's one of the [supported formats](#open-your-captures). In the online copy, it must be under 20 MB; installed copies have no limit. Files that parse but contain no devices say "No hosts, access points, or links were found".
 

@@ -20,7 +20,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from netseer import __version__, integration
+from netseer import __version__, integration, usb
 from netseer.brand import DEFAULT_MAP_TITLE, MOTTO, PRODUCT_NAME
 from netseer.compare import compare_graphs
 from netseer.security import assess_graph
@@ -146,6 +146,67 @@ async def lan_guard(request: Request, call_next):
     if not hosted_mode() and bound_host() == "0.0.0.0" and not _client_is_local(request):
         if not integration.lan_enabled() or not _lan_allowed_path(request.url.path):
             return JSONResponse({"detail": "This address only serves paired companion apps."}, status_code=403)
+    return await call_next(request)
+
+
+UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
+def _extra_hosts() -> set[str]:
+    """Extra host names to accept (comma-separated NETSEER_ALLOWED_HOSTS), e.g. a reverse proxy's name."""
+    raw = os.environ.get("NETSEER_ALLOWED_HOSTS", "")
+    return {h.strip().lower() for h in raw.split(",") if h.strip()}
+
+
+def _host_name(host_header: str) -> str:
+    """'127.0.0.1:47331' -> '127.0.0.1', '[::1]:47331' -> '[::1]'."""
+    host = host_header.strip().lower()
+    if host.startswith("["):
+        return host.split("]", 1)[0] + "]"
+    return host.rsplit(":", 1)[0] if host.count(":") == 1 else host
+
+
+def _allowed_host(host_header: str) -> bool:
+    name = _host_name(host_header)
+    if name in LOCAL_HOSTS or name in _extra_hosts():
+        return True
+    # Shared on the network: this machine's own addresses are fine too.
+    return bound_host() == "0.0.0.0" and name in _cached_lan_addresses()
+
+
+_LAN_CACHE: dict[str, Any] = {"at": 0.0, "addrs": set()}
+
+
+def _cached_lan_addresses() -> set[str]:
+    """This machine's network addresses, refreshed every 30 s (looking them up costs a DNS call)."""
+    now = time.monotonic()
+    if now - _LAN_CACHE["at"] > 30:
+        _LAN_CACHE["addrs"] = set(integration.lan_addresses())
+        _LAN_CACHE["at"] = now
+    return _LAN_CACHE["addrs"]
+
+
+@app.middleware("http")
+async def request_guard(request: Request, call_next):
+    """Only answer requests meant for this NetSeer, and only take changes from NetSeer's own page.
+
+    - Host: a desktop or source copy only answers requests addressed to this machine (loopback, or
+      its own network addresses when shared). Requests carrying some other name are refused.
+    - Origin: a request that changes something (POST/PUT/PATCH/DELETE) and comes from a web page must
+      come from NetSeer's own page. Companion apps and command-line tools send no Origin and are
+      unaffected; the integration API still requires its device token.
+
+    The public hosted copy sits behind a proxy with its own name, so it skips the host check.
+    """
+    if not hosted_mode():
+        if not _allowed_host(request.headers.get("host") or ""):
+            return JSONResponse({"detail": "Unknown host."}, status_code=403)
+        origin = request.headers.get("origin")
+        if request.method in UNSAFE_METHODS and origin is not None:
+            parsed = urlsplit(origin)
+            same = parsed.scheme in {"http", "https"} and (parsed.netloc or "").lower() == (request.headers.get("host") or "").lower()
+            if not same:
+                return JSONResponse({"detail": "Requests from other sites aren't accepted."}, status_code=403)
     return await call_next(request)
 
 
@@ -588,7 +649,7 @@ def pair(body: dict) -> dict:
     _require_integration()
     result = integration.redeem_pairing(str(body.get("code", "")), str(body.get("device_name") or "device"))
     if result is None:
-        raise HTTPException(status_code=400, detail="That pairing code is wrong or has expired.")
+        raise HTTPException(status_code=400, detail="That pairing code is wrong or has expired. Start a new one in NetSeer: Settings → Integrations → Pair a device.")
     return result
 
 
@@ -618,6 +679,8 @@ def _network_state() -> dict:
         "reachable": reachable,  # whether the socket is actually open on the network yet
         "restart_needed": enabled != reachable,  # a restart rebinds the socket to match the setting
         "addresses": integration.lan_addresses(),
+        "usb_enabled": integration.usb_enabled(),
+        "usb": usb.status(),
     }
 
 
@@ -634,7 +697,10 @@ def set_integration_network(request: Request, body: dict) -> dict:
     """Turn 'Allow devices on my network' on or off. Takes effect on the socket at the next restart."""
     _require_integration()
     _guard_own_window(request)
-    integration.set_lan_enabled(bool(body.get("enabled")))
+    if "enabled" in body:
+        integration.set_lan_enabled(bool(body.get("enabled")))
+    if "usb_enabled" in body:
+        integration.set_usb_enabled(bool(body.get("usb_enabled")))
     return _network_state()
 
 

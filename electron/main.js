@@ -32,6 +32,25 @@ function log(...args) {
 // Only one NetSeer at a time: a second launch (e.g. from a netseer:// link) focuses this one.
 const gotLock = app.requestSingleInstanceLock();
 
+// NetSeer's documented port: companion apps (WaveTop over USB or Wi-Fi) expect to find it here, and
+// a paired phone keeps working across restarts. Fall back to any free port only if it's taken.
+const PREFERRED_PORT = 47331;
+
+function portIsFree(port) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.once("error", () => resolve(false));
+    srv.listen(port, "127.0.0.1", () => srv.close(() => resolve(true)));
+  });
+}
+
+async function choosePort() {
+  if (await portIsFree(PREFERRED_PORT)) return PREFERRED_PORT;
+  const port = await freePort();
+  log(`port ${PREFERRED_PORT} is in use; using ${port} (companion apps will need that port)`);
+  return port;
+}
+
 function freePort() {
   return new Promise((resolve, reject) => {
     const srv = net.createServer();
@@ -407,7 +426,7 @@ async function main() {
   registerProtocol();
   setupMenu();
   pendingDeepLink = deepLinkFrom(process.argv); // a link passed on first launch (Windows/Linux)
-  const port = await freePort();
+  const port = await choosePort();
   startSidecar(port);
   await waitForHealth(port);
   log("backend ready on", port);

@@ -26,10 +26,14 @@ SUPPORTED_FORMATS = ["pcap", "pcapng", "kismet", "netxml", "csv", "airodump"]
 
 PAIRING_TTL_SECONDS = 5 * 60
 _CODE_CHARS = "0123456789"
+# Wrong codes allowed while a code is live. One more cancels every live code, so a code can't be
+# found by trying them all; the user just starts a new one from NetSeer's window.
+MAX_PAIRING_FAILURES = 5
 
 _lock = threading.Lock()
 # code -> expiry (time.monotonic); a code pairs exactly one device, then is spent.
 _pending: dict[str, float] = {}
+_failures = 0
 
 
 def integration_dir() -> Path:
@@ -52,7 +56,7 @@ def _settings_path() -> Path:
     return integration_dir() / "settings.json"
 
 
-SETTINGS_DEFAULTS = {"lan_enabled": False}
+SETTINGS_DEFAULTS = {"lan_enabled": False, "usb_enabled": True}
 
 
 def settings() -> dict:
@@ -66,6 +70,21 @@ def settings() -> dict:
 def lan_enabled() -> bool:
     """Whether the user has opted to let devices on the local network reach the integration API."""
     return bool(settings().get("lan_enabled"))
+
+
+def usb_enabled() -> bool:
+    """Whether NetSeer links plugged-in phones over USB (adb reverse) for companion apps. On by default."""
+    return bool(settings().get("usb_enabled", True))
+
+
+def set_usb_enabled(on: bool) -> dict:
+    with _lock:
+        data = settings()
+        data["usb_enabled"] = bool(on)
+        tmp = _settings_path().with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2), "utf-8")
+        tmp.replace(_settings_path())
+    return data
 
 
 def set_lan_enabled(on: bool) -> dict:
@@ -150,23 +169,34 @@ def _prune_pending(now: float) -> None:
 def start_pairing() -> dict:
     """Create a one-time pairing code for NetSeer to show in its own window."""
     now = time.monotonic()
+    global _failures
     code = "".join(secrets.choice(_CODE_CHARS) for _ in range(6))
     with _lock:
         _prune_pending(now)
         _pending[code] = now + PAIRING_TTL_SECONDS
+        _failures = 0
     return {"code": code, "expires_in": PAIRING_TTL_SECONDS}
 
 
 def redeem_pairing(code: str, device_name: str) -> dict | None:
-    """Spend a pairing code for a new device token. Returns None if the code is wrong or expired."""
+    """Spend a pairing code for a new device token. Returns None if the code is wrong or expired.
+
+    After MAX_PAIRING_FAILURES wrong codes, every live code is cancelled.
+    """
+    global _failures
     now = time.monotonic()
     code = (code or "").strip()
     name = (device_name or "device").strip()[:80] or "device"
     with _lock:
         _prune_pending(now)
         if code not in _pending:
+            if _pending:
+                _failures += 1
+                if _failures >= MAX_PAIRING_FAILURES:
+                    _pending.clear()
             return None
         _pending.pop(code, None)
+        _failures = 0
         token = secrets.token_urlsafe(32)
         device = Device(id=secrets.token_hex(8), name=name, token_hash=_hash(token), created=time.time())
         devices = _load()

@@ -21,6 +21,7 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | Surfacing a pushed capture in the running UI (`WS /api/v1/events`) | **shipped** — the map opens on its own |
 | Settings → Integrations UI (pairing code + device list + revoke) | **shipped** |
 | LAN binding toggle (**Allow devices on my network**) — pair/push over the network | **shipped** |
+| USB link (**Connect phones over USB**) — automatic `adb reverse` for plugged-in phones | **shipped** ([`usb.py`](../src/netseer/usb.py)) |
 | Live-view WebSocket session (stream a wardrive onto the map as it happens) | **shipped** ([`live.py`](../src/netseer/live.py)) |
 | AI analysis | planned |
 | mDNS discovery (auto-find NetSeer on the network) | planned |
@@ -38,13 +39,16 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 
 | Setting | Default | Opt-in |
 | --- | --- | --- |
+| Port | `47331` (desktop app and `netseer`); if it's taken at launch, a random free port for that run | `--port` |
 | Bind address | `127.0.0.1` | `0.0.0.0` (LAN) when the user enables **Allow devices on my network** |
+| USB | NetSeer runs `adb -s <serial> reverse tcp:47331 tcp:<its port>` for every authorised phone, again after a re-plug | turn off **Connect phones over USB** |
 | Auth | required for all `/api/v1/*` | — |
 | Discovery | — | mDNS/Bonjour service `_netseer._tcp` advertising host, port, and name |
 | TLS | plain HTTP on loopback | self-signed TLS offered when bound to the LAN; the pairing step pins it |
 
 The companion app finds NetSeer by mDNS, by a manually entered `host:port`, or by scanning the
-pairing QR (which encodes `host:port` + a one-time code).
+pairing QR (which encodes `host:port` + a one-time code). Over a USB cable the phone uses
+`http://127.0.0.1:47331`, which NetSeer's USB link forwards to whatever port it is actually on.
 
 ## Pairing and auth
 
@@ -63,7 +67,8 @@ sequenceDiagram
 
 - NetSeer's own window mints the code via `POST /api/v1/pair/start` (guarded by host +
   `X-NetSeer-Window: 1`, so only the app's page can start pairing); the user reads it off the screen.
-- The pairing code is short-lived (5 minutes) and single-use.
+- The pairing code is short-lived (5 minutes) and single-use. After 5 wrong codes, every live code
+  is cancelled and the user starts a new one.
 - The returned **device token** is long-lived, scoped to that device, and listed/revocable in
   Settings → Integrations.
 - Every `/api/v1/*` call carries `Authorization: Bearer <token>`.
@@ -189,6 +194,11 @@ All errors: HTTP status + `{ "error": { "code": "…", "message": "…" } }`. Co
 - **Opt-in network exposure.** Binding beyond loopback is off by default and gated behind a clear
   toggle; when off, only apps on the same machine can reach the API.
 - **Every request authenticated**; tokens are per-device and revocable.
+- **Host check.** Outside hosted mode NetSeer answers only requests addressed to `localhost`,
+  `127.0.0.1`, `[::1]`, or (with network access on) this computer's own addresses; anything else
+  gets `403 Unknown host.` Extra names can be allowed with `NETSEER_ALLOWED_HOSTS` (comma-separated).
+- **Same-origin changes.** A `POST`/`PUT`/`PATCH`/`DELETE` that carries an `Origin` header must come
+  from NetSeer's own page (same host and port). Companion apps send no `Origin` and are unaffected.
 - **Hosted mode never exposes this.** The public Render copy keeps the integration API disabled —
   it is a desktop/source feature only.
 - **AI is opt-in** and sends summaries, not captures.
