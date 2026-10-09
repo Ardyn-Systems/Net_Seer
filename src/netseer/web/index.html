@@ -19,6 +19,7 @@
     <link rel="stylesheet" href="/static/vendor/leaflet.css?v=1.9.4" />
     <script src="/static/vendor/cytoscape.min.js?v=3.30.4"></script>
     <script src="/static/vendor/leaflet.js?v=1.9.4"></script>
+    <script src="/static/vendor/html2canvas.min.js?v=1.4.1" defer></script>
   </head>
   <body>
     <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -394,6 +395,7 @@
           <legend>Sections</legend>
           <div class="check-grid">
             <label><input type="checkbox" name="section" value="summary" /> Summary<small>Counts and device types</small></label>
+            <label id="report-geomap-label"><input type="checkbox" name="section" value="geomap" /> Geo map<small>A picture of the map (GPS surveys)</small></label>
             <label><input type="checkbox" name="section" value="inventory" /> Device inventory<small>One row per device</small></label>
             <label><input type="checkbox" name="section" value="devices" /> Device details<small>A block per device</small></label>
             <label><input type="checkbox" name="section" value="links" /> Links table<small>Every connection</small></label>
@@ -709,6 +711,7 @@
           <button id="geo-pack-add" class="btn small ghost" type="button" title="Load an offline .mbtiles map pack">Load pack…</button>
           <button id="geo-pack-remove" class="btn small ghost hidden" type="button" title="Remove the selected offline map pack">Remove pack</button>
           <input id="geo-pack-file" type="file" accept=".mbtiles,application/octet-stream" hidden />
+          <button id="geo-export" class="btn small" type="button" aria-haspopup="menu" title="Save the map as an image or PDF"><svg class="icon"><use href="#i-download" /></svg> Export</button>
           <button id="geo-close" class="icon-btn" type="button" aria-label="Close map"><svg class="icon"><use href="#i-x" /></svg></button>
         </div>
       </div>

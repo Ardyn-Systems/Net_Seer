@@ -37,6 +37,7 @@ from netseer.exporters import (
     export_drawio,
     export_vdx,
     export_vsdx,
+    geo_map_pdf,
     map_report_pdf,
     safe_filename,
 )
@@ -963,11 +964,53 @@ def export_device_api(fmt: str, body: dict):
     raise HTTPException(status_code=404, detail="Use txt, csv, xml, or pdf.")
 
 
+MAX_MAP_IMAGE_BYTES = 30 * 1024 * 1024  # a captured map PNG; plenty for a high-DPI landscape shot
+
+
+def _decode_map_image(data_url: Any) -> bytes | None:
+    """Decode a `data:image/png;base64,...` map capture from the page. None if absent/unusable."""
+    if not isinstance(data_url, str) or not data_url:
+        return None
+    import base64
+
+    payload = data_url.split(",", 1)[1] if data_url.startswith("data:") else data_url
+    try:
+        raw = base64.b64decode(payload, validate=False)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=400, detail="The map image couldn't be read.") from exc
+    if not raw:
+        return None
+    if len(raw) > MAX_MAP_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="The map image is too large.")
+    if raw[:8] != b"\x89PNG\r\n\x1a\n":
+        raise HTTPException(status_code=400, detail="The map image must be a PNG.")
+    return raw
+
+
+@app.post("/api/export/geo.pdf")
+def export_geo_pdf(body: dict):
+    """A one-page PDF of a geo map the page captured (a PNG it sends), for briefings."""
+    png = _decode_map_image(body.get("image"))
+    if png is None:
+        raise HTTPException(status_code=400, detail="Send the map image to export.")
+    title = str(body.get("title") or DEFAULT_MAP_TITLE)
+    caption = body.get("caption")
+    caption = str(caption) if caption else None
+    try:
+        blob = geo_map_pdf(png, title=f"{title} — geo map", caption=caption)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    name = safe_filename(title, "-geo-map.pdf")
+    return Response(content=blob, media_type="application/pdf", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
 @app.post("/api/export/report.pdf")
 def export_report_pdf(body: dict):
     graph, title = _graph_from_body(body)
     # Optional "report" object picks sections, device types, and field groups.
-    blob = map_report_pdf(graph, title=f"{title} report", options=ReportOptions.from_dict(body.get("report")))
+    # Optional "geo_image": a PNG of the geo map the page captured, added as a page when sections include it.
+    geo_png = _decode_map_image(body.get("geo_image"))
+    blob = map_report_pdf(graph, title=f"{title} report", options=ReportOptions.from_dict(body.get("report")), geo_png=geo_png)
     name = safe_filename(title, "-report.pdf")
     return Response(
         content=blob,

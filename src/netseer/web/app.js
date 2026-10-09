@@ -5232,6 +5232,8 @@ async function exportKind(kind, extra = {}) {
 /* ---------- Report options ---------- */
 
 const REPORT_PREFS_KEY = "netseer.report.v1";
+// Core sections that the presets toggle. "geomap" is an extra, independent of presets, enabled only
+// when the survey has GPS; it's read from the form but never set by a preset.
 const REPORT_SECTIONS = ["summary", "inventory", "devices", "links"];
 const REPORT_FIELDS = ["identity", "radio", "services", "routing", "connections", "notes", "other"];
 const REPORT_CATEGORIES = [
@@ -5377,6 +5379,12 @@ function openReportDialog() {
     reportForm().querySelectorAll('input[name="category"]').forEach((i) => (i.checked = !i.disabled && saved.categories.includes(i.value)));
     if (!reportForm().querySelector('input[name="category"]:checked')) reportForm().querySelectorAll('input[name="category"]:not(:disabled)').forEach((i) => (i.checked = true));
   }
+  // The geo-map option only makes sense when the survey has GPS; hide it otherwise.
+  const hasGeo = geoDevices().length > 0;
+  const geoBox = reportForm().querySelector('input[name="section"][value="geomap"]');
+  geoBox.disabled = !hasGeo;
+  if (!hasGeo) geoBox.checked = false;
+  show("report-geomap-label", hasGeo);
   syncReportDialog();
   el("report-dialog").showModal();
 }
@@ -5391,7 +5399,7 @@ function bindReportDialog() {
     })
   );
   el("report-cancel").addEventListener("click", () => el("report-dialog").close());
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     syncReportDialog();
     if (el("report-create").disabled) return;
@@ -5399,8 +5407,17 @@ function bindReportDialog() {
     const { node_ids, link_kinds, ...remember } = opts;
     writeLocal(REPORT_PREFS_KEY, { ...remember, match_layers: Boolean(link_kinds) });
     el("report-dialog").close();
-    toast("Creating your report…", { timeout: 2500 });
-    exportKind("report.pdf", { report: opts });
+    const wantGeo = opts.sections.includes("geomap");
+    toast(wantGeo ? "Capturing the map and creating your report…" : "Creating your report…", { timeout: 2500 });
+    let geoImage = null;
+    if (wantGeo) {
+      try {
+        geoImage = await geoImageDataUrl();
+      } catch {
+        toast("Couldn't capture the map; the report will leave it out.", { timeout: 2500 });
+      }
+    }
+    exportKind("report.pdf", { report: opts, ...(geoImage ? { geo_image: geoImage } : {}) });
   });
 }
 
@@ -7751,9 +7768,10 @@ function setBasemap(value) {
   show("geo-street-note", online);
   const pack = value && value.startsWith("pack:") ? geo.packs.find((p) => `pack:${p.id}` === value) : null;
   if (online) {
-    geo.baseLayer = L.tileLayer(OSM_TILES, { maxZoom: 19, attribution: "© OpenStreetMap contributors" });
+    // crossOrigin lets Export rasterize the tiles without tainting the canvas (OSM sends CORS headers).
+    geo.baseLayer = L.tileLayer(OSM_TILES, { maxZoom: 19, crossOrigin: "anonymous", attribution: "© OpenStreetMap contributors" });
   } else if (pack) {
-    const opts = { maxNativeZoom: pack.maxzoom, maxZoom: 19, minNativeZoom: pack.minzoom, attribution: pack.attribution || "Offline map pack" };
+    const opts = { maxNativeZoom: pack.maxzoom, maxZoom: 19, minNativeZoom: pack.minzoom, crossOrigin: "anonymous", attribution: pack.attribution || "Offline map pack" };
     if (Array.isArray(pack.bounds) && pack.bounds.length === 4) {
       opts.bounds = L.latLngBounds([pack.bounds[1], pack.bounds[0]], [pack.bounds[3], pack.bounds[2]]);
     }
@@ -7839,6 +7857,113 @@ async function removeGeoPack(id) {
   setBasemap(geo.basemap);
 }
 
+/* ---------- Export the geo map (image / PDF) ---------- */
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Wait until the map's overlays are drawn and the basemap tiles (if any) have loaded, so a capture
+// isn't half-painted. Resolves anyway after a short cap, since online tiles can be slow.
+function geoCaptureReady() {
+  return new Promise((resolve) => {
+    const start = performance.now();
+    const check = () => {
+      const c = el("geo-map");
+      const tiles = c ? c.querySelectorAll("img.leaflet-tile") : [];
+      const loaded = c ? c.querySelectorAll("img.leaflet-tile-loaded") : [];
+      const tilesReady = geo.basemap === "none" || (tiles.length > 0 && loaded.length === tiles.length);
+      if ((tilesReady && geo.features && geo.features.getLayers().length) || performance.now() - start > 8000) resolve();
+      else requestAnimationFrame(check);
+    };
+    requestAnimationFrame(check);
+  });
+}
+
+// Rasterize the map (basemap + overlays + markers) to a canvas, with the legend drawn on top. The
+// zoom buttons are left out so the picture is clean for a briefing.
+async function captureGeoCanvas() {
+  if (typeof html2canvas === "undefined") throw new Error("The image library didn't load.");
+  const bg = themeColors().canvas || "#0f1115";
+  const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+  const common = { useCORS: true, scale, logging: false };
+  const mapCanvas = await html2canvas(el("geo-map"), {
+    ...common,
+    backgroundColor: bg,
+    ignoreElements: (e) => e.classList && e.classList.contains("leaflet-control-zoom"),
+  });
+  const legend = el("geo-legend");
+  if (legend && legend.offsetParent !== null) {
+    try {
+      const legCanvas = await html2canvas(legend, { ...common, backgroundColor: null });
+      mapCanvas.getContext("2d").drawImage(legCanvas, 12 * scale, 12 * scale);
+    } catch {
+      /* the legend is a nicety; skip it if it won't render */
+    }
+  }
+  return mapCanvas;
+}
+
+function canvasToPngBlob(canvas) {
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Couldn't make the image."))), "image/png"));
+}
+
+// Make sure the geo map is rendered (open it off-screen if it's closed), capture it, then restore.
+// Returns the data URL, for including the map in a report.
+async function geoImageDataUrl() {
+  const view = el("geo-view");
+  const wasOpen = !view.classList.contains("hidden");
+  if (!wasOpen) {
+    view.classList.add("geo-capturing");
+    openGeoMap();
+  }
+  try {
+    await geoCaptureReady();
+    const canvas = await captureGeoCanvas();
+    return canvas.toDataURL("image/png");
+  } finally {
+    if (!wasOpen) {
+      closeGeoMap();
+      view.classList.remove("geo-capturing");
+    }
+  }
+}
+
+async function exportGeoImage() {
+  try {
+    toast("Saving the map image…", { timeout: 1500 });
+    await geoCaptureReady();
+    const blob = await canvasToPngBlob(await captureGeoCanvas());
+    downloadBlob(blob, `${safeFileStem(state.title)}-geo-map.png`);
+    toast("Saved the map image.", { timeout: 2000 });
+  } catch (err) {
+    fail(err);
+  }
+}
+
+async function exportGeoPdf() {
+  try {
+    toast("Making the map PDF…", { timeout: 2000 });
+    await geoCaptureReady();
+    const image = (await captureGeoCanvas()).toDataURL("image/png");
+    const res = await fetch("/api/export/geo.pdf", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image, title: state.title }),
+    });
+    if (!res.ok) throw new Error((await parseResponse(res).catch((e) => e)).message || "Export failed");
+    await download(res, `${safeFileStem(state.title)}-geo-map.pdf`);
+    toast("Saved the map PDF.", { timeout: 2000 });
+  } catch (err) {
+    fail(err);
+  }
+}
+
 function bindGeoMap() {
   el("btn-geo").addEventListener("click", () => openGeoMap());
   el("geo-close").addEventListener("click", closeGeoMap);
@@ -7859,6 +7984,12 @@ function bindGeoMap() {
   el("geo-pack-remove").addEventListener("click", () => {
     if (String(geo.basemap).startsWith("pack:")) removeGeoPack(geo.basemap.slice(5));
   });
+  el("geo-export").addEventListener("click", (e) =>
+    openMenu(e.currentTarget, [
+      { label: "Save as image (PNG)", onSelect: exportGeoImage },
+      { label: "Save as PDF", onSelect: exportGeoPdf },
+    ], { align: "right" })
+  );
   el("geo-path").addEventListener("change", () => renderGeo(false));
   el("geo-estimates").addEventListener("change", () => renderGeo(false));
   el("geo-time").addEventListener("input", () => {

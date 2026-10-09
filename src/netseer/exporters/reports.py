@@ -15,7 +15,9 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
+from reportlab.lib.utils import ImageReader
 from reportlab.platypus import (
+    Image as RLImage,
     KeepTogether,
     PageBreak,
     Paragraph,
@@ -342,7 +344,7 @@ def device_pdf(graph: SurveyGraph, node: Node, title: str | None = None) -> byte
 # ---------------------------------------------------------------------------
 # Full map report, with options for what goes in.
 
-REPORT_SECTIONS = ("summary", "inventory", "devices", "links")
+REPORT_SECTIONS = ("summary", "geomap", "inventory", "devices", "links")
 DEVICE_CATEGORIES = {
     "router": "Routers and gateways",
     "server": "Servers",
@@ -583,7 +585,47 @@ def report_scope(graph: SurveyGraph, opts: ReportOptions) -> tuple[list[Node], l
     return nodes, links
 
 
-def map_report_pdf(graph: SurveyGraph, title: str = DEFAULT_REPORT_TITLE, options: ReportOptions | None = None) -> bytes:
+def _fitted_image(png: bytes, max_w: float, max_h: float) -> RLImage:
+    """A reportlab Image scaled to fit max_w x max_h, keeping its aspect ratio."""
+    try:
+        iw, ih = ImageReader(io.BytesIO(png)).getSize()
+    except Exception as exc:  # PIL raises its own error types for unreadable data
+        raise ValueError("The map image couldn't be read.") from exc
+    if not iw or not ih:
+        raise ValueError("The map image is empty.")
+    scale = min(max_w / iw, max_h / ih)
+    img = RLImage(io.BytesIO(png), width=iw * scale, height=ih * scale)
+    img.hAlign = "CENTER"
+    return img
+
+
+def _geo_story(png: bytes, styles: dict, caption: str | None, max_h: float) -> list:
+    flow: list = [_p("Geo map", styles["h2"])]
+    if caption:
+        flow.append(_p(caption, styles["meta"]))
+    flow += [Spacer(1, 6), _fitted_image(png, CONTENT_W, max_h)]
+    return flow
+
+
+def geo_map_pdf(png: bytes, title: str = DEFAULT_REPORT_TITLE, caption: str | None = None) -> bytes:
+    """A one-page PDF of a captured geo map, for briefings."""
+    buf = io.BytesIO()
+    styles = _styles()
+    story: list = [_p(title, styles["title"])]
+    if caption:
+        story.append(_p(caption, styles["subtitle"]))
+    story += [Spacer(1, 10), _fitted_image(png, CONTENT_W, 8.0 * inch)]
+    chrome = _chrome(title, _now())
+    _doc(buf, title).build(story, onFirstPage=chrome, onLaterPages=chrome)
+    return buf.getvalue()
+
+
+def map_report_pdf(
+    graph: SurveyGraph,
+    title: str = DEFAULT_REPORT_TITLE,
+    options: ReportOptions | None = None,
+    geo_png: bytes | None = None,
+) -> bytes:
     opts = options or ReportOptions()
     styles = _styles()
     nodes, links = report_scope(graph, opts)
@@ -595,6 +637,13 @@ def map_report_pdf(graph: SurveyGraph, title: str = DEFAULT_REPORT_TITLE, option
     scope = "all devices" if opts.node_ids is None and len(opts.categories) == len(DEVICE_CATEGORIES) else f"{len(nodes)} selected devices"
     window = f" · Time window: {meta['time_window']}" if meta.get("time_window") else ""
     story.append(_p(f"Generated {generated} · Sources: {sources} · Covers {scope}{window}", styles["subtitle"]))
+
+    # The captured geo map, when the page sent one and the section is on. A briefing wants it up front.
+    if "geomap" in opts.sections and geo_png:
+        try:
+            story += [Spacer(1, 10), *_geo_story(geo_png, styles, None, 7.2 * inch)]
+        except ValueError:
+            pass  # a bad image shouldn't sink the whole report
 
     if "summary" in opts.sections:
         devices = [n for n in nodes if device_category(n) != "network"]

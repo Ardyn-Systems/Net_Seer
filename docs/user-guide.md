@@ -286,6 +286,7 @@ When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — the **
 - Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), otherwise where it was heard. **Estimated locations** also draws a faint ring for the estimate's spread. Markers carry a bright casing so they stand out over streets; click one for its SSID, MAC, channel, and signal.
 - Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked and the device **pulsing** so it's easy to find.
 - **Operator path** traces the route the survey drove, with an **arrow at the operator's position** for the time you're viewing; the **time** slider replays the drive. Show the **whole capture** at once, or switch to **Added only** to build the map up with **Show on map** as you go.
+- **Export** saves the current view — markers, route, legend and all — as a **PNG image** or a one-page **PDF**, for a briefing or a report. You can also tick **Geo map** when making a [PDF report](#create-a-pdf-report) to drop the map in as its own page.
 
 Try it with the **Wardrive (WiGLE)** sample in **Settings → Help**.
 
@@ -308,7 +309,7 @@ Your names, captions, notes, and field edits are included in every export.
 ![Report dialog with presets, sections, device types, detail options, and a page estimate](images/report-dialog.png)
 
 - **Presets**: **Overview** (summary and device list), **Standard** (adds a block per device and a links table), or **Everything** (every field, including empty ones).
-- **Sections**: summary, device inventory, device details, links table.
+- **Sections**: summary, device inventory, device details, links table, and — for GPS surveys — a **Geo map** page (a picture of the geo map).
 - **Devices**: all devices or only the ones you selected, and which types to include.
 - **Details for each device**: identity, radio, services and ports, routing, connections, your notes, and raw parser extras. **Show empty fields** lists fields with no value too.
 - **Match the map's Layers** leaves out link types you've hidden.

@@ -4,6 +4,7 @@ from netseer.exporters.reports import (
     device_pdf,
     device_plain_text,
     device_xml,
+    geo_map_pdf,
     map_report_pdf,
     safe_filename,
 )
@@ -17,6 +18,7 @@ __all__ = [
     "device_pdf",
     "device_plain_text",
     "device_xml",
+    "geo_map_pdf",
     "map_report_pdf",
     "safe_filename",
 ]

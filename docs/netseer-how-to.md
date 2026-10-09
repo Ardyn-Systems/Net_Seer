@@ -285,6 +285,7 @@ When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), the **map-pin 
 - **Operator path** draws the route the survey took (every sighting, in time order), with an **arrow at the operator's position** for the current time.
 - **Time** slider: drag to reveal sightings up to a chosen time and replay the drive; the operator arrow moves with it.
 - **Whole capture** shows every located device; switch to **Added only** to start empty and build the map up with **Show on map** as you go.
+- **Export** rasterizes the view (basemap, overlays, legend) with html2canvas and saves it as a **PNG**, or sends that PNG to `POST /api/export/geo.pdf` for a one-page **PDF**. The street basemap is loaded with CORS so the capture isn't tainted. In the **PDF report** dialog, a **Geo map** section (shown only for GPS surveys) captures the map the same way and posts it as `geo_image` to `POST /api/export/report.pdf`, which adds it as a page.
 
 Try it with the **Wardrive (WiGLE)** sample under **Settings → Help**.
 
@@ -330,7 +331,7 @@ Per-device files (PDF, CSV, XML, text) come from **Export** in the details panel
 **Report…** opens a dialog so the PDF only holds what you need. The footer shows roughly how many pages it will be before you create it.
 
 - **Presets:** **Overview** (summary and inventory, usually a page or two), **Standard** (adds device details and the links table), **Everything** (every field, including empty ones and raw parser extras).
-- **Sections:** Summary (device, link, subnet, VLAN, and service counts, plus parser warnings), Device inventory (one row per device), Device details (a block per device), Links table.
+- **Sections:** Summary (device, link, subnet, VLAN, and service counts, plus parser warnings), Geo map (a captured picture of the geo map — shown only for GPS surveys), Device inventory (one row per device), Device details (a block per device), Links table.
 - **Devices:** all devices, or only the ones selected on the map. Tick or untick device types (routers, servers, access points, hosts, wireless clients, subnets and VLANs).
 - **Details for each device:** Identity, Radio, Services and ports, Routing, Connections (one line per neighbour), Your notes, and Other extracted data. Empty fields are left out unless you turn on **Show empty fields**.
 - **Match the map's Layers:** only include link types that are switched on in **Layers**.
