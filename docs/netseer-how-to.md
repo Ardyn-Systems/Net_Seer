@@ -273,7 +273,7 @@ Access points show their SSID as a second line (`HQ-Secure`, `HQ-Secure +2` for 
 
 ## Geo map (GPS)
 
-When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), a **Network / Geo map** toggle at the top-left of the map switches to a real-world map of where devices were seen; **Network** (or **← Network map**) goes back. **Show on map** in a device's Details — or right-click → **Show on map**, or right-click a survey in the **Maps** list — opens it focused on one device.
+When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), a **Network / Geo map** toggle at the top-left of the map switches to a real-world map of where devices were seen; the same toggle in the geo map's toolbar switches back with **Network**. **Show on map** in a device's Details — or right-click → **Show on map**, or right-click a survey in the **Maps** list — opens it focused on one device.
 
 - **Basemap** menu: **Streets — online** (the default; fetches OpenStreetMap tiles — the one thing that goes online), or **No basemap** (a plain grid, fully offline).
 - **Offline map packs** (`GET/POST/DELETE /api/mappacks`). **Load pack…** uploads a raster `.mbtiles` pack (PNG/JPEG tiles); it's validated, kept in the user data dir (`<data>/mappacks/`), and added to the **Basemap** menu, which then serves its tiles from `GET /api/mappacks/{id}/{z}/{x}/{y}`. **Remove pack** deletes the selected one. Not available on the hosted copy, which never writes to the server's disk. Vector (`pbf`) packs are rejected with a message.

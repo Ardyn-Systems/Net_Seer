@@ -275,7 +275,7 @@ Your layer choices are remembered.
 
 ## The geo map
 
-When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** for a real-world map of where devices were seen, and back to **Network** (or **← Network map**) to return. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
+When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** for a real-world map of where devices were seen; the same toggle sits in the geo map's toolbar, so **Network** switches back. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
 
 - The **Basemap** menu picks the map background. It starts on **Streets — online**, which fetches map tiles from openstreetmap.org — the one option that goes online. Choose **No basemap** for a plain grid where nothing leaves your computer.
 - **Offline map packs.** In the field, where the street tiles aren't reachable, load a map pack: **Load pack…** takes an `.mbtiles` file (a standard offline tile pack of a chosen area), and it then appears in the **Basemap** menu. Packs are kept on this computer; **Remove pack** deletes the selected one. This option is hidden on the hosted copy.

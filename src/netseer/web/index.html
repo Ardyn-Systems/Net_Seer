@@ -694,8 +694,10 @@
     <div id="geo-view" class="geo-view hidden" role="dialog" aria-modal="true" aria-label="Geo map">
       <div class="geo-toolbar">
         <div class="geo-tools">
-          <button id="geo-back" class="btn small" type="button" title="Back to the network map"><svg class="icon"><use href="#i-arrow-left" /></svg> Network map</button>
-          <strong class="geo-heading"><svg class="icon"><use href="#i-geo" /></svg> Geo map</strong>
+          <div id="geo-view-toggle" class="seg view-toggle" role="tablist" aria-label="Map view">
+            <button id="geoview-network" class="seg-btn" type="button" role="tab" aria-selected="false" title="Back to the network map">Network</button>
+            <button id="geoview-geo" class="seg-btn" type="button" role="tab" aria-selected="true" title="Where devices were seen (GPS)"><svg class="icon"><use href="#i-geo" /></svg> Geo map</button>
+          </div>
           <div class="seg" role="tablist" aria-label="What to show">
             <button id="geo-mode-whole" class="seg-btn" type="button" role="tab" aria-selected="true" title="Every device with a location">Whole capture</button>
             <button id="geo-mode-added" class="seg-btn" type="button" role="tab" aria-selected="false" title="Only the devices you add">Added only</button>
@@ -713,7 +715,6 @@
           <button id="geo-pack-remove" class="btn small ghost hidden" type="button" title="Remove the selected offline map pack">Remove pack</button>
           <input id="geo-pack-file" type="file" accept=".mbtiles,application/octet-stream" hidden />
           <button id="geo-export" class="btn small" type="button" aria-haspopup="menu" title="Save the map as an image or PDF"><svg class="icon"><use href="#i-download" /></svg> Export</button>
-          <button id="geo-close" class="icon-btn" type="button" aria-label="Close map"><svg class="icon"><use href="#i-x" /></svg></button>
         </div>
       </div>
       <div id="geo-map" class="geo-map"></div>
