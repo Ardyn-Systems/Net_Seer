@@ -291,6 +291,7 @@
               <label class="geo-base" title="The map background"><span>Basemap</span>
                 <select id="geo-basemap" class="geo-select" aria-label="Map background"></select>
               </label>
+              <button id="geo-save-offline" class="btn small ghost hidden" type="button" title="Save the tiles in view for offline use">Save area</button>
               <button id="geo-pack-add" class="btn small ghost" type="button" title="Load an offline .mbtiles map pack">Load pack…</button>
               <button id="geo-pack-remove" class="btn small ghost hidden" type="button" title="Remove the selected offline map pack">Remove pack</button>
               <input id="geo-pack-file" type="file" accept=".mbtiles,application/octet-stream" hidden />
@@ -337,6 +338,29 @@
         <div class="row-actions end">
           <button value="cancel" class="btn ghost" type="button" id="dialog-cancel">Cancel</button>
           <button value="ok" class="btn primary" type="submit" id="dialog-ok">OK</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="offline-dialog" class="dialog" aria-labelledby="offline-title">
+      <form method="dialog" id="offline-form">
+        <h2 id="offline-title">Save this area for offline use</h2>
+        <p class="hint">Saves the map tiles already on screen so this area works with no internet. Pan and zoom over the area first, then save again to add more to the same pack. For a whole state or region, build a pack with Mobile Atlas Creator and use “Load pack…”.</p>
+        <label class="field-label">Save to
+          <select id="offline-pack" aria-label="Save to"></select>
+        </label>
+        <label class="field-label" id="offline-name-row">Name
+          <input id="offline-name" type="text" placeholder="Downtown survey" autocomplete="off" />
+        </label>
+        <p id="offline-estimate" class="hint"></p>
+        <div id="offline-progress" class="hidden">
+          <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div id="offline-bar"></div></div>
+          <p id="offline-progress-text" class="hint"></p>
+        </div>
+        <p id="offline-error" class="field-error hidden" role="alert"></p>
+        <div class="row-actions end">
+          <button type="button" class="btn ghost" id="offline-cancel">Cancel</button>
+          <button type="submit" class="btn primary" id="offline-download">Save area</button>
         </div>
       </form>
     </dialog>
@@ -667,6 +691,7 @@
               <button id="help-tour" class="chip-btn" type="button">Take the tour<small>A one-minute walk around the screen</small></button>
               <button id="help-shortcuts" class="chip-btn" type="button">Keyboard shortcuts<small>Press ? at any time</small></button>
               <a class="chip-btn" data-link="guide" target="_blank" rel="noopener">User guide<small>Every feature, with screenshots</small></a>
+              <a class="chip-btn" data-link="offline-maps" target="_blank" rel="noopener">Offline maps<small>Where to get street packs for the geo map</small></a>
               <a class="chip-btn" data-link="issue" target="_blank" rel="noopener">Report a problem<small>Opens a new issue on GitHub</small></a>
             </div>
             <p class="hint">When you report a problem, include the version shown under <a href="#" data-goto="about">About</a>. Don't attach captures from a network you need to keep private.</p>

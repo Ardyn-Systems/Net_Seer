@@ -1054,3 +1054,67 @@ def test_geo_map_pdf_builder_unit():
 
     with pytest.raises(ValueError):
         geo_map_pdf(b"not an image")
+
+
+def test_offline_map_pack_save_and_append(monkeypatch, tmp_path):
+    import base64
+
+    from fastapi.testclient import TestClient
+
+    import netseer.tiles as tilesmod
+    from netseer.web import app
+
+    monkeypatch.setattr(tilesmod, "data_dir", lambda: tmp_path)
+    tilesmod._conns.clear()
+    client = TestClient(app)
+
+    b64 = base64.b64encode(_PNG_1X1).decode()
+    tiles = [
+        {"z": 12, "x": 655, "y": 1583, "data": b64},
+        {"z": 12, "x": 656, "y": 1583, "data": b64},
+    ]
+    # Save a new pack from tiles the live map already loaded.
+    res = client.post("/api/mappacks/save", json={"name": "SF area", "format": "png", "attribution": "© OpenStreetMap contributors", "tiles": tiles})
+    assert res.status_code == 200, res.text
+    pack = res.json()
+    assert pack["id"] == "sf-area"
+    assert pack["format"] == "png"
+    assert pack["minzoom"] == 12 and pack["maxzoom"] == 12
+    # The saved pack serves a tile (XYZ y flipped to TMS for us) and is listed.
+    assert client.get("/api/mappacks/sf-area/12/655/1583").status_code == 200
+    assert any(p["id"] == "sf-area" for p in client.get("/api/mappacks").json()["packs"])
+
+    # Add deeper-zoom tiles to the same pack; the zoom range grows.
+    res2 = client.post("/api/mappacks/save", json={"pack_id": "sf-area", "format": "png", "tiles": [{"z": 13, "x": 1310, "y": 3166, "data": b64}]})
+    assert res2.status_code == 200, res2.text
+    assert res2.json()["maxzoom"] == 13
+    assert client.get("/api/mappacks/sf-area/13/1310/3166").status_code == 200
+
+
+def test_offline_map_pack_save_rejects_bad_input(monkeypatch, tmp_path):
+    import base64
+
+    from fastapi.testclient import TestClient
+
+    import netseer.tiles as tilesmod
+    from netseer.web import app
+
+    monkeypatch.setattr(tilesmod, "data_dir", lambda: tmp_path)
+    monkeypatch.setattr(tilesmod, "MAX_SAVE_TILES", 2)
+    tilesmod._conns.clear()
+    client = TestClient(app)
+
+    b64 = base64.b64encode(_PNG_1X1).decode()
+    # No tiles → 400.
+    assert client.post("/api/mappacks/save", json={"name": "x", "format": "png", "tiles": []}).status_code == 400
+    # More tiles than the per-save cap → 400.
+    many = [{"z": 1, "x": i % 2, "y": i // 2, "data": b64} for i in range(3)]
+    assert client.post("/api/mappacks/save", json={"format": "png", "tiles": many}).status_code == 400
+    # Malformed base64 → 400.
+    assert client.post("/api/mappacks/save", json={"format": "png", "tiles": [{"z": 1, "x": 0, "y": 0, "data": "!!!"}]}).status_code == 400
+    # Appending with a different image format → 400.
+    assert client.post("/api/mappacks/save", json={"name": "streets", "format": "png", "tiles": [{"z": 1, "x": 0, "y": 0, "data": b64}]}).status_code == 200
+    assert client.post("/api/mappacks/save", json={"pack_id": "streets", "format": "jpg", "tiles": [{"z": 1, "x": 1, "y": 0, "data": b64}]}).status_code == 400
+    # Hosted copy refuses to save (never writes to the server's disk).
+    monkeypatch.setenv("NETSEER_HOSTED", "1")
+    assert client.post("/api/mappacks/save", json={"format": "png", "tiles": [{"z": 1, "x": 0, "y": 0, "data": b64}]}).status_code == 403

@@ -10,6 +10,7 @@ renderer in the browser. Not available on the hosted copy, which never writes to
 
 from __future__ import annotations
 
+import math
 import re
 import sqlite3
 import threading
@@ -237,3 +238,126 @@ def delete_pack(pack_id: str) -> bool:
     except OSError:
         return False
     return True
+
+
+# ---------- Save the tiles the live map has already loaded into an offline pack ----------
+# When the geo map shows online streets or satellite, the browser fetches those tiles to draw them.
+# "Save area" hands the tiles already on screen to us to store in a pack, so that area works offline
+# later. We never bulk-download from a tile server — that violates OSM's and Esri's usage policy
+# (and gets blocked) — we only keep what the map already displayed.
+
+MAX_SAVE_TILES = 4096         # tiles accepted in one save; the client chunks a larger set across calls
+MAX_TILE_BYTES = 1024 * 1024  # a single raster tile is comfortably under this
+
+
+def _num2deg(z: int, x: float, y: float) -> tuple[float, float]:
+    """Slippy-map tile x/y (XYZ) at zoom z to the lon/lat of its north-west corner."""
+    n = 1 << z
+    lon = x / n * 360.0 - 180.0
+    lat = math.degrees(math.atan(math.sinh(math.pi * (1.0 - 2.0 * y / n))))
+    return lon, lat
+
+
+def _canon_format(fmt: str) -> str:
+    fmt = (fmt or "").lower()
+    if fmt == "jpeg":
+        fmt = "jpg"
+    if fmt not in RASTER_FORMATS:
+        raise ValueError("Unsupported tile format. Expected PNG, JPEG, or WebP.")
+    return fmt
+
+
+def _rewrite_metadata(conn: sqlite3.Connection, name: str | None, fmt: str, attribution: str) -> None:
+    """Recompute a pack's metadata (zoom range, bounds, center) from the tiles it now holds."""
+    row = conn.execute("SELECT MIN(zoom_level), MAX(zoom_level) FROM tiles").fetchone()
+    if not row or row[0] is None:
+        raise ValueError("No tiles to save.")
+    lo, hi = int(row[0]), int(row[1])
+    west = south = east = north = None
+    for z, min_c, max_c, min_r, max_r in conn.execute(
+        "SELECT zoom_level, MIN(tile_column), MAX(tile_column), MIN(tile_row), MAX(tile_row) FROM tiles GROUP BY zoom_level"
+    ):
+        w, _ = _num2deg(z, min_c, 0)
+        e, _ = _num2deg(z, max_c + 1, 0)
+        y_north = (1 << z) - 1 - max_r  # TMS row -> XYZ y; the largest TMS row is the northern edge
+        y_south = (1 << z) - 1 - min_r
+        _, n = _num2deg(z, 0, y_north)
+        _, s = _num2deg(z, 0, y_south + 1)
+        west = w if west is None else min(west, w)
+        east = e if east is None else max(east, e)
+        south = s if south is None else min(south, s)
+        north = n if north is None else max(north, n)
+    existing = _read_metadata(conn)
+    meta = {
+        "name": name or existing.get("name") or "Offline area",
+        "format": fmt,
+        "type": "baselayer",
+        "minzoom": str(lo),
+        "maxzoom": str(hi),
+        "attribution": attribution or existing.get("attribution") or "",
+    }
+    if west is not None:
+        meta["bounds"] = f"{west:.6f},{south:.6f},{east:.6f},{north:.6f}"
+        meta["center"] = f"{(west + east) / 2:.6f},{(south + north) / 2:.6f},{lo}"
+    conn.execute("DELETE FROM metadata")
+    conn.executemany("INSERT INTO metadata VALUES (?, ?)", list(meta.items()))
+
+
+def save_tiles(name, tiles, fmt, attribution: str = "", pack_id: str | None = None) -> dict:
+    """Store already-loaded raster tiles in a pack. ``tiles`` is an iterable of (z, x, y, data bytes).
+
+    With ``pack_id`` naming an existing pack the tiles are added to it (its image format must match);
+    otherwise a new pack named ``name`` is created. Returns the pack's description. Raises ValueError
+    for bad input. The caller is responsible for blocking this on the hosted (read-only) copy."""
+    fmt = _canon_format(fmt)
+    rows = []
+    for item in tiles:
+        z, x, y, data = item
+        z, x, y = int(z), int(x), int(y)
+        if not (0 <= z <= 24) or x < 0 or y < 0 or x >= (1 << z) or y >= (1 << z):
+            raise ValueError("A tile's coordinates are out of range.")
+        if not data or len(data) > MAX_TILE_BYTES:
+            raise ValueError("A tile was empty or too large.")
+        rows.append((z, x, (1 << z) - 1 - y, sqlite3.Binary(data)))  # XYZ y -> TMS row
+    if not rows:
+        raise ValueError("No tiles to save.")
+    if len(rows) > MAX_SAVE_TILES:
+        raise ValueError(f"Too many tiles in one save (limit {MAX_SAVE_TILES:,}).")
+
+    if pack_id is not None:
+        path = _pack_path(pack_id)
+        if path is None:
+            raise ValueError("That map pack no longer exists.")
+        ro = _open_ro(path)
+        try:
+            existing_fmt = (_read_metadata(ro).get("format") or "").lower()
+        finally:
+            ro.close()
+        if existing_fmt and _canon_format(existing_fmt) != fmt:
+            raise ValueError("That pack stores a different image format. Save to a new pack instead.")
+        _drop_conn(pack_id)  # release the cached read-only handle before writing
+        dest, creating = path, False
+    else:
+        pack_id = _unique_id(_safe_id(name))
+        dest, creating = packs_dir() / f"{pack_id}.mbtiles", True
+
+    conn = sqlite3.connect(dest)
+    try:
+        if creating:
+            conn.execute("CREATE TABLE metadata (name text, value text)")
+            conn.execute("CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob)")
+            conn.execute("CREATE UNIQUE INDEX tile_index ON tiles (zoom_level, tile_column, tile_row)")
+        conn.executemany("INSERT OR REPLACE INTO tiles VALUES (?, ?, ?, ?)", rows)
+        _rewrite_metadata(conn, name if creating else None, fmt, attribution)
+        conn.commit()
+    except BaseException:
+        conn.close()
+        if creating:
+            Path(dest).unlink(missing_ok=True)
+        raise
+    conn.close()
+    ro = _open_ro(dest)
+    try:
+        return _describe(pack_id, dest, ro)
+    finally:
+        ro.close()

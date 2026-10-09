@@ -5788,6 +5788,7 @@ function renderSettings() {
   const links = {
     repo: repoUrl(),
     guide: repoUrl("/blob/main/docs/user-guide.md"),
+    "offline-maps": repoUrl("/blob/main/docs/user-guide.md#offline-maps"),
     issue: repoUrl(`/issues/new?body=${encodeURIComponent(`\n\n---\nNetSeer ${version}, ${runningAs()}`)}`),
     releases: repoUrl("/releases"),
   };
@@ -7580,6 +7581,27 @@ function synthwave(ctx, fx) {
 // scale, nothing leaves the machine); an opt-in street basemap loads OpenStreetMap tiles online.
 
 const OSM_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+// Esri REST tiles are addressed {z}/{y}/{x} (level/row/col). Free to view, no key; view-only (we
+// never bulk-fetch them server-side). Saving offline keeps only tiles the map already drew.
+const ESRI_IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const ESRI_REFERENCE = "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+const ESRI_TOPO = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}";
+const ESRI_ATTR = "Imagery © Esri, Maxar, Earthstar Geographics, and the GIS User Community";
+const ESRI_TOPO_ATTR = "© Esri — Esri, HERE, Garmin, USGS, and the GIS User Community";
+
+// The online basemaps the geo map can show. Each is view-only; "Save area" stores the tiles already
+// loaded. `format` is what saved tiles are encoded as (jpg for imagery to stay small; png otherwise).
+const ONLINE_BASEMAPS = {
+  online: { label: "Streets — online", format: "png", attribution: "© OpenStreetMap contributors", layers: [{ url: OSM_TILES, maxZoom: 19 }] },
+  satellite: { label: "Satellite — online", format: "jpg", attribution: ESRI_ATTR, layers: [{ url: ESRI_IMAGERY, maxZoom: 19 }] },
+  hybrid: { label: "Satellite + labels — online", format: "jpg", attribution: ESRI_ATTR + "; labels © Esri", layers: [{ url: ESRI_IMAGERY, maxZoom: 19 }, { url: ESRI_REFERENCE, maxZoom: 19 }] },
+  topo: { label: "Topographic — online", format: "png", attribution: ESRI_TOPO_ATTR, layers: [{ url: ESRI_TOPO, maxZoom: 19 }] },
+};
+
+function isOnlineBasemap(value) {
+  return Object.prototype.hasOwnProperty.call(ONLINE_BASEMAPS, value);
+}
+
 const geo = {
   map: null,
   features: null, // device markers + estimate spread circles
@@ -7938,27 +7960,35 @@ function setGeoMode(mode) {
 function setBasemap(value) {
   if (!geo.map) return;
   geo.basemap = value;
-  if (geo.baseLayer) {
-    geo.map.removeLayer(geo.baseLayer);
-    geo.baseLayer = null;
-  }
-  const online = value === "online";
-  show("geo-street-note", online);
+  for (const lyr of geo.baseLayers || []) geo.map.removeLayer(lyr);
+  geo.baseLayers = [];
+  geo.baseLayer = null;
+  const spec = ONLINE_BASEMAPS[value];
   const pack = value && value.startsWith("pack:") ? geo.packs.find((p) => `pack:${p.id}` === value) : null;
-  if (online) {
-    // crossOrigin lets Export rasterize the tiles without tainting the canvas (OSM sends CORS headers).
-    geo.baseLayer = L.tileLayer(OSM_TILES, { maxZoom: 19, crossOrigin: "anonymous", attribution: "© OpenStreetMap contributors" });
+  if (spec) {
+    // crossOrigin lets Export and "Save area" read the tiles without tainting the canvas (OSM and
+    // Esri both send CORS headers). The first layer carries the attribution; later ones overlay it.
+    spec.layers.forEach((def, i) => {
+      const lyr = L.tileLayer(def.url, { maxZoom: 19, maxNativeZoom: def.maxZoom, crossOrigin: "anonymous", attribution: i === 0 ? spec.attribution : "" });
+      lyr.addTo(geo.map);
+      geo.baseLayers.push(lyr);
+    });
+    geo.baseLayer = geo.baseLayers[0];
+    el("geo-street-note").textContent = "These map tiles load online.";
+    show("geo-street-note", true);
   } else if (pack) {
     const opts = { maxNativeZoom: pack.maxzoom, maxZoom: 19, minNativeZoom: pack.minzoom, crossOrigin: "anonymous", attribution: pack.attribution || "Offline map pack" };
     if (Array.isArray(pack.bounds) && pack.bounds.length === 4) {
       opts.bounds = L.latLngBounds([pack.bounds[1], pack.bounds[0]], [pack.bounds[3], pack.bounds[2]]);
     }
     geo.baseLayer = L.tileLayer(`/api/mappacks/${encodeURIComponent(pack.id)}/{z}/{x}/{y}`, opts);
-  } else if (value !== "none") {
-    // The chosen pack is gone (removed elsewhere); fall back to markers only.
-    geo.basemap = "none";
+    geo.baseLayer.addTo(geo.map);
+    geo.baseLayers = [geo.baseLayer];
+    show("geo-street-note", false);
+  } else {
+    if (value !== "none") geo.basemap = "none"; // the chosen pack is gone; fall back to markers only
+    show("geo-street-note", false);
   }
-  if (geo.baseLayer) geo.baseLayer.addTo(geo.map);
   syncBasemapUi();
 }
 
@@ -7967,19 +7997,21 @@ function syncBasemapUi() {
   const sel = el("geo-basemap");
   if (sel && sel.value !== geo.basemap) sel.value = geo.basemap;
   show("geo-pack-remove", String(geo.basemap).startsWith("pack:"));
+  // "Save area" keeps the tiles already loaded, so only when an online basemap is on and writable.
+  show("geo-save-offline", isOnlineBasemap(geo.basemap) && geo.canAddPacks);
 }
 
-// Rebuild the basemap <select>: Markers only, Streets (online), then each loaded offline pack.
+// Rebuild the basemap <select>: No basemap, each online basemap, then each loaded offline pack.
 function renderBasemapOptions() {
   const sel = el("geo-basemap");
   if (!sel) return;
   const opts = [
     `<option value="none">No basemap</option>`,
-    `<option value="online">Streets — online</option>`,
+    ...Object.entries(ONLINE_BASEMAPS).map(([id, b]) => `<option value="${id}">${escapeHtml(b.label)}</option>`),
     ...geo.packs.map((p) => `<option value="pack:${escapeHtml(p.id)}">${escapeHtml(p.name)} (offline)</option>`),
   ];
   sel.innerHTML = opts.join("");
-  // Keep the current choice if it's still available, else fall back to online.
+  // Keep the current choice if it's still available, else fall back to online streets.
   if (geo.basemap.startsWith("pack:") && !geo.packs.some((p) => `pack:${p.id}` === geo.basemap)) geo.basemap = "online";
   sel.value = geo.basemap;
 }
@@ -7990,9 +8022,11 @@ async function loadGeoPacks() {
     if (!res.ok) throw new Error();
     const data = await res.json();
     geo.packs = Array.isArray(data.packs) ? data.packs : [];
-    show("geo-pack-add", data.can_add !== false);
+    geo.canAddPacks = data.can_add !== false;
+    show("geo-pack-add", geo.canAddPacks);
   } catch {
     geo.packs = [];
+    geo.canAddPacks = false;
   }
   renderBasemapOptions();
   syncBasemapUi();
@@ -8033,6 +8067,182 @@ async function removeGeoPack(id) {
   if (geo.basemap === `pack:${id}`) geo.basemap = "online";
   await loadGeoPacks();
   setBasemap(geo.basemap);
+}
+
+/* ---------- Save the tiles already on screen as an offline pack ---------- */
+// We never bulk-download from a tile server (that breaks OSM/Esri usage policy and gets blocked). We
+// keep only the basemap tiles the live map already drew: draw each onto a canvas, hand the bytes to
+// the server, which writes them into an .mbtiles pack. Pan/zoom and save again to extend a pack.
+
+const GEO_TILE_SIZE = 256;
+
+function _sameTileFormat(a, b) {
+  const norm = (f) => (String(f || "").toLowerCase() === "jpeg" ? "jpg" : String(f || "").toLowerCase());
+  return norm(a) === norm(b);
+}
+
+// Normalize Leaflet's tile coords (x wraps past the world edge) into a real z/x/y.
+function _wrapTile(coords) {
+  const n = 1 << coords.z;
+  return { z: coords.z, x: ((coords.x % n) + n) % n, y: coords.y };
+}
+
+// The tiles a Leaflet tile layer currently has loaded, as { z, x, y, el }.
+function loadedLayerTiles(layer) {
+  const out = [];
+  const cache = layer && layer._tiles;
+  if (!cache) return out;
+  for (const key in cache) {
+    const t = cache[key];
+    if (!t || !t.el || !t.coords) continue;
+    if (t.el.complete === false || t.el.naturalWidth === 0) continue; // not finished loading
+    const c = _wrapTile(t.coords);
+    if (c.z < 0 || c.y < 0 || c.y >= 1 << c.z) continue;
+    out.push({ z: c.z, x: c.x, y: c.y, el: t.el });
+  }
+  return out;
+}
+
+// Tiles shown on the active basemap, each with its primary <img> and any overlay <img>s (hybrid).
+function currentBasemapTiles() {
+  const layers = geo.baseLayers || [];
+  if (!layers.length) return [];
+  const overlays = layers.slice(1).map(loadedLayerTiles);
+  return loadedLayerTiles(layers[0]).map((t) => {
+    const key = `${t.z}:${t.x}:${t.y}`;
+    const over = [];
+    for (const ov of overlays) {
+      const m = ov.find((o) => `${o.z}:${o.x}:${o.y}` === key);
+      if (m) over.push(m.el);
+    }
+    return { z: t.z, x: t.x, y: t.y, el: t.el, overlays: over };
+  });
+}
+
+// Draw a tile (plus any overlay tiles) onto a canvas and return its base64 bytes. Throws if the
+// image didn't load CORS-clean (then the tile is skipped by the caller).
+function encodeTile(tile, format) {
+  const cv = document.createElement("canvas");
+  cv.width = cv.height = GEO_TILE_SIZE;
+  const ctx = cv.getContext("2d");
+  ctx.drawImage(tile.el, 0, 0, GEO_TILE_SIZE, GEO_TILE_SIZE);
+  for (const ov of tile.overlays || []) ctx.drawImage(ov, 0, 0, GEO_TILE_SIZE, GEO_TILE_SIZE);
+  const mime = format === "jpg" ? "image/jpeg" : "image/png";
+  return cv.toDataURL(mime, 0.82).split(",")[1];
+}
+
+let offlineBusy = false;
+
+function syncOfflineDialog(count) {
+  if (count === undefined) count = currentBasemapTiles().length;
+  const appending = !!el("offline-pack").value;
+  show("offline-name-row", !appending);
+  el("offline-estimate").textContent =
+    count === 0
+      ? "No tiles are loaded here yet — let the map finish drawing, or pan over the area."
+      : `${count.toLocaleString()} tile${count === 1 ? "" : "s"} in view will be saved. Pan or zoom and save again to add more.`;
+  el("offline-estimate").classList.toggle("warn", count === 0);
+  el("offline-download").disabled = count === 0 || offlineBusy;
+}
+
+function openOfflineDialog() {
+  if (!isOnlineBasemap(geo.basemap) || !geo.canAddPacks || !geo.map) return;
+  const spec = ONLINE_BASEMAPS[geo.basemap];
+  const compatible = geo.packs.filter((p) => _sameTileFormat(p.format, spec.format));
+  el("offline-pack").innerHTML = [
+    `<option value="">New pack</option>`,
+    ...compatible.map((p) => `<option value="${escapeHtml(p.id)}">Add to “${escapeHtml(p.name)}”</option>`),
+  ].join("");
+  el("offline-pack").value = "";
+  const c = geo.map.getCenter();
+  el("offline-name").value = `${spec.label.replace(/ — online$/, "")} ${c.lat.toFixed(3)}, ${c.lng.toFixed(3)}`;
+  el("offline-error").textContent = "";
+  el("offline-error").classList.add("hidden");
+  el("offline-progress").classList.add("hidden");
+  el("offline-bar").style.width = "0%";
+  el("offline-download").classList.remove("hidden");
+  el("offline-cancel").textContent = "Cancel";
+  syncOfflineDialog();
+  el("offline-dialog").showModal();
+}
+
+function closeOfflineDialog() {
+  const dlg = el("offline-dialog");
+  if (dlg.open) dlg.close();
+}
+
+async function saveOfflineArea() {
+  if (offlineBusy) return;
+  const spec = ONLINE_BASEMAPS[geo.basemap];
+  if (!spec) return;
+  const tiles = currentBasemapTiles();
+  if (!tiles.length) {
+    syncOfflineDialog(0);
+    return;
+  }
+  const packId = el("offline-pack").value || null;
+  const name = (el("offline-name").value || "Offline area").trim();
+
+  offlineBusy = true;
+  el("offline-error").textContent = "";
+  el("offline-error").classList.add("hidden");
+  el("offline-download").disabled = true;
+  el("offline-progress").classList.remove("hidden");
+  el("offline-bar").style.width = "0%";
+  el("offline-progress-text").textContent = "Reading tiles…";
+
+  const payload = [];
+  let skipped = 0;
+  for (let i = 0; i < tiles.length; i++) {
+    try {
+      payload.push({ z: tiles[i].z, x: tiles[i].x, y: tiles[i].y, data: encodeTile(tiles[i], spec.format) });
+    } catch {
+      skipped++; // a tile that didn't load CORS-clean can't be read; skip it
+    }
+    if (i % 4 === 0) {
+      el("offline-bar").style.width = `${Math.round((i / tiles.length) * 70)}%`;
+      await new Promise((r) => setTimeout(r, 0)); // yield so the bar paints
+    }
+  }
+
+  if (!payload.length) {
+    offlineBusy = false;
+    el("offline-error").textContent = "Couldn't read these tiles for saving.";
+    el("offline-error").classList.remove("hidden");
+    el("offline-progress").classList.add("hidden");
+    return;
+  }
+
+  el("offline-progress-text").textContent = "Saving…";
+  el("offline-bar").style.width = "85%";
+  let pack;
+  try {
+    const res = await fetch("/api/mappacks/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, pack_id: packId, format: spec.format, attribution: spec.attribution, tiles: payload }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Couldn't save the tiles.");
+    }
+    pack = await res.json();
+  } catch (e) {
+    offlineBusy = false;
+    el("offline-error").textContent = e.message || "Couldn't save the tiles.";
+    el("offline-error").classList.remove("hidden");
+    el("offline-progress").classList.add("hidden");
+    el("offline-download").disabled = false;
+    return;
+  }
+
+  el("offline-bar").style.width = "100%";
+  offlineBusy = false;
+  await loadGeoPacks();
+  const dlg = el("offline-dialog");
+  if (dlg.open) dlg.close();
+  const note = skipped ? ` (${skipped} skipped)` : "";
+  toast(`Saved ${payload.length} tile${payload.length === 1 ? "" : "s"} to “${pack.name}”${note}.`);
 }
 
 /* ---------- Export the geo map (image / PDF) ---------- */
@@ -8167,6 +8377,13 @@ function bindGeoMap() {
   });
   el("geo-pack-remove").addEventListener("click", () => {
     if (String(geo.basemap).startsWith("pack:")) removeGeoPack(geo.basemap.slice(5));
+  });
+  el("geo-save-offline").addEventListener("click", openOfflineDialog);
+  el("offline-pack").addEventListener("change", () => syncOfflineDialog());
+  el("offline-cancel").addEventListener("click", closeOfflineDialog);
+  el("offline-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    saveOfflineArea();
   });
   el("geo-export").addEventListener("click", (e) =>
     openMenu(e.currentTarget, [

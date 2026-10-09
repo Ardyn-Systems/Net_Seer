@@ -430,15 +430,16 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("settings-security", selectors=["#settings-dialog"], pad=0)
         page.evaluate("() => el('settings-dialog').close()")
 
-        # Geo map: the wardrive demo on the street basemap (the default), with the operator route,
-        # the operator's position arrow, and the estimate spread circles.
+        # Geo map: the wardrive demo on the satellite basemap, with the operator route, the
+        # operator's position diamond, the estimate spread circles, and the Save area / basemap tools.
         page.evaluate("() => { const t = el('toast'); t.classList.add('hidden'); try { t.hidePopover(); } catch {} }")
         page.evaluate("() => openDemo('wardrive')")
         page.wait_for_function("() => state.graph && state.graph.nodes.some((n) => (n.track || []).length)")
         page.wait_for_timeout(300)
         page.evaluate("() => openGeoMap()")
         page.wait_for_function("() => typeof geo !== 'undefined' && geo.features && geo.features.getLayers().length > 0")
-        # Let the street tiles finish so the basemap isn't captured half-painted (needs network).
+        page.evaluate("() => setBasemap('satellite')")
+        # Let the tiles finish so the basemap isn't captured half-painted (needs network).
         try:
             page.wait_for_function(
                 "() => { const c = el('geo-map'); if (!c) return false; "
