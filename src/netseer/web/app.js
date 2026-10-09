@@ -2888,10 +2888,16 @@ function selectNodes(ids, { center = false } = {}) {
   syncSelectionFromCy();
 }
 
+// Map a zoom factor to/from the 0–1000 slider, on a log scale since zoom is exponential.
+const ZOOM_SPAN = Math.log(ZOOM_MAX / ZOOM_MIN);
+const zoomToSlider = (z) => Math.round((1000 * Math.log(z / ZOOM_MIN)) / ZOOM_SPAN);
+const sliderToZoom = (v) => ZOOM_MIN * Math.exp((ZOOM_SPAN * v) / 1000);
+
 function syncZoomUi() {
   const pct = state.cy ? Math.round(state.cy.zoom() * 100) : 100;
   el("zoom-pct").textContent = `${pct}%`;
-  ["zoom-in", "zoom-out", "zoom-fit", "btn-relayout"].forEach((id) => (el(id).disabled = !state.cy));
+  if (state.cy) el("net-zoom").value = String(zoomToSlider(state.cy.zoom()));
+  ["zoom-in", "zoom-out", "zoom-fit", "btn-relayout", "net-zoom"].forEach((id) => (el(id).disabled = !state.cy));
 }
 
 function zoomBy(factor) {
@@ -6775,6 +6781,11 @@ function bindUi() {
   el("zoom-in").addEventListener("click", () => zoomBy(1.25));
   el("zoom-out").addEventListener("click", () => zoomBy(0.8));
   el("zoom-fit").addEventListener("click", () => fitMap());
+  el("net-zoom").addEventListener("input", (e) => {
+    if (!state.cy) return;
+    const level = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, sliderToZoom(+e.target.value)));
+    state.cy.zoom({ level, renderedPosition: { x: state.cy.width() / 2, y: state.cy.height() / 2 } });
+  });
   el("selection-bar").querySelectorAll("[data-sel]").forEach((btn) =>
     btn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -7653,14 +7664,6 @@ function geoPoint(n, useEstimate = true) {
   return geoHeardPoint(n);
 }
 
-// Compass bearing (degrees, 0 = north) from one lat/lon to another, for the operator arrow.
-function geoBearing(lat1, lon1, lat2, lon2) {
-  const r = Math.PI / 180;
-  const y = Math.sin((lon2 - lon1) * r) * Math.cos(lat2 * r);
-  const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos((lon2 - lon1) * r);
-  return (Math.atan2(y, x) / r + 360) % 360;
-}
-
 function geoTimeRange(devs) {
   let lo = Infinity;
   let hi = -Infinity;
@@ -7668,11 +7671,48 @@ function geoTimeRange(devs) {
   return Number.isFinite(lo) && hi > lo ? [lo, hi] : null;
 }
 
+// Leaflet's default wheel zoom jumps ~2 levels per notch. These px-per-level values make it ease in
+// gently, roughly matching the network map's ~6/10/16% per notch (Settings → Scroll to zoom).
+const GEO_WHEEL_PX = { slow: 1100, normal: 700, fast: 450 };
+
+// A bottom-right zoom control with a slider, so you can drag to a zoom level like the network map.
+const GeoZoomControl = L.Control.extend({
+  options: { position: "bottomright" },
+  onAdd(map) {
+    const div = L.DomUtil.create("div", "leaflet-bar geo-zoom");
+    div.innerHTML =
+      `<a class="geo-zoom-btn geo-zoom-out" href="#" role="button" aria-label="Zoom out">−</a>` +
+      `<input type="range" class="geo-zoom-slider" step="0.05" aria-label="Zoom level" />` +
+      `<a class="geo-zoom-btn geo-zoom-in" href="#" role="button" aria-label="Zoom in">+</a>`;
+    const slider = div.querySelector(".geo-zoom-slider");
+    const sync = () => {
+      slider.min = map.getMinZoom();
+      slider.max = map.getMaxZoom();
+      slider.value = map.getZoom();
+    };
+    L.DomEvent.on(slider, "input", () => map.setZoom(parseFloat(slider.value), { animate: false }));
+    L.DomEvent.on(div.querySelector(".geo-zoom-in"), "click", (e) => (L.DomEvent.stop(e), map.zoomIn()));
+    L.DomEvent.on(div.querySelector(".geo-zoom-out"), "click", (e) => (L.DomEvent.stop(e), map.zoomOut()));
+    L.DomEvent.disableClickPropagation(div);
+    L.DomEvent.disableScrollPropagation(div);
+    map.on("zoom zoomend", sync);
+    sync();
+    return div;
+  },
+});
+
 function initGeoMap() {
-  // Zoom sits bottom-right so it never covers the legend or the street-map note (both at the top).
-  geo.map = L.map("geo-map", { zoomControl: false, attributionControl: true, preferCanvas: true });
+  geo.map = L.map("geo-map", {
+    zoomControl: false,
+    attributionControl: true,
+    preferCanvas: true,
+    zoomSnap: 0, // smooth, fractional zoom like the network map
+    zoomDelta: 0.5,
+    wheelDebounceTime: 30,
+    wheelPxPerZoomLevel: GEO_WHEEL_PX[state.prefs.zoomSpeed] || GEO_WHEEL_PX.normal,
+  });
   geo.map.setView([0, 0], 2);
-  L.control.zoom({ position: "bottomright" }).addTo(geo.map);
+  new GeoZoomControl().addTo(geo.map);
   L.control.scale({ imperial: true, metric: true }).addTo(geo.map);
   geo.features = L.layerGroup().addTo(geo.map);
   geo.path = L.layerGroup().addTo(geo.map);
@@ -7739,14 +7779,14 @@ function renderGeo(fit = false) {
         .bindTooltip(acc ? `${acc.label} accuracy · ±${formatMetres(acc.radius_m)}` : "Estimated spread")
         .addTo(geo.features);
     }
-    // A white casing around a solid fill keeps points readable over both dark markers and
-    // street tiles. Estimated positions read as hollow (thicker ring, light fill).
+    // A dark casing around a solid, fully-opaque fill makes the colored dots pop on light street
+    // tiles and dark basemaps alike. Estimated positions read a touch softer.
     const m = L.circleMarker([pt.lat, pt.lon], {
-      radius: focused ? 9 : 7,
-      color: "#ffffff",
+      radius: focused ? 10 : 8,
+      color: "#0b1220",
       weight: 2,
       fillColor: color,
-      fillOpacity: pt.estimated ? 0.45 : 0.95,
+      fillOpacity: pt.estimated ? 0.7 : 1,
     });
     m.bindPopup(geoPopup(n));
     m.addTo(geo.features);
@@ -7769,14 +7809,13 @@ function renderGeo(fit = false) {
       // Dark casing under a bright line so the route stands out on street tiles.
       L.polyline(line, { color: "#1b1b1b", weight: 5, opacity: 0.35 }).addTo(geo.path);
       L.polyline(line, { color: themeColors().select || "#3aa0ff", weight: 2.5, opacity: 0.95 }).addTo(geo.path);
-      // Operator position "now": the most recent sighting up to the cutoff.
+      // Operator position "now": the most recent sighting up to the cutoff. A diamond matching the
+      // legend's "Operator now" swatch.
       const last = pts[pts.length - 1];
-      const prev = pts.length > 1 ? pts[pts.length - 2] : null;
-      const heading = prev ? geoBearing(prev[0], prev[1], last[0], last[1]) : 0;
       L.marker([last[0], last[1]], {
         interactive: true,
         zIndexOffset: 1000,
-        icon: L.divIcon({ className: "geo-operator-icon", html: `<span class="geo-operator" style="transform:rotate(${heading}deg)"></span>`, iconSize: [30, 30], iconAnchor: [15, 15] }),
+        icon: L.divIcon({ className: "geo-operator-icon", html: `<span class="geo-operator"></span>`, iconSize: [20, 20], iconAnchor: [10, 10] }),
       })
         .bindTooltip(`Operator${Number.isFinite(last[2]) ? ` · ${new Date(last[2] * 1000).toLocaleString()}` : ""}`)
         .addTo(geo.path);
