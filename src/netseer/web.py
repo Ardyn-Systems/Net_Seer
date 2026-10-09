@@ -7,6 +7,7 @@ import logging
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -345,6 +346,33 @@ def delete_mappack(pack_id: str) -> Response:
     _require_local_disk("Managing offline map packs")
     if not tiles.delete_pack(pack_id):
         raise HTTPException(status_code=404, detail="That map pack isn't loaded.")
+    return Response(status_code=204)
+
+
+@app.post("/api/mappacks/{pack_id}/rename")
+async def rename_mappack(pack_id: str, body: dict):
+    """Rename a loaded pack. Its id may change with the name, so the reply carries the new one."""
+    _require_local_disk("Renaming offline map packs")
+    try:
+        return await run_in_threadpool(tiles.rename_pack, pack_id, str(body.get("name") or ""))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/api/mappacks/reveal", status_code=204)
+def reveal_mappacks_folder() -> Response:
+    """Open the folder where offline map packs are kept, in the OS file manager (desktop only)."""
+    _require_local_disk("Opening the map packs folder")
+    folder = str(tiles.packs_dir())
+    try:
+        if sys.platform.startswith("win"):
+            os.startfile(folder)  # noqa: S606 - a fixed internal folder, no user input
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", folder])
+        else:
+            subprocess.Popen(["xdg-open", folder])
+    except Exception as exc:  # pragma: no cover - depends on the desktop environment
+        raise HTTPException(status_code=500, detail="Couldn't open the map packs folder.") from exc
     return Response(status_code=204)
 
 

@@ -240,6 +240,37 @@ def delete_pack(pack_id: str) -> bool:
     return True
 
 
+def rename_pack(pack_id: str, new_name: str) -> dict:
+    """Rename a pack's display name, and its file to a slug of the new name. Returns its (new)
+    description — the id changes when the slug does, so the caller should re-point any selection."""
+    path = _pack_path(pack_id)
+    if path is None:
+        raise ValueError("That map pack no longer exists.")
+    new_name = (new_name or "").strip()[:80]
+    if not new_name:
+        raise ValueError("Enter a name for the map pack.")
+    new_id = _safe_id(new_name)
+    if new_id != pack_id:
+        new_id = _unique_id(new_id)
+    _drop_conn(pack_id)  # release the cached read-only handle before writing/moving
+    conn = sqlite3.connect(path)
+    try:
+        if conn.execute("UPDATE metadata SET value=? WHERE name='name'", (new_name,)).rowcount == 0:
+            conn.execute("INSERT INTO metadata VALUES ('name', ?)", (new_name,))
+        conn.commit()
+    finally:
+        conn.close()
+    dest = path
+    if new_id != pack_id:
+        dest = packs_dir() / f"{new_id}.mbtiles"
+        path.replace(dest)
+    ro = _open_ro(dest)
+    try:
+        return _describe(new_id, dest, ro)
+    finally:
+        ro.close()
+
+
 # ---------- Save the tiles the live map has already loaded into an offline pack ----------
 # When the geo map shows online streets or satellite, the browser fetches those tiles to draw them.
 # "Save area" hands the tiles already on screen to us to store in a pack, so that area works offline

@@ -293,7 +293,9 @@
               </label>
               <button id="geo-save-offline" class="btn small ghost hidden" type="button" title="Save the tiles in view for offline use">Save area</button>
               <button id="geo-pack-add" class="btn small ghost" type="button" title="Load an offline .mbtiles map pack">Load pack…</button>
+              <button id="geo-pack-rename" class="btn small ghost hidden" type="button" title="Rename the selected offline map pack">Rename…</button>
               <button id="geo-pack-remove" class="btn small ghost hidden" type="button" title="Remove the selected offline map pack">Remove pack</button>
+              <button id="geo-pack-folder" class="btn small ghost hidden" type="button" title="Open the folder where offline map packs are saved">Show folder</button>
               <input id="geo-pack-file" type="file" accept=".mbtiles,application/octet-stream" hidden />
               <button id="geo-export" class="btn small" type="button" aria-haspopup="menu" title="Save the map as an image or PDF"><svg class="icon"><use href="#i-download" /></svg> Export</button>
             </div>
@@ -361,6 +363,20 @@
         <div class="row-actions end">
           <button type="button" class="btn ghost" id="offline-cancel">Cancel</button>
           <button type="submit" class="btn primary" id="offline-download">Save area</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="rename-dialog" class="dialog" aria-labelledby="rename-title">
+      <form method="dialog" id="rename-form">
+        <h2 id="rename-title">Rename map pack</h2>
+        <label class="field-label">Name
+          <input id="rename-name" type="text" autocomplete="off" />
+        </label>
+        <p id="rename-error" class="field-error hidden" role="alert"></p>
+        <div class="row-actions end">
+          <button type="button" class="btn ghost" id="rename-cancel">Cancel</button>
+          <button type="submit" class="btn primary" id="rename-save">Rename</button>
         </div>
       </form>
     </dialog>

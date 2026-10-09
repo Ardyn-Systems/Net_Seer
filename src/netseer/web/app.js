@@ -8002,7 +8002,9 @@ function setBasemap(value) {
 function syncBasemapUi() {
   const sel = el("geo-basemap");
   if (sel && sel.value !== geo.basemap) sel.value = geo.basemap;
-  show("geo-pack-remove", String(geo.basemap).startsWith("pack:"));
+  const onPack = String(geo.basemap).startsWith("pack:");
+  show("geo-pack-remove", onPack);
+  show("geo-pack-rename", onPack && geo.canAddPacks);
   // "Save area" keeps the tiles already loaded, so only when an online basemap is on and writable.
   show("geo-save-offline", isOnlineBasemap(geo.basemap) && geo.canAddPacks);
 }
@@ -8030,6 +8032,7 @@ async function loadGeoPacks() {
     geo.packs = Array.isArray(data.packs) ? data.packs : [];
     geo.canAddPacks = data.can_add !== false;
     show("geo-pack-add", geo.canAddPacks);
+    show("geo-pack-folder", geo.canAddPacks);
   } catch {
     geo.packs = [];
     geo.canAddPacks = false;
@@ -8073,6 +8076,64 @@ async function removeGeoPack(id) {
   if (geo.basemap === `pack:${id}`) geo.basemap = "online";
   await loadGeoPacks();
   setBasemap(geo.basemap);
+}
+
+let renamingPackId = null;
+
+function openRenamePack(id) {
+  const pack = geo.packs.find((p) => p.id === id);
+  if (!pack) return;
+  renamingPackId = id;
+  el("rename-name").value = pack.name || "";
+  el("rename-error").textContent = "";
+  el("rename-error").classList.add("hidden");
+  el("rename-dialog").showModal();
+  el("rename-name").focus();
+  el("rename-name").select();
+}
+
+async function submitRenamePack() {
+  const id = renamingPackId;
+  if (!id) return;
+  const name = el("rename-name").value.trim();
+  if (!name) {
+    el("rename-error").textContent = "Enter a name for the map pack.";
+    el("rename-error").classList.remove("hidden");
+    return;
+  }
+  let pack;
+  try {
+    const res = await fetch(`/api/mappacks/${encodeURIComponent(id)}/rename`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Couldn't rename the map pack.");
+    }
+    pack = await res.json();
+  } catch (e) {
+    el("rename-error").textContent = e.message || "Couldn't rename the map pack.";
+    el("rename-error").classList.remove("hidden");
+    return;
+  }
+  const wasActive = geo.basemap === `pack:${id}`;
+  renamingPackId = null;
+  el("rename-dialog").close();
+  if (wasActive) geo.basemap = `pack:${pack.id}`; // the id follows the name; re-point the selection
+  await loadGeoPacks();
+  if (wasActive) setBasemap(geo.basemap);
+  toast(`Renamed to “${pack.name}”.`);
+}
+
+async function revealPacksFolder() {
+  try {
+    const res = await fetch("/api/mappacks/reveal", { method: "POST" });
+    if (!res.ok && res.status !== 204) throw new Error();
+  } catch {
+    toast("Couldn't open the map packs folder.");
+  }
 }
 
 /* ---------- Save the tiles already on screen as an offline pack ---------- */
@@ -8383,6 +8444,15 @@ function bindGeoMap() {
   });
   el("geo-pack-remove").addEventListener("click", () => {
     if (String(geo.basemap).startsWith("pack:")) removeGeoPack(geo.basemap.slice(5));
+  });
+  el("geo-pack-rename").addEventListener("click", () => {
+    if (String(geo.basemap).startsWith("pack:")) openRenamePack(geo.basemap.slice(5));
+  });
+  el("geo-pack-folder").addEventListener("click", revealPacksFolder);
+  el("rename-cancel").addEventListener("click", () => el("rename-dialog").close());
+  el("rename-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitRenamePack();
   });
   el("geo-save-offline").addEventListener("click", openOfflineDialog);
   el("offline-pack").addEventListener("change", () => syncOfflineDialog());
