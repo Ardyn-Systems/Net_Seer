@@ -162,9 +162,9 @@ Shift-click (or Ctrl-click) to select several devices, or hold Shift and drag a 
 
 ![Three access points selected, with the selection toolbar and a count in the details panel](images/multi-select.png)
 
-Right-click a device for the same actions:
+Right-click a device for the same actions, plus **Send to** — move the selection straight to another of your maps (or a new one):
 
-![Right-click menu with Copy, Cut, Paste, Set aside in Unwanted, and Delete](images/context-menu.png)
+![Right-click menu with Copy, Cut, Paste, Set aside in Unwanted, Send to another map, and Delete](images/context-menu.png)
 
 **Move to** sends devices straight to another map, or to a new one:
 
@@ -275,11 +275,12 @@ Your layer choices are remembered.
 
 ## The geo map
 
-When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — the **map-pin button** in the top bar opens a real-world map of where devices were seen. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list. **← Network map** (top left) takes you back.
+When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** for a real-world map of where devices were seen, and back to **Network** (or **← Network map**) to return. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
 
 - The **Basemap** menu picks the map background. It starts on **Streets — online**, which fetches map tiles from openstreetmap.org — the one option that goes online. Choose **No basemap** for a plain grid where nothing leaves your computer.
 - **Offline map packs.** In the field, where the street tiles aren't reachable, load a map pack: **Load pack…** takes an `.mbtiles` file (a standard offline tile pack of a chosen area), and it then appears in the **Basemap** menu. Packs are kept on this computer; **Remove pack** deletes the selected one. This option is hidden on the hosted copy.
-- Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), otherwise where it was heard. **Estimated locations** also draws a faint ring for the estimate's spread. Markers carry a bright casing so they stand out over streets; click one for its SSID, MAC, channel, and signal.
+- Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), with a faint ring for the estimate's spread. Turn **Estimated locations** off to put every device back where it was actually heard, with no ring. Markers carry a bright casing so they stand out over streets; click one for its SSID, MAC, channel, signal, and an **accuracy** badge.
+- **Accuracy** grades each estimate **Good**, **Fair**, or **Rough** from its margin (±metres) and how many spots the device was heard from — an estimate from only a couple of readings is never better than Rough. It shows in the popup, on the device's **Details**, and on hover over the spread ring.
 - Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked and the device **pulsing** so it's easy to find.
 - **Operator path** traces the route the survey drove, with an **arrow at the operator's position** for the time you're viewing; the **time** slider replays the drive. Show the **whole capture** at once, or switch to **Added only** to build the map up with **Show on map** as you go.
 - **Export** saves the current view — markers, route, legend and all — as a **PNG image** or a one-page **PDF**, for a briefing or a report. You can also tick **Geo map** when making a [PDF report](#create-a-pdf-report) to drop the map in as its own page.

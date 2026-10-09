@@ -273,11 +273,12 @@ Access points show their SSID as a second line (`HQ-Secure`, `HQ-Secure +2` for 
 
 ## Geo map (GPS)
 
-When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), the **map-pin button** in the top bar opens a real-world map of where devices were seen. **Show on map** in a device's Details — or right-click → **Show on map**, or right-click a survey in the **Maps** list — opens it there; **← Network map** goes back.
+When a survey has GPS (Kismet logs, WiGLE and Craxiom wardrives), a **Network / Geo map** toggle at the top-left of the map switches to a real-world map of where devices were seen; **Network** (or **← Network map**) goes back. **Show on map** in a device's Details — or right-click → **Show on map**, or right-click a survey in the **Maps** list — opens it focused on one device.
 
 - **Basemap** menu: **Streets — online** (the default; fetches OpenStreetMap tiles — the one thing that goes online), or **No basemap** (a plain grid, fully offline).
 - **Offline map packs** (`GET/POST/DELETE /api/mappacks`). **Load pack…** uploads a raster `.mbtiles` pack (PNG/JPEG tiles); it's validated, kept in the user data dir (`<data>/mappacks/`), and added to the **Basemap** menu, which then serves its tiles from `GET /api/mappacks/{id}/{z}/{x}/{y}`. **Remove pack** deletes the selected one. Not available on the hosted copy, which never writes to the server's disk. Vector (`pbf`) packs are rejected with a message.
-- **Each device** sits at its best-known spot: its **estimated location** (see [Details panel](#details-panel)) when it has one, otherwise where it was heard. Markers have a bright casing to read over street tiles; click one for its SSID, MAC, channel, signal, sightings, and **Open details**. **Estimated locations** also draws a faint ring for the estimate's spread.
+- **Each device** sits at its **estimated location** (see [Details panel](#details-panel)) when it has one, with a faint ring for the spread. Turn **Estimated locations** off to put devices back where they were actually heard (no ring). Markers have a bright casing to read over street tiles; click one for its SSID, MAC, channel, signal, sightings, an **accuracy** grade, and **Open details**.
+- **Accuracy** grades an estimate **Good** (≤25 m), **Fair** (≤75 m), or **Rough** from its radius, but caps at **Rough** when it came from fewer than 3 readings. Shown in the popup, the Details **Location** section, and a tooltip on the ring.
 - **Focused on one device**, every sighting is a small dot joined in the order it was seen — the device's own path, with the estimate marked — and the device **pulses** so it stands out in a crowd.
 - **Operator path** draws the route the survey took (every sighting, in time order), with an **arrow at the operator's position** for the current time.
 - **Time** slider: drag to reveal sightings up to a chosen time and replay the drive; the operator arrow moves with it.
