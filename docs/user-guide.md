@@ -277,8 +277,11 @@ Your layer choices are remembered.
 
 When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** and a real-world map of where devices were seen fills the map area (the title bar and sidebar stay put); the same toggle sits in the geo map's toolbar, so **Network** switches back. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
 
-- The **Basemap** menu picks the map background. It starts on **Streets — online**, which fetches map tiles from openstreetmap.org — the one option that goes online. Choose **No basemap** for a plain grid where nothing leaves your computer.
-- **Offline map packs.** In the field, where the street tiles aren't reachable, load a map pack: **Load pack…** takes an `.mbtiles` file (a standard offline tile pack of a chosen area), and it then appears in the **Basemap** menu. Packs are kept on this computer; **Remove pack** deletes the selected one. This option is hidden on the hosted copy.
+- The **Basemap** menu picks the map background. It starts on **Streets — online** (OpenStreetMap); you can also choose **Satellite**, **Satellite + labels**, or **Topographic** (Esri). These fetch tiles online — the options that leave your computer. Choose **No basemap** for a plain grid where nothing leaves your computer, or a loaded offline pack (below).
+- <a id="offline-maps"></a>**Offline maps.** In the field, where tiles aren't reachable, use a saved pack:
+  - **Save area** keeps the tiles already on screen for the current online basemap, so that spot works offline later. It only stores what the map already drew (NetSeer never bulk-downloads tiles — that breaks the tile servers' usage policy), so **pan and zoom over the area first, then save again to add more to the same pack.** Pick the matching basemap (streets, satellite…) before saving.
+  - **Load pack…** imports an `.mbtiles` file (a standard raster offline tile pack). For a whole **state, region, or country**, build a pack with **[Mobile Atlas Creator](https://mobac.sourceforge.io/)** (pick an area and zoom range, export `.mbtiles`) or get a prebuilt one from a provider at [switch2osm.org](https://switch2osm.org/providers/), then load it here.
+  - Loaded packs appear in the **Basemap** menu and are kept on this computer; **Remove pack** deletes the selected one. Save and Load are hidden on the hosted copy.
 - Each device sits at its **estimated location** when it has one (a signal-weighted guess at the transmitter; see [Details](#inspect-a-device)), with a faint ring for the estimate's spread. Turn **Estimated locations** off to put every device back where it was actually heard, with no ring. Markers carry a bright casing so they stand out over streets; click one for its SSID, MAC, channel, signal, and an **accuracy** badge.
 - **Accuracy** grades each estimate **Good**, **Fair**, or **Rough** from its margin (±metres) and how many spots the device was heard from — an estimate from only a couple of readings is never better than Rough. It shows in the popup, on the device's **Details**, and on hover over the spread ring.
 - Focused on one device, each sighting is a dot joined in the order it was seen, with the estimate marked and the device **pulsing** so it's easy to find.
@@ -289,7 +292,7 @@ When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Ne
 
 Try it with the **Wardrive (WiGLE)** sample in **Settings → Help**.
 
-![The wardrive sample on the geo map over a street basemap: access points, Bluetooth, and a cell tower with their estimated-location spread rings, the operator's route, and a diamond at the operator's position](images/geo-map.png)
+![The wardrive sample on the geo map over a satellite basemap: access points, Bluetooth, and a cell tower with their estimated-location spread rings, the operator's route, and a diamond at the operator's position, with the Basemap menu and Save area button in the toolbar](images/geo-map.png)
 
 ## Export diagrams and files
 

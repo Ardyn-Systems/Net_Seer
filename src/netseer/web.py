@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
 import os
@@ -348,6 +349,38 @@ def delete_mappack(pack_id: str) -> Response:
 
 
 log = logging.getLogger("netseer.web")
+
+
+# ---------- Save the tiles the live map already loaded as an offline pack ----------
+# The browser hands us the basemap tiles it already drew; we store them in a pack so that area works
+# offline. We never fetch tiles server-side — that would be bulk downloading, against OSM/Esri policy.
+
+
+@app.post("/api/mappacks/save")
+async def save_mappack_tiles(body: dict):
+    """Store already-loaded raster tiles in a pack (a new one, or added to an existing pack)."""
+    _require_local_disk("Saving offline map tiles")
+    raw = body.get("tiles")
+    if not isinstance(raw, list) or not raw:
+        raise HTTPException(status_code=400, detail="Send the tiles to save.")
+    if len(raw) > tiles.MAX_SAVE_TILES:
+        raise HTTPException(status_code=400, detail=f"Too many tiles in one save (limit {tiles.MAX_SAVE_TILES:,}).")
+    name = (str(body.get("name") or "")).strip()[:80] or "Offline area"
+    fmt = str(body.get("format") or "png")
+    attribution = str(body.get("attribution") or "")[:300]
+    pack_id = body.get("pack_id")
+    pack_id = str(pack_id) if pack_id else None
+    try:
+        parsed = [
+            (int(t["z"]), int(t["x"]), int(t["y"]), base64.b64decode(t["data"], validate=True))
+            for t in raw
+        ]
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="A tile was malformed.") from None
+    try:
+        return await run_in_threadpool(tiles.save_tiles, name, parsed, fmt, attribution, pack_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _upload_folder(name: str) -> tuple[Path, Path]:

@@ -144,10 +144,12 @@ Every route the front end calls, grouped by area:
   On the desktop and source installs the back end *is* your machine, so nothing leaves it. The
   hosted copy processes the file to draw the map and does not keep it (and limits uploads to 20 MB).
 - **The internet is optional.** The only outbound calls are the security database refresh, the geo
-  map's opt-in OpenStreetMap tiles (only while **Street map** is on), and, on the desktop app, the
-  Electron self-updater — each only when you ask (or, for updates, if you leave auto-update on). The
-  geo map is otherwise offline, so GPS locations never leave the machine. Everything else works with
-  no network.
+  map's opt-in online basemap tiles (only while an online basemap — OpenStreetMap streets, or Esri
+  satellite/topographic — is on; those tiles are fetched by the browser to draw them, never bulk-
+  downloaded server-side), and, on the desktop app, the Electron self-updater — each only when you
+  ask (or, for updates, if you leave auto-update on). **Save area** and loaded **map packs** keep the
+  geo map working offline; GPS locations otherwise never leave the machine. Everything else works
+  with no network.
 
 ## External services
 
@@ -157,3 +159,5 @@ Every route the front end calls, grouped by area:
 | FIRST EPSS (`epss.empiricalsecurity.com`) | Exploitation-likelihood scores | Database refresh only |
 | CISA KEV (`cisa.gov`) | Known-exploited list | Database refresh only |
 | GitHub Releases (`api.github.com`, `github.com`) | Update check and download | Desktop updater only |
+| OpenStreetMap (`tile.openstreetmap.org`) | Streets basemap tiles | Only while Streets basemap is on |
+| Esri (`server.arcgisonline.com`) | Satellite / topographic basemap tiles | Only while an Esri basemap is on |

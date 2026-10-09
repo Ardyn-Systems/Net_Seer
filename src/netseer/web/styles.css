@@ -1327,6 +1327,8 @@ input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
 .progress.indeterminate > div { width: 35%; animation: progress-slide 1.2s ease-in-out infinite; }
 @keyframes progress-slide { from { transform: translateX(-100%); } to { transform: translateX(290%); } }
 @media (prefers-reduced-motion: reduce) { .progress.indeterminate > div { animation: none; width: 100%; opacity: 0.5; } }
+.hint.warn { color: var(--accent); font-weight: 600; }
+#offline-progress-text { margin: 0.2rem 0 0; }
 
 /* ---------- Dragging list rows ---------- */
 
