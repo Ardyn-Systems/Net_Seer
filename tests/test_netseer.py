@@ -993,3 +993,64 @@ def test_offline_map_packs_reject_bad_input(monkeypatch, tmp_path):
     monkeypatch.setenv("NETSEER_HOSTED", "1")
     assert client.post("/api/mappacks?name=ok.mbtiles", content=good.read_bytes()).status_code == 403
     assert client.get("/api/mappacks").json()["can_add"] is False
+
+
+def _geo_graph_dict():
+    # A tiny two-device survey with GPS tracks, enough for a geo map and a report.
+    return {
+        "nodes": [
+            {"id": "mac:aa:bb:cc:00:00:01", "kind": "ap", "label": "AP1", "ssids": ["Net1"], "track": [[37.77, -122.42, 1, -50], [37.771, -122.421, 2, -55]]},
+            {"id": "mac:aa:bb:cc:00:00:02", "kind": "wireless", "label": "C1", "track": [[37.772, -122.422, 3, -60]]},
+        ],
+        "links": [],
+    }
+
+
+def _png_bytes_data_url():
+    import base64
+
+    return "data:image/png;base64," + base64.b64encode(_PNG_1X1).decode()
+
+
+def test_geo_map_pdf_export():
+    from fastapi.testclient import TestClient
+
+    from netseer.web import app
+
+    client = TestClient(app)
+    res = client.post("/api/export/geo.pdf", json={"image": _png_bytes_data_url(), "title": "Drive A"})
+    assert res.status_code == 200, res.text
+    assert res.headers["content-type"] == "application/pdf"
+    assert res.content[:5] == b"%PDF-"
+    assert "geo-map.pdf" in res.headers.get("content-disposition", "")
+
+    # Missing image, non-PNG, and a bogus data URL are all rejected cleanly.
+    assert client.post("/api/export/geo.pdf", json={}).status_code == 400
+    assert client.post("/api/export/geo.pdf", json={"image": "data:image/png;base64,bm90cG5n"}).status_code == 400
+
+
+def test_report_pdf_includes_geo_image_when_asked():
+    from fastapi.testclient import TestClient
+
+    from netseer.web import app
+
+    client = TestClient(app)
+    body = {**_geo_graph_dict(), "title": "Survey", "report": {"sections": ["summary", "geomap"]}, "geo_image": _png_bytes_data_url()}
+    res = client.post("/api/export/report.pdf", json=body)
+    assert res.status_code == 200, res.text
+    assert res.content[:5] == b"%PDF-"
+
+    # Without the image, the same request still builds a report (just no map page).
+    body_no_img = {**_geo_graph_dict(), "title": "Survey", "report": {"sections": ["summary", "geomap"]}}
+    assert client.post("/api/export/report.pdf", json=body_no_img).status_code == 200
+
+
+def test_geo_map_pdf_builder_unit():
+    from netseer.exporters import geo_map_pdf
+
+    pdf = geo_map_pdf(_PNG_1X1, title="Field survey", caption="Captured 2026-10-08")
+    assert pdf[:5] == b"%PDF-"
+    import pytest
+
+    with pytest.raises(ValueError):
+        geo_map_pdf(b"not an image")

@@ -427,6 +427,8 @@ kbd {
 
 /* ---------- Geo map ---------- */
 .geo-view { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: var(--canvas); }
+/* Rendered full-size but shifted off-screen, so a report can capture the map without it flashing up. */
+.geo-view.geo-capturing { transform: translateX(-200vw); }
 .geo-toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center; justify-content: space-between; padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--line); background: var(--raised); }
 .geo-tools { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; }
 .geo-heading { display: inline-flex; align-items: center; gap: 0.4rem; }
