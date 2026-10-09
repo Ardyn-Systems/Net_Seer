@@ -14,8 +14,8 @@ Maps, names, notes, field edits, dragged positions, and the clipboard are saved 
 
 | Area | What's there |
 | --- | --- |
-| Top bar | Logo, the **current map's name** (click to rename), **Open survey**, **Export**, the **theme** button, and **Settings** (cog) |
-| Left sidebar | Three tabs: **Maps**, **Surveys**, **Layers** |
+| Top bar | Logo, the **current map's name** (click to rename), **Open survey**, **Export**, **Layers**, the **theme** button, and **Settings** (cog) |
+| Left sidebar | Your **Maps**: a drop box for captures at the top, then every open map |
 | Map | The network drawing, with **Find a device**, **Undo**, and **Redo** at the top, zoom controls at the bottom right, and a toolbar at the bottom whenever something is selected |
 | Right panel | **Details** for whatever you selected |
 
@@ -61,10 +61,9 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 ## Open surveys
 
-- **Open survey** (top bar), or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv` (Kismet, airodump, **WiGLE**, or **Craxiom Network Survey**), or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS). A **WiGLE** wardrive also brings in Bluetooth/BLE devices and cellular towers, shown as their own kinds.
-- Each capture becomes its own map and joins the **Surveys** tab.
-- **Surveys** tab: click a row to open it. Right-click (or **⋯**) for **Open**, **Merge into…**, **Compare with a baseline…**, **Remove from list** (its map stays under **Maps**), and **Delete survey and its map…**. **Bring back** in the message restores a removed survey; **Undo** brings back a deleted map. Drag rows to reorder them. Demo samples appear here once opened.
-- NetSeer starts empty: no maps or surveys until you open one. The welcome card has **Open survey** and **Try a demo** (opens **Settings** → **Demo**).
+- **Open survey** (top bar), the **drop box** at the top of the sidebar, or drop files **anywhere on the page**. Accepted: `.pcap`, `.pcapng`, `.cap`, Kismet `.kismet` logs, `.netxml`, `.csv` (Kismet, airodump, **WiGLE**, or **Craxiom Network Survey**), or a NetSeer **Unwanted JSON** dump. A `.kismet` log gives the most detail: its packets plus Kismet's device list (SSIDs, hidden networks, encryption, makers, probed networks, client associations, GPS). A **WiGLE** wardrive also brings in Bluetooth/BLE devices and cellular towers, shown as their own kinds.
+- Each capture opens straight as a **map** in the sidebar, keeping the capture's name. Manage it from there (see [Maps](#maps)); demo samples are marked **Opened** once loaded.
+- NetSeer starts empty: no maps until you open one. The welcome card has **Open survey** and **Try a demo** (opens **Settings** → **Demo**).
 - Problems (unsupported file, empty capture, decode warnings) show up as a message at the top of the window.
 - **Size:** installed copies open captures of any size, streaming them from disk. A big file shows progress (percent read, packets, devices); **Stop and show map** draws what's been read, **Cancel** discards it. The online copy takes up to 20 MB per file.
 
@@ -72,11 +71,11 @@ Checking for updates is the only time NetSeer goes online: it reads the public r
 
 ## Maps
 
-The **Maps** tab lists every map. Click a row to switch. Right-click a row, or use its **⋯** menu:
+The sidebar lists every map. Click a row to switch. Right-click a row, or use its **⋯** menu:
 
 | Map | Menu |
 | --- | --- |
-| Survey and blank maps | **Rename…**, **Merge into…**, **Compare with a baseline…**, **Delete map…** |
+| Survey and blank maps | **Rename…**, **Show on geo map** (GPS surveys), **Merge into…**, **Compare with a baseline…**, **Delete map…** |
 | Comparison maps | **Rename…**, **Merge into…**, **Delete map…** |
 | Unwanted | **Rename…**, **Save to files and empty…** |
 
@@ -92,8 +91,6 @@ The **Maps** tab lists every map. Click a row to switch. Right-click a row, or u
 | --- | --- |
 | A map up or down | Reorders the list (saved) |
 | A map onto another map | Merges it into that map (Undo) |
-| A survey up or down | Reorders the list (saved) |
-| A survey over the **Maps** tab, then onto a map | Merges the survey into that map (Undo) |
 | The sidebar's right edge | Resizes the sidebar (saved; double-click resets, or focus it and use the arrow keys) |
 
 Esc cancels a drag. The list scrolls by itself when you drag near its top or bottom.
@@ -156,7 +153,7 @@ When something is selected, a toolbar appears at the bottom of the map: **Copy**
 | Undo | The **undo** arrow at the top of the map, **Undo** in the message, or Ctrl+Z / Cmd+Z. Up to 30 steps: each drag, cut, paste, move, delete, merge, delete map, empty Unwanted, tidy layout, and links you add or remove |
 | Redo | The **redo** arrow beside it, **Redo** in the message after an undo, or Ctrl+Y / Ctrl+Shift+Z. A new change clears what's left to redo |
 
-Undo and Redo only change maps (devices, links, names, notes, positions), never the clipboard, the Surveys list, the order of the Maps list, or settings.
+Undo and Redo only change maps (devices, links, names, notes, positions), never the clipboard, the order of the Maps list, or settings.
 
 Links travel with a selection only when **both** ends are selected.
 
@@ -293,7 +290,7 @@ Try it with the **Wardrive (WiGLE)** sample under **Settings → Help**.
 
 ## Layers
 
-**Layers** tab:
+The **Layers** button in the top bar opens a panel over the map (toggle it, press Esc, or click the map to close). It holds the arrangement picker, the link-type filters, security shading, and the device key.
 
 | Layer | What it shows |
 | --- | --- |

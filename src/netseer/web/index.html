@@ -73,6 +73,9 @@
             <svg class="icon"><use href="#i-download" /></svg><span>Export</span><svg class="icon chev"><use href="#i-chevron" /></svg>
           </button>
         </div>
+        <button id="btn-layers" class="btn" type="button" aria-haspopup="dialog" aria-expanded="false" title="Layers: arrangement, link types, and the device key">
+          <svg class="icon"><use href="#i-layout" /></svg><span>Layers</span>
+        </button>
         <button id="btn-geo" class="icon-btn hidden" type="button" aria-label="Geo map" title="Show this survey on a map (GPS)">
           <svg class="icon"><use href="#i-geo" /></svg>
         </button>
@@ -97,37 +100,31 @@
     </header>
 
     <div class="shell">
-      <aside id="sidebar" class="sidebar" aria-label="Maps, surveys, and layers">
-        <nav class="tabs" role="tablist">
-          <button class="tab active" type="button" role="tab" data-tab="maps" aria-selected="true">Maps</button>
-          <button class="tab" type="button" role="tab" data-tab="surveys" aria-selected="false">Surveys</button>
-          <button class="tab" type="button" role="tab" data-tab="layers" aria-selected="false">Layers</button>
-        </nav>
+      <aside id="sidebar" class="sidebar" aria-label="Maps">
+        <label class="drop" id="dropzone">
+          <svg class="icon"><use href="#i-upload" /></svg>
+          <span><strong>Drop captures here</strong> or click to browse</span>
+          <small>pcap, pcapng, Kismet .kismet/netxml/csv, airodump csv, WiGLE csv, Network Survey csv, Unwanted JSON</small>
+        </label>
+        <p id="hosted-note" class="hosted-note hidden">This is a public copy of NetSeer. Files you open are sent to this server only to draw the map and aren't kept. Your maps and notes stay in this browser.
+          <strong>Captures up to <span class="hosted-limit">20 MB</span>.</strong> For bigger ones, such as long wardrives, <a class="install-link" target="_blank" rel="noopener">install NetSeer</a>: it has no size limit.</p>
+        <ul id="map-list" class="list"></ul>
+        <button id="btn-new-map" class="btn ghost full" type="button">
+          <svg class="icon"><use href="#i-plus" /></svg><span>New blank map</span>
+        </button>
+        <button id="btn-compare" class="btn ghost full" type="button" title="Compare a baseline survey with later ones and map what changed">
+          <svg class="icon"><use href="#i-compare" /></svg><span>Compare surveys…</span>
+        </button>
+        <p class="hint" id="maps-hint">A capture opens as a map here. Unwanted holds devices you set aside — empty it to save them as JSON in <code>Unwanted/</code>.</p>
+      </aside>
+      <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-controls="sidebar" tabindex="0" title="Drag to resize. Double-click to reset."></div>
 
-        <section class="tab-panel" data-panel="maps" role="tabpanel">
-          <ul id="map-list" class="list"></ul>
-          <button id="btn-new-map" class="btn ghost full" type="button">
-            <svg class="icon"><use href="#i-plus" /></svg><span>New blank map</span>
-          </button>
-          <button id="btn-compare" class="btn ghost full" type="button" title="Compare a baseline survey with later ones and map what changed">
-            <svg class="icon"><use href="#i-compare" /></svg><span>Compare surveys…</span>
-          </button>
-          <p class="hint" id="maps-hint">Unwanted holds devices you set aside. Empty it to save them as JSON in <code>Unwanted/</code>.</p>
-        </section>
-
-        <section class="tab-panel hidden" data-panel="surveys" role="tabpanel">
-          <label class="drop" id="dropzone">
-            <svg class="icon"><use href="#i-upload" /></svg>
-            <span><strong>Drop captures here</strong> or click to browse</span>
-            <small>pcap, pcapng, Kismet .kismet/netxml/csv, airodump csv, WiGLE csv, Network Survey csv, Unwanted JSON</small>
-          </label>
-          <p id="hosted-note" class="hosted-note hidden">This is a public copy of NetSeer. Files you open are sent to this server only to draw the map and aren't kept. Your maps and notes stay in this browser.
-            <strong>Captures up to <span class="hosted-limit">20 MB</span>.</strong> For bigger ones, such as long wardrives, <a class="install-link" target="_blank" rel="noopener">install NetSeer</a>: it has no size limit.</p>
-          <ul id="survey-list" class="list"></ul>
-          <p id="survey-empty" class="hint hidden">No surveys yet. Drop a capture above.</p>
-        </section>
-
-        <section class="tab-panel hidden" data-panel="layers" role="tabpanel">
+      <div id="layers-panel" class="layers-panel hidden" role="dialog" aria-label="Layers" aria-modal="false">
+        <div class="layers-panel-head">
+          <h2 class="layers-panel-title"><svg class="icon"><use href="#i-layout" /></svg> Layers</h2>
+          <button id="layers-close" class="icon-btn" type="button" aria-label="Close layers"><svg class="icon"><use href="#i-x" /></svg></button>
+        </div>
+        <div class="layers-panel-body">
           <div id="change-legend" class="change-legend hidden">
             <h3 class="section-title">Changes</h3>
             <p id="change-from" class="change-from"></p>
@@ -166,9 +163,8 @@
             <li><i class="swatch dashed" style="--c: var(--node-vlan)"></i>VLAN</li>
             <li><i class="swatch dashed" style="--c: var(--node-subnet)"></i>Subnet</li>
           </ul>
-        </section>
-      </aside>
-      <div id="sidebar-resizer" class="sidebar-resizer" role="separator" aria-orientation="vertical" aria-label="Resize the sidebar" aria-controls="sidebar" tabindex="0" title="Drag to resize. Double-click to reset."></div>
+        </div>
+      </div>
 
       <main class="stage" id="stage">
         <canvas id="theme-backdrop" class="theme-backdrop" hidden aria-hidden="true"></canvas>

@@ -1668,7 +1668,7 @@ async function runCompare() {
   markMetaDirty();
   markSessionDirty();
   showMap(ids[0]);
-  setTab("layers");
+  openLayersPanel();
   const counts = made[0].result.meta.comparison.devices;
   const total = counts.gone + counts.detached + counts.new + counts.attached + counts.changed;
   toast(
@@ -4189,7 +4189,10 @@ function hiddenSampleIds() {
 const sampleToSurvey = (s) => ({ id: s.id, kind: "sample", format: s.kind, name: s.name, summary: s.summary });
 
 function renderSurveyList() {
+  // Surveys were merged into the Maps list; a capture opens straight as a map. The survey registry
+  // (state.surveys) still backs Compare and the sample "Opened" tags, but there's no list to draw.
   const list = el("survey-list");
+  if (!list) return;
   list.innerHTML = "";
   el("survey-empty").classList.toggle("hidden", state.surveys.length > 0);
   for (const item of state.surveys) {
@@ -5473,7 +5476,6 @@ async function copyDeviceDetails() {
 function loadPrefs() {
   const prefs = readLocal(PREFS_KEY, {});
   if (isPlainObject(prefs.filters)) for (const l of LAYERS) if (typeof prefs.filters[l.kind] === "boolean") state.filters[l.kind] = prefs.filters[l.kind];
-  if (prefs.tab) setTab(prefs.tab);
   if (WHEEL_ZOOM_PER_PIXEL[prefs.zoomSpeed]) state.prefs.zoomSpeed = prefs.zoomSpeed;
   // Before 0.4.8 the layout was saved whether or not anyone chose it, so only a real choice sticks.
   if (LAYOUTS[prefs.layout] && prefs.layoutPicked) {
@@ -5490,7 +5492,7 @@ function loadPrefs() {
 }
 
 function savePrefs() {
-  writeLocal(PREFS_KEY, { filters: state.filters, tab: document.querySelector(".tab.active")?.dataset.tab, ...state.prefs });
+  writeLocal(PREFS_KEY, { filters: state.filters, ...state.prefs });
 }
 
 function renderLayerList() {
@@ -5530,13 +5532,26 @@ function setAllLayers(on) {
   renderMap({ fit: false });
 }
 
-function setTab(name) {
-  document.querySelectorAll(".tab").forEach((t) => {
-    const on = t.dataset.tab === name;
-    t.classList.toggle("active", on);
-    t.setAttribute("aria-selected", String(on));
-  });
-  document.querySelectorAll(".tab-panel").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== name));
+// The Layers controls (arrangement, link filters, device key) live in a panel the toolbar's Layers
+// button opens over the map, instead of a sidebar tab.
+function layersPanelOpen() {
+  return !el("layers-panel").classList.contains("hidden");
+}
+
+function openLayersPanel() {
+  el("layers-panel").classList.remove("hidden");
+  el("btn-layers").setAttribute("aria-expanded", "true");
+  el("btn-layers").classList.add("active");
+}
+
+function closeLayersPanel() {
+  el("layers-panel").classList.add("hidden");
+  el("btn-layers").setAttribute("aria-expanded", "false");
+  el("btn-layers").classList.remove("active");
+}
+
+function toggleLayersPanel() {
+  layersPanelOpen() ? closeLayersPanel() : openLayersPanel();
 }
 
 function tidyLayout() {
@@ -6371,14 +6386,6 @@ function onListDragMove(e) {
   drag.target = null;
   drag.zone = null;
   const under = document.elementFromPoint(e.clientX, e.clientY);
-  // Over a tab: switch to it after a moment, so a survey can be dropped on a map.
-  const tab = under?.closest?.(".tab");
-  if (tab !== drag.tab) {
-    clearTimeout(drag.tabTimer);
-    drag.tab = tab;
-    if (tab && !tab.classList.contains("active")) drag.tabTimer = setTimeout(() => setTab(tab.dataset.tab), 350);
-  }
-  if (tab) tab.classList.add("drop-hover");
   const row = under?.closest?.("#sidebar .list-row[data-drop-type]");
   const zone = row ? dropZone(drag.start.type, drag.start.id, row, e.clientY) : null;
   if (zone) {
@@ -6491,13 +6498,13 @@ const TOUR_STEPS = [
     title: "Welcome to NetSeer",
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
-  { target: "#btn-open", title: "Open a survey", text: "Open .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files, or drop them anywhere on the window. Each capture becomes its own map, and big ones (long wardrives) show their progress as they read." },
-  { target: "#sidebar .tabs", title: "Maps, Surveys, and Layers", text: "Maps lists everything you've made, and Compare surveys maps what changed since a baseline. Surveys holds the captures you've opened. Layers picks which kinds of links are drawn, and how devices are arranged: by network name, subnet, connection, location, channel, and more." },
+  { target: "#dropzone", title: "Open a survey", text: "Drop .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files here or anywhere on the window — or click to browse. Each capture opens as a map, and big ones (long wardrives) show their progress as they read." },
   {
     target: "#sidebar",
-    title: "Organize the sidebar",
-    text: "Right-click a map or survey to rename, merge, remove, or delete it. Drag rows to reorder them, or drop one onto a map to merge it. Drag the sidebar's edge to make it wider.",
+    title: "Your maps",
+    text: "Every capture you open becomes a map here, keeping the capture's name. Right-click a map to rename, merge, or delete it; drag rows to reorder, or drop one onto another to merge. Compare surveys maps what changed since a baseline. Drag the sidebar's edge to make it wider.",
   },
+  { target: "#btn-layers", title: "Layers", text: "Open Layers to arrange the map (by network name, subnet, connection, location, channel, and more), choose which kinds of links are drawn, shade devices by security, and see the device key." },
   { target: "#map", title: "The map", text: "Drag devices to rearrange them and scroll to zoom. Access points show their Wi-Fi network (SSID) under their name. Click a device to highlight it and its links." },
   {
     target: "#timeline",
@@ -6674,12 +6681,17 @@ function bindUi() {
   el("btn-show-all").addEventListener("click", () => setAllLayers(true));
   el("btn-show-none").addEventListener("click", () => setAllLayers(false));
   el("layout-select").addEventListener("change", (e) => setLayoutMode(e.target.value));
-  document.querySelectorAll(".tab").forEach((t) =>
-    t.addEventListener("click", () => {
-      setTab(t.dataset.tab);
-      savePrefs();
-    })
-  );
+  el("btn-layers").addEventListener("click", toggleLayersPanel);
+  el("layers-close").addEventListener("click", closeLayersPanel);
+  // Dismiss the layers panel on Escape or a click outside it (but not on its own button).
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && layersPanelOpen()) closeLayersPanel();
+  });
+  document.addEventListener("pointerdown", (e) => {
+    if (!layersPanelOpen()) return;
+    if (el("layers-panel").contains(e.target) || el("btn-layers").contains(e.target)) return;
+    closeLayersPanel();
+  });
 
   el("btn-undo").addEventListener("click", undoLast);
   el("btn-redo").addEventListener("click", redoLast);
