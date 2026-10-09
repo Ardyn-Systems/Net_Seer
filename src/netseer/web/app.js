@@ -3022,6 +3022,25 @@ function chips(values) {
   return `<div class="chips">${values.map((v) => `<span class="chip">${escapeHtml(v)}</span>`).join("")}</div>`;
 }
 
+// Every GPS fix a device was seen at — time, coordinates, and signal — oldest first, in a
+// collapsed list so it doesn't swamp the panel. Each coordinate is copyable.
+const GPS_FIXES_SHOWN = 300;
+function gpsFixesHtml(track) {
+  const fixes = (track || []).filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  if (!fixes.length) return "";
+  const ordered = [...fixes].sort((a, b) => (a[2] || 0) - (b[2] || 0));
+  const row = (p) => {
+    const when = Number.isFinite(p[2]) ? formatTime(p[2], { date: true }) : "time unknown";
+    const at = `${p[0].toFixed(5)}, ${p[1].toFixed(5)}`;
+    const sig = p[3] != null ? `${p[3]} dBm` : "";
+    return `<li><span class="gps-when">${escapeHtml(when)}</span><span class="gps-line"><span class="gps-at copyable mono" data-copy="${escapeHtml(at)}" title="Click to copy">${escapeHtml(at)}</span><span class="gps-sig">${escapeHtml(sig)}</span></span></li>`;
+  };
+  const shown = ordered.slice(0, GPS_FIXES_SHOWN).map(row).join("");
+  const more = ordered.length > GPS_FIXES_SHOWN ? `<li class="gps-more hint">…and ${(ordered.length - GPS_FIXES_SHOWN).toLocaleString()} more</li>` : "";
+  const label = `${ordered.length.toLocaleString()} GPS ${ordered.length === 1 ? "fix" : "fixes"} with times`;
+  return `<details class="gps-fixes"><summary>${escapeHtml(label)}</summary><ol class="gps-list">${shown}${more}</ol></details>`;
+}
+
 function roleColorVar(role) {
   return { ap: "--node-ap", gateway: "--node-gateway", server: "--node-server", wireless: "--node-wireless", vlan: "--node-vlan", subnet: "--node-subnet" }[role] || "--node-host";
 }
@@ -3126,11 +3145,11 @@ function devicePanel(raw) {
     }
     ${
       n.track?.length || n.extra?.est_location
-        ? `<div class="insp-section"><h3>Location</h3><dl class="facts">
+        ? `<div class="insp-section" id="insp-location"><h3>Location</h3><dl class="facts">
         ${factRow("Sightings", n.track?.length ? [`${n.track.length} GPS ${n.track.length === 1 ? "fix" : "fixes"}`] : null)}
         ${n.extra?.est_location ? factRow("Estimated", [`${n.extra.est_location.lat}, ${n.extra.est_location.lon}`], { mono: true }) : ""}
         ${n.extra?.est_location ? factRow("From", [`${n.extra.est_location.n} readings · spread ±${formatMetres(n.extra.est_location.radius_m)}`]) : ""}
-      </dl>${n.extra?.est_location ? '<p class="hint">A signal-weighted estimate of where the transmitter is — most reliable when it was heard from several different spots.</p>' : ""}</div>`
+      </dl>${n.extra?.est_location ? '<p class="hint">A signal-weighted estimate of where the transmitter is — most reliable when it was heard from several different spots.</p>' : ""}${gpsFixesHtml(n.track)}</div>`
         : ""
     }
     ${n.services?.length || ports.length ? `<div class="insp-section"><h3>Services</h3>${chips([...new Set([...ports, ...(n.services || []).filter((s) => !ports.some((p) => p.startsWith(s)))])])}</div>` : ""}

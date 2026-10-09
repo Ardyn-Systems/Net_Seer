@@ -455,6 +455,16 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("geo-map", selectors=["#geo-view"], pad=0)
         page.evaluate("() => closeGeoMap()")
 
+        # Geo map, device details: the Location section with every GPS fix listed out.
+        page.evaluate(
+            "() => { const n = state.graph.nodes.find(d => (d.track || []).length > 3); selectNodes([n.id]); }"
+        )
+        page.wait_for_selector("#insp-location .gps-fixes")
+        page.evaluate("() => { const d = document.querySelector('.gps-fixes'); d.open = true; el('insp-location').scrollIntoView({ block: 'start' }); }")
+        page.wait_for_timeout(300)
+        shots.save("device-gps-fixes", selectors=["#insp-location"], pad=12)
+        shots.reset()
+
         browser.close()
         return shots.taken
 
