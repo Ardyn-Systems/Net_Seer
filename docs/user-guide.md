@@ -30,8 +30,8 @@ To follow along without installing anything, open **[netseer.onrender.com](https
 
 ![The NetSeer window with six numbered areas: map title, sidebar, search, map, details panel, and zoom controls](images/screen-tour.png)
 
-1. **Map title.** The map you're looking at. Click it to rename the map. **Open survey**, **Export**, the theme picker, and the **Settings** cog sit to its right.
-2. **Sidebar.** Three tabs: **Maps** (every map you have open), **Surveys** (your captures, and any demos you've opened), and **Layers** (what the map shows).
+1. **Map title.** The map you're looking at. Click it to rename the map. **Open survey**, **Export**, **Layers**, the theme picker, and the **Settings** cog sit to its right.
+2. **Sidebar.** Your **Maps** — a drop box for captures at the top, then every map you have open. **Layers** (what the map shows) opens from the toolbar button over the map.
 3. **Find a device.** Search by name, IP, MAC, SSID, or notes.
 4. **The map.** Devices, the subnets they belong to, and the links between them. A toolbar appears at the bottom when you select something.
 5. **Details.** Everything NetSeer found about the selected device or link.
@@ -43,11 +43,11 @@ NetSeer starts empty. Click **Open survey**, or drag capture files anywhere onto
 
 ![A fresh start: the welcome card with Open survey and Try a demo](images/welcome.png)
 
-**Try a demo** (or **Settings** → **Help**) lists sample captures to explore without any of your own. **Open** loads one as a survey and a map; it's marked **Opened** after that. **Compare the branch office samples** opens a pair surveyed a week apart and sets up [Compare surveys](#compare-surveys-for-changes) with them.
+**Try a demo** (or **Settings** → **Help**) lists sample captures to explore without any of your own. **Open** loads one as a map; it's marked **Opened** after that. **Compare the branch office samples** opens a pair surveyed a week apart and sets up [Compare surveys](#compare-surveys-for-changes) with them.
 
 ![Settings, Help: the tour, shortcuts, and the sample captures with Open](images/settings-demo.png)
 
-![Surveys tab with a drop zone and two opened captures](images/surveys-tab.png)
+![The sidebar: a drop box for captures at the top, then the Maps list, with a map's menu open](images/maps-tab.png)
 
 | Source | Files |
 | --- | --- |
@@ -63,23 +63,14 @@ A Kismet `.kismet` log needs no converting: NetSeer reads its packets and Kismet
 
 Installed copies open captures of any size, including long wardrives. A big file shows a progress bar with how much has been read and how many packets and devices so far. **Stop and show map** draws what's been read so far; **Cancel** discards it. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB and says so when a file is bigger; install NetSeer for those. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
 
-The **Surveys** tab lists your captures, and any demo samples you've opened. Click one to open it. Right-click a survey (or use its **⋯** button) for more:
-
-![Right-click menu on a survey: Open, Merge into, Compare with a baseline, Remove from list, and Delete survey and its map](images/survey-menu.png)
-
-- **Merge into…** copies the survey's devices into a map you pick.
-- **Compare with a baseline…** opens **Compare surveys** with this survey ready to check against an earlier one. See [Compare surveys for changes](#compare-surveys-for-changes).
-- **Remove from list** hides the survey and keeps its map under **Maps**. Click **Bring back** in the message to restore it.
-- **Delete survey and its map…** removes both after asking. **Undo** brings the map back; **Bring back** in the message restores the survey to the list.
-
-Drag surveys up or down to put them in the order you like. A demo sample you remove from the list comes back when you open it again from **Settings** → **Help**.
+Each capture you open becomes a **map** in the sidebar, keeping the capture's name until you rename it. From there, right-click a map (or use its **⋯** button) to **Rename**, **Merge into…** another map, **Compare with a baseline…**, or **Delete** it — see [Organize your maps](#organize-your-maps). A demo sample you delete comes back when you open it again from **Settings** → **Help**.
 
 ## Read the map
 
 ![The campus sample: a box for each Wi-Fi network with its access points and clients, the wired devices in Not on Wi-Fi, and the subnets and VLANs at the bottom](images/overview.png)
 
 - **Boxes are Wi-Fi networks.** Each network name (SSID) gets a box with its access points and their clients, titled with how many of each. Wired devices share a **Not on Wi-Fi** box, and subnets and VLANs come last. To see subnets as boxes instead, pick **By subnet** in **Layers** → **Arrange devices**.
-- **Shapes and colours show the device type.** Access points are hexagons; routers and gateways have cut corners; servers, hosts, and wireless clients are rounded boxes in their own colours. VLANs are tag shapes. The legend is at the bottom of the **Layers** tab.
+- **Shapes and colours show the device type.** Access points are hexagons; routers and gateways have cut corners; servers, hosts, and wireless clients are rounded boxes in their own colours. VLANs are tag shapes. The legend is at the bottom of the **Layers** panel.
 - **Lines are links.** Solid lines are wired neighbours, dashed lines are IP traffic, arrows run from a client to the service it used, and dotted pink lines with diamonds are bridges. Labels such as `http tcp/80` name the service.
 - **Access points sit with their clients**, so you can see who is on which Wi-Fi network. Each access point shows its **SSID** (network name) under its name, such as `HQ-Secure`, or `HQ-Secure +2` when it broadcasts several. **Hidden SSID** means the survey shows the network hides its name. A caption you type replaces it, and you can turn SSIDs off in **Settings**.
 - **Click a device** to select it: it gets a bright outline and glow, and its links are drawn on top. To fade everything that isn't connected to the device under the pointer, turn on **Fade unrelated devices on hover** in **Settings** (it's off by default).
@@ -183,17 +174,17 @@ To copy instead, choose **Copy**, open the other map, and **Paste** (the button 
 
 **An access point brings its network.** Copying, cutting, or moving an access point also takes its associated wireless clients and any access points bridged to it. A wireless client on its own moves alone.
 
-**Undo** (the left arrow at the top of the map, the **Undo** button in the message, or Ctrl+Z) reverses the last 30 changes. Each drag counts as one change, so Undo puts what you dragged back where it was. **Redo** (the right arrow, **Redo** in the message, or Ctrl+Y or Ctrl+Shift+Z) puts them back. Undo and Redo only change maps: devices, links, names, notes, and positions. They don't touch the clipboard, the Surveys list, the order of your maps, or settings.
+**Undo** (the left arrow at the top of the map, the **Undo** button in the message, or Ctrl+Z) reverses the last 30 changes. Each drag counts as one change, so Undo puts what you dragged back where it was. **Redo** (the right arrow, **Redo** in the message, or Ctrl+Y or Ctrl+Shift+Z) puts them back. Undo and Redo only change maps: devices, links, names, notes, and positions. They don't touch the clipboard, the order of your maps, or settings.
 
 ## Work with several maps
 
-The **Maps** tab lists every map. Click one to switch. Right-click a map, or use its **⋯** menu, to rename it, merge it into another map, compare it with a baseline, or delete it.
+The sidebar lists every map. Click one to switch. Right-click a map, or use its **⋯** menu, to rename it, merge it into another map, compare it with a baseline, show it on the geo map, or delete it.
 
-![Maps tab with the campus survey's menu open: Rename, Merge into, Compare with a baseline, and Delete map](images/maps-tab.png)
+![The sidebar with a map's menu open: Rename, Merge into, Compare with a baseline, and Delete map](images/maps-tab.png)
 
 - **New blank map** starts an empty map to paste devices into, for example to draw just one site or one problem.
 - **Merge into…** copies all of this map's devices into another map. The original map stays as it is.
-- **Drag to organize.** Drag a map up or down the list to reorder it. Drop it **onto** another map to merge it into that map, with Undo. To merge a survey, drag it from **Surveys**, hold it over the **Maps** tab until the tab opens, then drop it on a map. Esc cancels a drag.
+- **Drag to organize.** Drag a map up or down the list to reorder it. Drop it **onto** another map to merge it into that map, with Undo. Esc cancels a drag.
 - **Resize the sidebar** by dragging its right edge, so long names fit. Double-click the edge to reset it. NetSeer remembers the width.
 - **Unwanted** is a holding area for devices you set aside. Its **Save to files and empty** option writes them to JSON files (one per original capture) and clears it. Drop one of those files back onto NetSeer to reload it.
 
@@ -201,14 +192,14 @@ The **Maps** tab lists every map. Click one to switch. Right-click a map, or use
 
 ## Compare surveys for changes
 
-Survey a site once as a **baseline**, survey it again later, and NetSeer shows what changed. Click **Compare surveys…** in the **Maps** tab (or **Compare with a baseline…** on a map or survey, or **Compare…** on the timeline).
+Survey a site once as a **baseline**, survey it again later, and NetSeer shows what changed. Click **Compare surveys…** in the sidebar (or **Compare with a baseline…** on a map, or **Compare…** on the timeline).
 
 ![Compare surveys: a baseline and a survey to compare with, each with its own activity chart and From and To sliders for its time window](images/compare-dialog.png)
 
 1. **Baseline:** pick the earlier survey or map. Surveys you haven't opened yet are listed too.
 2. **Compare with:** pick the later survey. **Add another survey** compares more than one against the same baseline; each gets its own map.
 3. **Time windows:** each capture has its own, with a small chart of its activity. Drag its **From** and **To** to compare only part of it: a baseline from the morning against a survey from the afternoon, or the first hour of one walk against the last hour of another. Two windows of the same capture work too. **Whole capture** resets one.
-4. Click **Compare**. A new **Comparison** map opens, and **Layers** shows what changed.
+4. Click **Compare**. A new **Comparison** map opens, and the **Layers** panel opens to show what changed.
 
 ![A comparison map: a client that left its Wi-Fi network shaded red, a new client shaded green, a laptop that moved networks and a possible rogue access point shaded blue, and the unchanged devices faded](images/compare-map.png)
 
@@ -255,9 +246,9 @@ Everything you add is saved with the map, included in backups, and can be undone
 
 ## Show and hide layers
 
-The **Layers** tab controls what's drawn, and how devices are arranged.
+The **Layers** button in the toolbar opens a panel that controls what's drawn, and how devices are arranged. Click it again, press Esc, or click the map to close it.
 
-![Layers tab: the Arrange devices list, link layer checkboxes, and the device legend](images/layers-tab.png)
+![The Layers panel: the Arrange devices list, link layer checkboxes, and the device legend](images/layers-tab.png)
 
 - **Arrange devices** picks the layout:
   - **By network name** (the default) makes a box per Wi-Fi network (SSID) with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once. Wired devices share a **Not on Wi-Fi** box.

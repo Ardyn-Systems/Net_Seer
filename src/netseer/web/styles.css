@@ -509,34 +509,12 @@ kbd {
 body.resizing { cursor: col-resize; user-select: none; }
 body.resizing iframe, body.resizing #map { pointer-events: none; }
 .sidebar, .inspector { background: var(--panel); overflow: auto; min-height: 0; }
-.sidebar { border-right: 1px solid var(--line); padding: 0 0.75rem 1rem; overflow-x: hidden; }
+.sidebar { border-right: 1px solid var(--line); padding: 0.85rem 0.75rem 1rem; overflow-x: hidden; }
+.sidebar .drop { margin-bottom: 0.7rem; }
 .inspector { border-left: 1px solid var(--line); }
 
 /* ---------- Sidebar ---------- */
 
-.tabs {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  display: flex;
-  gap: 0.25rem;
-  margin: 0 -0.75rem 0.75rem;
-  padding: 0.6rem 0.75rem 0;
-  border-bottom: 1px solid var(--line);
-  background: var(--panel);
-}
-.tab {
-  flex: 1;
-  padding: 0.45rem 0 0.55rem;
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: none;
-  color: var(--muted);
-  font-weight: 600;
-  cursor: pointer;
-}
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--text); border-bottom-color: var(--accent); }
 /* minmax(0, 1fr): long names shrink with an ellipsis instead of widening the sidebar. */
 .list { list-style: none; margin: 0 0 0.6rem; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; }
 .list-row {
@@ -649,6 +627,29 @@ input[role="switch"]:checked { background: var(--accent); }
 input[role="switch"]:checked::after { transform: translateX(14px); background: var(--on-accent); }
 .legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
 .legend li { display: flex; align-items: center; gap: 0.6rem; color: var(--muted); }
+
+/* Layers panel: the arrangement, link filters, and device key, opened from the toolbar over the map. */
+#btn-layers.active { background: var(--accent-soft); color: var(--text); }
+.layers-panel {
+  position: fixed;
+  top: 52px;
+  right: 12px;
+  z-index: 50;
+  width: 300px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 68px);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+.layers-panel-head { display: flex; align-items: center; justify-content: space-between; padding: 0.5rem 0.4rem 0.5rem 0.85rem; border-bottom: 1px solid var(--line); }
+.layers-panel-title { display: inline-flex; align-items: center; gap: 0.4rem; margin: 0; font-size: 14px; }
+.layers-panel-title .icon { width: 16px; height: 16px; }
+.layers-panel-body { padding: 0.5rem 0.85rem 0.85rem; overflow: auto; }
+.layers-panel-body .section-title:first-child { margin-top: 0.3rem; }
 .swatch {
   width: 22px;
   height: 14px;
@@ -1009,7 +1010,7 @@ details.all-fields[open] summary .icon { transform: rotate(180deg); }
     transition: transform 0.18s ease;
   }
   .sidebar.open { transform: none; }
-  .brand-text, .map-title-kind, #btn-open span, #btn-export span { display: none; }
+  .brand-text, .map-title-kind, #btn-open span, #btn-export span, #btn-layers span { display: none; }
   .topbar { gap: 0.5rem; }
   .status { display: none; }
   .search kbd { display: none; }
@@ -1308,7 +1309,6 @@ body.list-dragging, body.list-dragging * { cursor: grabbing !important; user-sel
 .list-row.drop-before::before { top: -2px; }
 .list-row.drop-after::after { bottom: -2px; }
 .list-row.drop-into { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
-.tab.drop-hover { color: var(--text); background: var(--accent-soft); border-radius: 8px 8px 0 0; }
 .drag-ghost {
   position: fixed;
   top: 0;

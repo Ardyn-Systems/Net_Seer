@@ -21,7 +21,7 @@ It uses [Render](https://render.com)'s free plan, set up by [`render.yaml`](../r
 - Captures people open are sent to the server, parsed in memory to draw the map, and not kept.
 - Maps, names, and notes stay in each visitor's own browser (IndexedDB). Visitors never see each other's maps. See [How much you can store](../README.md#how-much-you-can-store) for the limits.
 - Nobody can write files to the server. **Save to files and empty** (for Unwanted) downloads the JSON files to the visitor's computer instead.
-- The app shows a short notice about this in the **Surveys** tab and on the welcome screen.
+- The app shows a short notice about this by the drop box in the sidebar and on the welcome screen.
 
 Packet captures can contain sensitive information. Use a public copy for samples and demos. For real captures from your own network, run NetSeer on your own computer instead.
 
