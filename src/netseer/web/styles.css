@@ -432,6 +432,8 @@ kbd {
 .geo-heading { display: inline-flex; align-items: center; gap: 0.4rem; }
 .geo-heading .icon { width: 18px; height: 18px; }
 .geo-toggle { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 13px; color: var(--muted); cursor: pointer; }
+.geo-base { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 13px; color: var(--muted); }
+.geo-select { font: inherit; font-size: 13px; color: var(--text); background: var(--raised); border: 1px solid var(--line); border-radius: 6px; padding: 0.2rem 0.4rem; max-width: 16ch; }
 .geo-count { white-space: nowrap; }
 .geo-map { flex: 1; min-height: 0; background: var(--canvas); }
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }

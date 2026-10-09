@@ -703,7 +703,12 @@
         <div class="geo-tools">
           <label class="geo-toggle"><input id="geo-estimates" type="checkbox" checked /> Estimated locations</label>
           <label class="geo-toggle"><input id="geo-path" type="checkbox" checked /> Operator path</label>
-          <label class="geo-toggle" title="Loads map tiles from OpenStreetMap — this goes online."><input id="geo-street" type="checkbox" checked /> Street map</label>
+          <label class="geo-base" title="The map background"><span>Basemap</span>
+            <select id="geo-basemap" class="geo-select" aria-label="Map background"></select>
+          </label>
+          <button id="geo-pack-add" class="btn small ghost" type="button" title="Load an offline .mbtiles map pack">Load pack…</button>
+          <button id="geo-pack-remove" class="btn small ghost hidden" type="button" title="Remove the selected offline map pack">Remove pack</button>
+          <input id="geo-pack-file" type="file" accept=".mbtiles,application/octet-stream" hidden />
           <button id="geo-close" class="icon-btn" type="button" aria-label="Close map"><svg class="icon"><use href="#i-x" /></svg></button>
         </div>
       </div>

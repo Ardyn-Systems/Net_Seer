@@ -902,3 +902,94 @@ def test_page_and_files_are_never_reused_unchecked():
     etag = client.get("/static/app.js").headers["etag"]
     assert client.get("/static/app.js", headers={"If-None-Match": etag}).status_code == 304
     assert "cache-control" not in client.get("/api/samples").headers
+
+
+# A 1x1 transparent PNG, used as a map tile in the offline-pack tests.
+_PNG_1X1 = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15"
+    b"\xc4\x89\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?\x03\x00\x08\xfc\x02\xfe\xa7\x9a\xa0\xa0\x00\x00\x00"
+    b"\x00IEND\xaeB`\x82"
+)
+
+
+def _make_mbtiles(path, *, fmt="png", tile=_PNG_1X1, with_tile=True):
+    import sqlite3
+
+    conn = sqlite3.connect(path)
+    conn.execute("CREATE TABLE metadata (name text, value text)")
+    conn.execute("CREATE TABLE tiles (zoom_level integer, tile_column integer, tile_row integer, tile_data blob)")
+    meta = {"name": "Test pack", "format": fmt, "bounds": "-122.5,37.7,-122.3,37.8", "center": "-122.4,37.75,12", "minzoom": "0", "maxzoom": "0"}
+    conn.executemany("INSERT INTO metadata VALUES (?, ?)", list(meta.items()))
+    if with_tile:
+        conn.execute("INSERT INTO tiles VALUES (0, 0, 0, ?)", (tile,))
+    conn.commit()
+    conn.close()
+
+
+def test_offline_map_packs_add_serve_list_and_remove(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import netseer.tiles as tilesmod
+    from netseer.web import app
+
+    monkeypatch.setattr(tilesmod, "data_dir", lambda: tmp_path)
+    tilesmod._conns.clear()
+    client = TestClient(app)
+
+    src = tmp_path / "citypack.mbtiles"
+    _make_mbtiles(src)
+
+    res = client.post("/api/mappacks?name=citypack.mbtiles", content=src.read_bytes())
+    assert res.status_code == 200, res.text
+    pack = res.json()
+    assert pack["id"] == "citypack"
+    assert pack["format"] == "png"
+    assert pack["bounds"] == [-122.5, 37.7, -122.3, 37.8]
+    assert pack["minzoom"] == 0 and pack["maxzoom"] == 0
+
+    listing = client.get("/api/mappacks").json()
+    assert listing["can_add"] is True
+    assert any(p["id"] == "citypack" for p in listing["packs"])
+
+    # XYZ 0/0/0 maps to TMS row 0, which is the tile we stored.
+    tile = client.get("/api/mappacks/citypack/0/0/0")
+    assert tile.status_code == 200
+    assert tile.headers["content-type"] == "image/png"
+    assert tile.content == _PNG_1X1
+    assert "max-age" in tile.headers.get("cache-control", "")
+
+    # A tile the pack doesn't have is a quiet 204, not a 404.
+    assert client.get("/api/mappacks/citypack/5/1/1").status_code == 204
+
+    assert client.delete("/api/mappacks/citypack").status_code == 204
+    assert client.get("/api/mappacks/citypack/0/0/0").status_code == 204
+    assert not any(p["id"] == "citypack" for p in client.get("/api/mappacks").json()["packs"])
+
+
+def test_offline_map_packs_reject_bad_input(monkeypatch, tmp_path):
+    from fastapi.testclient import TestClient
+
+    import netseer.tiles as tilesmod
+    import netseer.web as webmod
+    from netseer.web import app
+
+    monkeypatch.setattr(tilesmod, "data_dir", lambda: tmp_path)
+    tilesmod._conns.clear()
+    client = TestClient(app)
+
+    # Not a .mbtiles name.
+    assert client.post("/api/mappacks?name=notes.txt", content=b"hello").status_code == 400
+    # A .mbtiles name but not an MBTiles file.
+    assert client.post("/api/mappacks?name=junk.mbtiles", content=b"not a database").status_code == 400
+    # A vector pack is rejected with a helpful message.
+    vec = tmp_path / "vector.mbtiles"
+    _make_mbtiles(vec, fmt="pbf")
+    res = client.post("/api/mappacks?name=vector.mbtiles", content=vec.read_bytes())
+    assert res.status_code == 400 and "raster" in res.json()["detail"].lower()
+
+    # The hosted copy doesn't accept packs (it never writes to the server's disk).
+    good = tmp_path / "ok.mbtiles"
+    _make_mbtiles(good)
+    monkeypatch.setenv("NETSEER_HOSTED", "1")
+    assert client.post("/api/mappacks?name=ok.mbtiles", content=good.read_bytes()).status_code == 403
+    assert client.get("/api/mappacks").json()["can_add"] is False

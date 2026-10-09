@@ -430,13 +430,25 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("settings-security", selectors=["#settings-dialog"], pad=0)
         page.evaluate("() => el('settings-dialog').close()")
 
-        # Geo map: the wardrive demo on a real-world map (offline, no street tiles).
+        # Geo map: the wardrive demo on the street basemap (the default), with the operator route,
+        # the operator's position arrow, and the estimate spread circles.
         page.evaluate("() => { const t = el('toast'); t.classList.add('hidden'); try { t.hidePopover(); } catch {} }")
         page.evaluate("() => openDemo('wardrive')")
         page.wait_for_function("() => state.graph && state.graph.nodes.some((n) => (n.track || []).length)")
         page.wait_for_timeout(300)
-        page.evaluate("() => { el('geo-path').checked = true; openGeoMap(); }")
+        page.evaluate("() => openGeoMap()")
         page.wait_for_function("() => typeof geo !== 'undefined' && geo.features && geo.features.getLayers().length > 0")
+        # Let the street tiles finish so the basemap isn't captured half-painted (needs network).
+        try:
+            page.wait_for_function(
+                "() => { const c = el('geo-map'); if (!c) return false; "
+                "const all = c.querySelectorAll('img.leaflet-tile'); "
+                "const done = c.querySelectorAll('img.leaflet-tile-loaded'); "
+                "return all.length > 0 && done.length === all.length; }",
+                timeout=20000,
+            )
+        except Exception:
+            print("  (street tiles didn't fully load — geo-map shot may be partial)")
         page.wait_for_timeout(600)
         page.evaluate("() => { if (geo.map) { geo.map.invalidateSize(); renderGeo(true); } }")
         page.wait_for_timeout(500)
