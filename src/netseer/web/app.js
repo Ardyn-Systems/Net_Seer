@@ -7650,16 +7650,19 @@ function geoOnGraphChange() {
 // How trustworthy a device's estimated location is. The margin (radius) drives the grade, but an
 // estimate from only a handful of readings is never better than "Rough" — you need to hear a device
 // from several spots to triangulate it. Returns null when there's no estimate.
+function gradeAccuracy(radius_m, n) {
+  if (!Number.isFinite(radius_m)) return null;
+  const few = (n || 0) < 3;
+  let grade = "rough";
+  if (!few && radius_m <= 25) grade = "good";
+  else if (!few && radius_m <= 75) grade = "fair";
+  const label = { good: "Good", fair: "Fair", rough: "Rough" }[grade];
+  return { grade, label, radius_m, n: n || 0, few };
+}
+
 function geoAccuracy(n) {
   const e = n.extra?.est_location;
-  if (!e || !Number.isFinite(e.radius_m)) return null;
-  const r = e.radius_m;
-  const few = (e.n || 0) < 3;
-  let grade = "rough";
-  if (!few && r <= 25) grade = "good";
-  else if (!few && r <= 75) grade = "fair";
-  const label = { good: "Good", fair: "Fair", rough: "Rough" }[grade];
-  return { grade, label, radius_m: r, n: e.n || 0, few };
+  return e ? gradeAccuracy(e.radius_m, e.n) : null;
 }
 
 function geoColor(n) {
@@ -7667,24 +7670,54 @@ function geoColor(n) {
   return c[nodeRole(n)] || c.host;
 }
 
-// Where a device was actually heard: its kept fix, else the mean of its sightings.
-function geoHeardPoint(n) {
-  if (Number.isFinite(n.gps?.lat) && Number.isFinite(n.gps?.lon)) return { lat: n.gps.lat, lon: n.gps.lon, estimated: false };
-  if (n.track?.length) {
-    const la = n.track.reduce((s, p) => s + p[0], 0) / n.track.length;
-    const lo = n.track.reduce((s, p) => s + p[1], 0) / n.track.length;
-    return { lat: la, lon: lo, estimated: false };
-  }
-  return null;
+// A device's GPS sightings up to the timeline cutoff — all of them when the timeline is at the end or
+// the map has no times. Each sighting is [lat, lon, ts, dbm].
+function geoSightings(n, cutoff) {
+  const track = (n.track || []).filter((p) => Number.isFinite(p[0]) && Number.isFinite(p[1]));
+  if (cutoff == null) return track;
+  return track.filter((p) => !Number.isFinite(p[2]) || p[2] <= cutoff);
 }
 
-// Where to draw a device. With estimates on (the default), its signal-weighted estimated location
-// when it has one; with estimates off, where it was actually heard. "Estimated locations" is what
-// moves the marker, and whether the spread ring is drawn.
-function geoPoint(n, useEstimate = true) {
-  const e = n.extra?.est_location;
-  if (useEstimate && e && Number.isFinite(e.lat) && Number.isFinite(e.lon)) return { lat: e.lat, lon: e.lon, estimated: true };
-  return geoHeardPoint(n);
+// A signal-weighted centroid of the given sightings — the browser-side twin of graph.estimate_location,
+// so scrubbing the timeline re-estimates from just the hits heard so far. Null with fewer than three
+// signal-tagged sightings (you can't triangulate from one or two spots).
+function geoEstimateAt(sightings) {
+  const pts = sightings.filter((p) => Number.isFinite(p[3]));
+  if (pts.length < 3) return null;
+  const smin = Math.min(...pts.map((p) => p[3]));
+  const w = pts.map((p) => (p[3] - smin + 1) ** 2); // louder sightings count for more
+  const wsum = w.reduce((a, b) => a + b, 0);
+  if (wsum <= 0) return null;
+  const lat = pts.reduce((s, p, i) => s + w[i] * p[0], 0) / wsum;
+  const lon = pts.reduce((s, p, i) => s + w[i] * p[1], 0) / wsum;
+  const coslat = Math.cos((lat * Math.PI) / 180);
+  const radius = Math.sqrt(
+    pts.reduce((s, p, i) => {
+      const dx = (p[1] - lon) * 111320 * coslat;
+      const dy = (p[0] - lat) * 111320;
+      return s + w[i] * (dx * dx + dy * dy);
+    }, 0) / wsum,
+  );
+  return { lat, lon, radius_m: radius, n: pts.length };
+}
+
+// Where to draw a device at the current timeline cutoff. With estimates on (the default), its
+// signal-weighted estimate from the hits heard so far — so the marker settles as the operator drives
+// past; with estimates off, the mean of those hits. Falls back to a single kept fix when the whole
+// capture is shown. Returns { lat, lon, estimated, radius_m?, n? } or null.
+function geoPointAt(n, useEstimate, cutoff) {
+  const sightings = geoSightings(n, cutoff);
+  if (useEstimate) {
+    const est = geoEstimateAt(sightings);
+    if (est) return { lat: est.lat, lon: est.lon, estimated: true, radius_m: est.radius_m, n: est.n };
+  }
+  if (sightings.length) {
+    const lat = sightings.reduce((s, p) => s + p[0], 0) / sightings.length;
+    const lon = sightings.reduce((s, p) => s + p[1], 0) / sightings.length;
+    return { lat, lon, estimated: false };
+  }
+  if (cutoff == null && Number.isFinite(n.gps?.lat) && Number.isFinite(n.gps?.lon)) return { lat: n.gps.lat, lon: n.gps.lon, estimated: false };
+  return null;
 }
 
 function geoTimeRange(devs) {
@@ -7797,13 +7830,13 @@ function renderGeo(fit = false) {
   const showEst = el("geo-estimates").checked;
   const bounds = [];
   for (const n of devs) {
-    const pt = geoPoint(n, showEst);
+    const pt = geoPointAt(n, showEst, geo.cutoff);
     if (!pt) continue;
     const color = geoColor(n);
     const focused = n.id === geo.focusId;
-    if (showEst && n.extra?.est_location) {
-      const acc = geoAccuracy(n);
-      L.circle([pt.lat, pt.lon], { radius: n.extra.est_location.radius_m || 1, color, weight: 1, opacity: 0.55, fillColor: color, fillOpacity: 0.08 })
+    if (showEst && pt.estimated) {
+      const acc = gradeAccuracy(pt.radius_m, pt.n);
+      L.circle([pt.lat, pt.lon], { radius: pt.radius_m || 1, color, weight: 1, opacity: 0.55, fillColor: color, fillOpacity: 0.08 })
         .bindTooltip(acc ? `${acc.label} accuracy · ±${formatMetres(acc.radius_m)}` : "Estimated spread")
         .addTo(geo.features);
     }
