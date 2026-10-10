@@ -740,6 +740,7 @@ def _network_state() -> dict:
         "reachable": reachable,  # whether the socket is actually open on the network yet
         "restart_needed": enabled != reachable,  # a restart rebinds the socket to match the setting
         "addresses": integration.lan_addresses(),
+        "name": integration.instance_name(),
         "usb_enabled": integration.usb_enabled(),
         "usb": usb.status(),
     }

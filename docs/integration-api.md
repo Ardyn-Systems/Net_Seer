@@ -47,7 +47,7 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | TLS | plain HTTP on loopback | self-signed TLS offered when bound to the LAN; the pairing step pins it |
 
 The companion app finds NetSeer by mDNS, by a manually entered `host:port`, or by scanning the
-pairing QR (which encodes `host:port` + a one-time code). Over a USB cable the phone uses
+pairing QR (see [Pairing QR payload](#pairing-qr-payload) below). Over a USB cable the phone uses
 `http://127.0.0.1:47331`, which NetSeer's USB link forwards to whatever port it is actually on.
 
 ## Pairing and auth
@@ -71,6 +71,30 @@ sequenceDiagram
   is cancelled and the user starts a new one.
 - The returned **device token** is long-lived, scoped to that device, and listed/revocable in
   Settings → Integrations.
+
+### Pairing QR payload
+
+When NetSeer is shared on the network, **Pair a device** also shows a QR beside the 6-digit code. It
+bundles that same code with the address(es) the phone might reach NetSeer on, so pairing is one scan
+instead of typing an address and code. The text code stays as the manual fallback. The QR encodes a
+single URI:
+
+```
+netseer://pair?v=1&code=<code>&host=<addr:port>[&host=<addr:port>...][&name=<name>]
+```
+
+| key | notes |
+| --- | --- |
+| `v` | format version, currently `1` (required; a scanner rejects unknown versions) |
+| `code` | the current pairing code — the same digits shown on screen, an opaque 6-character string (leading zeros preserved) |
+| `host` | **repeatable**. An address to reach NetSeer on, as `host:port`. A scheme is allowed (`https://host:port`); default `http`. Values are kept literal (`:` and `/` are not percent-encoded). **Ordered remote first** (Tailscale / overlay, `100.64.0.0/10`) then LAN — the scanner tries each in order, does `GET /api/v1/info`, and uses the first that answers |
+| `name` | optional display name for the "pair with …" confirmation (NetSeer sends its hostname); **percent-encoded** |
+
+The host list comes from `GET /api/v1/network` (`addresses`, remote-first; `name` is the hostname),
+plus the port the page is served on. No server API change is involved: after scanning, the app still
+calls `GET /api/v1/info` then `POST /api/v1/pair { code, device_name }`. The QR is shown only when
+**Allow devices on my network** is on (NetSeer bound to `0.0.0.0`); otherwise just the manual code
+appears, and USB pairing does not use the QR.
 - Every `/api/v1/*` call carries `Authorization: Bearer <token>`.
 - API version is negotiated with the `X-NetSeer-API: 1` request header; the server echoes the
   version it served.

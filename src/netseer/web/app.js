@@ -4990,6 +4990,52 @@ function pairAddress() {
   return location.host;
 }
 
+// Every address the phone might reach NetSeer on, as host:port — remote (Tailscale) first, LAN next
+// (the backend orders them). Empty unless NetSeer is actually shared on the network.
+function pairHosts() {
+  if (!intgNet.reachable || !Array.isArray(intgNet.addresses) || !intgNet.addresses.length) return [];
+  const port = location.port || (location.protocol === "https:" ? "443" : "80");
+  const scheme = location.protocol === "https:" ? "https://" : ""; // default http, so bare host:port
+  return intgNet.addresses.map((a) => `${scheme}${a}:${port}`);
+}
+
+// The pairing payload WaveTop scans: the same 6-digit code bundled with the reachable address(es).
+// Null when there's nothing for the phone to reach (so only the manual code shows). ':' and '/' are
+// legal in a URL query, so host values stay literal to match the agreed format; only free text
+// (the name) is percent-encoded.
+function pairPayload(code) {
+  const hosts = pairHosts();
+  if (!hosts.length) return null;
+  const parts = ["v=1", `code=${code}`];
+  for (const h of hosts) parts.push(`host=${h}`);
+  if (intgNet.name) parts.push(`name=${encodeURIComponent(intgNet.name)}`);
+  return `netseer://pair?${parts.join("&")}`;
+}
+
+// A theme-independent QR for the payload: dark modules on a white tile with a quiet zone, so it scans
+// on any theme. Self-contained (vendored qrcode-generator). Returns "" if anything goes wrong — the
+// text code is always the fallback.
+function pairQrSvg(text) {
+  try {
+    if (typeof qrcode !== "function") return "";
+    const qr = qrcode(0, "M"); // type 0 = auto-size to fit; M = ~15% error correction
+    qr.addData(text);
+    qr.make();
+    const n = qr.getModuleCount();
+    const quiet = 4; // the spec's minimum quiet zone, in modules
+    const dim = n + quiet * 2;
+    let rects = "";
+    for (let r = 0; r < n; r += 1) {
+      for (let c = 0; c < n; c += 1) {
+        if (qr.isDark(r, c)) rects += `<rect x="${c + quiet}" y="${r + quiet}" width="1" height="1"/>`;
+      }
+    }
+    return `<svg class="pair-qr-svg" viewBox="0 0 ${dim} ${dim}" width="168" height="168" role="img" aria-label="Pairing QR code" shape-rendering="crispEdges"><rect width="${dim}" height="${dim}" fill="#fff"/><g fill="#000">${rects}</g></svg>`;
+  } catch {
+    return "";
+  }
+}
+
 function renderIntegrations() {
   clearPairingCode();
   renderNetwork();
@@ -5099,12 +5145,20 @@ function showPairingCode(code, seconds) {
   const box = el("intg-code");
   box.classList.remove("hidden");
   const digits = String(code).replace(/(\d{3})(\d{3})/, "$1 $2");
+  // The QR bundles this same code with the address(es); render it once (it doesn't tick).
+  const payload = pairPayload(code);
+  const qrHtml = payload ? `<div class="pair-qr">${pairQrSvg(payload)}</div>` : "";
+  box.innerHTML = `<div class="pair-code">${escapeHtml(digits)}</div>
+    ${qrHtml}
+    <div class="hint" id="pair-hint"></div>`;
+  const hint = el("pair-hint");
   let left = seconds;
   const paint = () => {
     const mm = Math.floor(left / 60);
     const ss = String(left % 60).padStart(2, "0");
-    box.innerHTML = `<div class="pair-code">${escapeHtml(digits)}</div>
-      <div class="hint">In WaveTop, add NetSeer at <code>${escapeHtml(pairAddress())}</code> and enter this code. It expires in ${mm}:${ss}.</div>`;
+    hint.innerHTML = payload
+      ? `In WaveTop, <strong>scan this QR</strong> — or add NetSeer at <code>${escapeHtml(pairAddress())}</code> and type the code. It expires in ${mm}:${ss}.`
+      : `In WaveTop, add NetSeer at <code>${escapeHtml(pairAddress())}</code> and enter this code. It expires in ${mm}:${ss}.`;
   };
   paint();
   pairTimer = setInterval(() => {
