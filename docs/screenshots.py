@@ -369,8 +369,22 @@ def capture(url: str, channel: str | None) -> list[str]:
         page.click('.settings-nav [data-pane="data"]')
         shots.save("settings-data", selectors=["#settings-dialog"], pad=0)
         page.click('.settings-nav [data-pane="integrations"]')
-        page.click("#intg-pair")
-        page.wait_for_selector("#intg-code:not(.hidden) .pair-code")
+        page.wait_for_timeout(300)  # let the network line settle before we stand in representative data
+        # Show the pairing QR as a user with network sharing on would see it — representative addresses
+        # (a Tailscale and a LAN one) and a fixed code, so the picture is stable and leaks no real IP.
+        page.evaluate(
+            """() => {
+              intgNet = { enabled: true, reachable: true, name: 'Studio-PC',
+                          addresses: ['100.104.22.9', '192.168.1.24'],
+                          usb_enabled: true, usb: { adb_found: false, devices: [] } };
+              el('intg-lan').checked = true;
+              el('intg-address').textContent = pairAddress() + ' (on your network)';
+              el('intg-lan-info').innerHTML = 'On — companion apps can reach NetSeer at <code>' + pairAddress() + '</code>.';
+              renderUsb();
+              showPairingCode('418207', 300);
+            }"""
+        )
+        page.wait_for_selector("#intg-code:not(.hidden) .pair-qr-svg")
         page.mouse.move(5, 5)
         shots.save("settings-integrations", selectors=["#settings-dialog"], pad=0)
         page.click('.settings-nav [data-pane="updates"]')

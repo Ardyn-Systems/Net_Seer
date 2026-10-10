@@ -10,6 +10,7 @@ The capture-push and live-view endpoints live in web.py and gate on verify_token
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import json
 import os
 import secrets
@@ -18,6 +19,9 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
+
+# Carrier-grade NAT range (RFC 6598); Tailscale hands out addresses from it.
+_CGNAT = ipaddress.ip_network("100.64.0.0/10")
 
 API_VERSION = 1
 # What this build can do, advertised by GET /api/v1/info so clients can feature-detect.
@@ -97,26 +101,66 @@ def set_lan_enabled(on: bool) -> dict:
     return data
 
 
+def _probe_source_ip(dest: str) -> str | None:
+    """The source IPv4 the OS would use to reach dest — without sending anything. None on failure."""
+    try:
+        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            probe.connect((dest, 1))  # a routed-but-unanswered address; connect() just picks the route
+            return probe.getsockname()[0]
+        finally:
+            probe.close()
+    except OSError:
+        return None
+
+
+def _in_cgnat(ip: str) -> bool:
+    try:
+        return ipaddress.ip_address(ip) in _CGNAT
+    except ValueError:
+        return False
+
+
+def _usable_addr(ip: str) -> bool:
+    return bool(ip) and not ip.startswith("127.") and not ip.startswith("169.254.")  # no loopback/link-local
+
+
 def lan_addresses() -> list[str]:
-    """This machine's non-loopback IPv4 addresses, for telling a companion app where to reach NetSeer."""
-    ips: set[str] = set()
+    """This machine's addresses a companion app might reach NetSeer on — remote overlay (Tailscale)
+    first, then LAN. Loopback and link-local are excluded.
+
+    A Tailscale address (100.64.0.0/10) can be missed by the hostname lookup, so we also ask the OS
+    which source IP it would use to reach that range (Tailscale installs a route for it); the phone
+    can only reach any of these when NetSeer is shared on the network (bound to 0.0.0.0).
+    """
+    remote: list[str] = []
+    lan: set[str] = set()
+
+    def add(ip: str | None) -> None:
+        if not ip or not _usable_addr(ip):
+            return
+        if _in_cgnat(ip):
+            if ip not in remote:
+                remote.append(ip)  # remote overlays go first, so the phone tries them before LAN
+        else:
+            lan.add(ip)
+
+    add(_probe_source_ip("100.100.100.100"))  # Tailscale CGNAT range, routed via its interface
     try:
         for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET):
-            ip = info[4][0]
-            if not ip.startswith("127."):
-                ips.add(ip)
+            add(info[4][0])
     except OSError:
         pass
-    try:  # the primary outbound interface, even when the hostname doesn't resolve to it
-        probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        probe.connect(("192.0.2.1", 1))  # TEST-NET-1: routed but never answered, so nothing is sent
-        ip = probe.getsockname()[0]
-        probe.close()
-        if not ip.startswith("127."):
-            ips.add(ip)
+    add(_probe_source_ip("192.0.2.1"))  # TEST-NET-1: the default outbound interface
+    return remote + sorted(lan)
+
+
+def instance_name() -> str:
+    """A friendly name for this NetSeer, so a companion app can show which one it's pairing with."""
+    try:
+        return socket.gethostname() or "NetSeer"
     except OSError:
-        pass
-    return sorted(ips)
+        return "NetSeer"
 
 
 def _hash(token: str) -> str:

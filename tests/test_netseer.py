@@ -1133,3 +1133,45 @@ def test_offline_map_pack_save_rejects_bad_input(monkeypatch, tmp_path):
     # Hosted copy refuses to save (never writes to the server's disk).
     monkeypatch.setenv("NETSEER_HOSTED", "1")
     assert client.post("/api/mappacks/save", json={"format": "png", "tiles": [{"z": 1, "x": 0, "y": 0, "data": b64}]}).status_code == 403
+
+
+def test_lan_addresses_order_and_tailscale(monkeypatch):
+    import netseer.integration as ig
+
+    # getaddrinfo returns a LAN address and a Tailscale (CGNAT) one; a separate route probe finds
+    # another Tailscale address plus the default LAN interface. Loopback + link-local are dropped.
+    def fake_getaddrinfo(host, *a, **k):
+        fam = ig.socket.AF_INET
+        return [
+            (fam, 0, 0, "", ("192.168.1.50", 0)),
+            (fam, 0, 0, "", ("100.90.1.2", 0)),  # Tailscale (CGNAT)
+            (fam, 0, 0, "", ("127.0.0.1", 0)),  # loopback → excluded
+            (fam, 0, 0, "", ("169.254.3.4", 0)),  # link-local → excluded
+        ]
+
+    def fake_probe(dest):
+        return "100.64.5.6" if dest == "100.100.100.100" else "192.168.1.50"
+
+    monkeypatch.setattr(ig.socket, "getaddrinfo", fake_getaddrinfo)
+    monkeypatch.setattr(ig, "_probe_source_ip", fake_probe)
+
+    addrs = ig.lan_addresses()
+    # Remote (Tailscale/CGNAT) addresses come first, then LAN; no loopback/link-local; no dupes.
+    assert addrs[0] == "100.64.5.6"  # the route-probed Tailscale source leads
+    assert set(addrs[:2]) == {"100.64.5.6", "100.90.1.2"}
+    assert all(ig._in_cgnat(a) for a in addrs[:2])
+    assert addrs[2:] == ["192.168.1.50"]
+    assert "127.0.0.1" not in addrs and "169.254.3.4" not in addrs
+    assert len(addrs) == len(set(addrs))
+
+
+def test_pairing_code_is_six_digits_and_single_use():
+    import netseer.integration as ig
+
+    started = ig.start_pairing()
+    code = started["code"]
+    assert len(code) == 6 and code.isdigit()
+    assert started["expires_in"] == ig.PAIRING_TTL_SECONDS
+    # The code redeems once, then is spent.
+    assert ig.redeem_pairing(code, "WaveTop phone") is not None
+    assert ig.redeem_pairing(code, "WaveTop phone") is None
