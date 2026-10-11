@@ -741,6 +741,7 @@ def _network_state() -> dict:
         "restart_needed": enabled != reachable,  # a restart rebinds the socket to match the setting
         "addresses": integration.lan_addresses(),
         "name": integration.instance_name(),
+        "firewall": integration.firewall_state(),
         "usb_enabled": integration.usb_enabled(),
         "usb": usb.status(),
     }
@@ -760,7 +761,10 @@ def set_integration_network(request: Request, body: dict) -> dict:
     _require_integration()
     _guard_own_window(request)
     if "enabled" in body:
-        integration.set_lan_enabled(bool(body.get("enabled")))
+        enabled = bool(body.get("enabled"))
+        integration.set_lan_enabled(enabled)
+        if enabled:
+            integration.ensure_firewall_async()  # Windows: allow the sidecar through the firewall (UAC)
     if "usb_enabled" in body:
         integration.set_usb_enabled(bool(body.get("usb_enabled")))
     return _network_state()

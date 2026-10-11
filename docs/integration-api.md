@@ -41,6 +41,7 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | --- | --- | --- |
 | Port | `47331` (desktop app and `netseer`); if it's taken at launch, a random free port for that run | `--port` |
 | Bind address | `127.0.0.1` | `0.0.0.0` (LAN) when the user enables **Allow devices on my network** |
+| OS firewall | Windows blocks the inbound port even when bound to `0.0.0.0` | enabling sharing prompts (UAC) to add a program-scoped inbound rule for `netseer-server.exe` (Private+Domain); a Settings hint carries the `New-NetFirewallRule` fallback. macOS prompts on first bind; Linux: open the port in ufw/firewalld |
 | USB | NetSeer runs `adb -s <serial> reverse tcp:47331 tcp:<its port>` for every authorised phone, again after a re-plug | turn off **Connect phones over USB** |
 | Auth | required for all `/api/v1/*` | — |
 | Discovery | — | mDNS/Bonjour service `_netseer._tcp` advertising host, port, and name |
