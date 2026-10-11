@@ -51,6 +51,65 @@ def _ts(value: Any) -> float | None:
         return None
 
 
+def apply_observation(builder: GraphBuilder, message: dict) -> int:
+    """Fold one observation delta into the graph; return the number of devices applied.
+
+    Shared by the live WebSocket (LiveSession) and the batch POST /api/v1/ingest/observations, so a
+    streamed survey and a sent-over one build the identical device graph and operator route.
+    """
+    fallback_gps = _gps(message.get("position"))
+    msg_ts = _ts(message.get("ts"))
+    if fallback_gps:  # the operator's own position for this delta — one breadcrumb of their route
+        builder.observe_operator(fallback_gps.lat, fallback_gps.lon, msg_ts)
+    count = 0
+    for dev in message.get("devices") or []:
+        mac = dev.get("mac")
+        if not mac:
+            continue
+        enc = _ENCRYPTION.get(str(dev.get("security") or "").lower())
+        gps = _gps(dev.get("gps")) or fallback_gps
+        sig = _num(dev.get("signal_dbm"))
+        when = _ts(dev.get("seen_at")) or msg_ts
+        if str(dev.get("kind") or "").lower() == "ap":
+            node_id = builder.add_ap(
+                mac,
+                ssid=dev.get("ssid"),
+                channel=_int(dev.get("channel")),
+                encryption=enc,
+                signal_dbm=sig,
+                gps=gps,
+                vendor=dev.get("vendor"),
+            )
+        else:
+            node_id = builder.observe_mac(mac, wireless=True, vendor=dev.get("vendor"))
+            if node_id:
+                builder.add_role(node_id, "station")
+                builder.observe_signal(node_id, sig)
+                builder.observe_rf(node_id, ssid=dev.get("ssid"), channel=_int(dev.get("channel")), encryption=enc, gps=gps)
+        # Each GPS sighting builds the device's track, so the survey gets the operator route, signal-
+        # weighted estimated locations, and the timeline — not a single point pinned to the operator.
+        if node_id and gps is not None:
+            builder.observe_track(node_id, gps.lat, gps.lon, when, sig)
+        count += 1
+    for link in message.get("links") or []:
+        # Convention: a station associating to an access point, so from=client, to=AP.
+        frm, to = link.get("from"), link.get("to")
+        if frm and to:
+            builder.add_wireless_link(frm, to, ssid=link.get("ssid"), associated=link.get("kind") != "probe")
+    return count
+
+
+def build_graph(observations: list, source_name: str):
+    """Build a finished SurveyGraph from a list of observation deltas — the batch ingest path, giving
+    the same device graph + operator route as the live stream for a survey sent after the fact."""
+    builder = GraphBuilder()
+    builder.note_source(source_name)
+    for message in observations:
+        if isinstance(message, dict):
+            apply_observation(builder, message)
+    return builder.finalize()
+
+
 class LiveSession:
     def __init__(self, session_id: str, device_name: str) -> None:
         self.id = session_id
@@ -61,45 +120,7 @@ class LiveSession:
 
     def apply(self, message: dict) -> None:
         """Fold one observation delta into the running graph."""
-        fallback_gps = _gps(message.get("position"))
-        msg_ts = _ts(message.get("ts"))
-        if fallback_gps:  # the operator's own position for this delta — one breadcrumb of their route
-            self.builder.observe_operator(fallback_gps.lat, fallback_gps.lon, msg_ts)
-        for dev in message.get("devices") or []:
-            mac = dev.get("mac")
-            if not mac:
-                continue
-            enc = _ENCRYPTION.get(str(dev.get("security") or "").lower())
-            gps = _gps(dev.get("gps")) or fallback_gps
-            sig = _num(dev.get("signal_dbm"))
-            when = _ts(dev.get("seen_at")) or msg_ts
-            if str(dev.get("kind") or "").lower() == "ap":
-                node_id = self.builder.add_ap(
-                    mac,
-                    ssid=dev.get("ssid"),
-                    channel=_int(dev.get("channel")),
-                    encryption=enc,
-                    signal_dbm=sig,
-                    gps=gps,
-                    vendor=dev.get("vendor"),
-                )
-            else:
-                node_id = self.builder.observe_mac(mac, wireless=True, vendor=dev.get("vendor"))
-                if node_id:
-                    self.builder.add_role(node_id, "station")
-                    self.builder.observe_signal(node_id, sig)
-                    self.builder.observe_rf(node_id, ssid=dev.get("ssid"), channel=_int(dev.get("channel")), encryption=enc, gps=gps)
-            # Each GPS sighting builds the device's track, so a live survey gets the operator route,
-            # signal-weighted estimated locations, and the timeline — like an imported survey, not a
-            # single point pinned to the operator.
-            if node_id and gps is not None:
-                self.builder.observe_track(node_id, gps.lat, gps.lon, when, sig)
-            self.observations += 1
-        for link in message.get("links") or []:
-            # Convention: a station associating to an access point, so from=client, to=AP.
-            frm, to = link.get("from"), link.get("to")
-            if frm and to:
-                self.builder.add_wireless_link(frm, to, ssid=link.get("ssid"), associated=link.get("kind") != "probe")
+        self.observations += apply_observation(self.builder, message)
 
     def graph_dict(self) -> dict | None:
         """The accumulated graph as JSON, or None while nothing has been observed yet."""

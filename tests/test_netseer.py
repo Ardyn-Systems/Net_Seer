@@ -1271,3 +1271,40 @@ def test_live_session_without_fix_has_no_track():
     assert node["track"] == []
     assert node.get("gps") is None
     assert "operator_path" not in g["meta"]  # no fixes → no operator route
+
+
+def test_ingest_observations_builds_survey_with_operator_path(monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import netseer.web as web
+
+    class _Dev:
+        name = "WaveTop phone"
+
+    monkeypatch.setattr(web, "_require_device", lambda request: _Dev())  # skip pairing for this unit test
+    client = TestClient(web.app)
+
+    body = {
+        "observations": [
+            {
+                "type": "observation",
+                "ts": f"2026-10-10T18:30:0{i}Z",
+                "devices": [{"mac": "AA:BB:CC:DD:EE:FF", "kind": "ap", "ssid": "Cafe", "channel": 6, "signal_dbm": -60 - i}],
+                "position": {"lat": 37.77 + i * 0.001, "lon": -122.41 - i * 0.001},
+            }
+            for i in range(3)
+        ]
+    }
+    r = client.post("/api/v1/ingest/observations", json=body, headers={"X-NetSeer-Name": "Downtown"})
+    assert r.status_code == 200, r.text
+    data = r.json()
+    assert data["name"] == "Downtown" and data["devices"] >= 1 and data["source"] == "WaveTop phone"
+
+    # The parked job hands back the built graph, with the operator route from the deltas' positions.
+    graph = client.get(f"/api/parse/jobs/{data['job_id']}/result").json()
+    assert len(graph["meta"]["operator_path"]) == 3
+    assert graph["meta"]["operator_path"][0][:2] == [37.77, -122.41]
+
+    # Empty list → 400; observations with no devices → 422.
+    assert client.post("/api/v1/ingest/observations", json={"observations": []}).status_code == 400
+    assert client.post("/api/v1/ingest/observations", json={"observations": [{"position": {"lat": 1, "lon": 2}}]}).status_code == 422
