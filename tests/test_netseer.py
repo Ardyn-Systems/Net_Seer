@@ -1227,3 +1227,42 @@ def test_firewall_state_and_autoadd_guard(monkeypatch):
     # With a rule already present, no hint.
     monkeypatch.setattr(fw, "rule_present", lambda: True)
     assert ig.firewall_state()["hint"] is False
+
+
+def test_live_session_builds_gps_track_and_estimate():
+    from netseer.live import LiveSession
+
+    s = LiveSession("sess1", "WaveTop phone")
+    # Three deltas of one AP at nearby spots, each with signal and the operator's GPS position.
+    pts = [(37.7749, -122.4194, -70), (37.7751, -122.4196, -60), (37.7753, -122.4198, -80)]
+    for i, (lat, lon, sig) in enumerate(pts):
+        s.apply(
+            {
+                "type": "observation",
+                "ts": f"2026-10-10T18:30:0{i}Z",
+                "devices": [{"mac": "AA:BB:CC:DD:EE:FF", "kind": "ap", "ssid": "Cafe", "channel": 6, "signal_dbm": sig}],
+                "position": {"lat": lat, "lon": lon},
+            }
+        )
+    g = s.graph_dict()
+    assert g is not None
+    node = next(n for n in g["nodes"] if "aa:bb:cc:dd:ee:ff" in (n.get("macs") or []))
+    # A proper track accumulated (not a single point), each [lat, lon, ts, sig] with a parsed time.
+    assert len(node["track"]) == 3
+    assert node["track"][0][0] == 37.7749 and node["track"][0][3] == -70
+    assert node["track"][0][2] is not None
+    # Three signal-tagged points → a signal-weighted estimated location, like an imported wardrive.
+    assert node["extra"]["est_location"]["n"] == 3
+
+
+def test_live_session_without_fix_has_no_track():
+    from netseer.live import LiveSession
+
+    s = LiveSession("sess2", "WaveTop phone")
+    # A device seen several times without any GPS fix → on the map, but with no location (no track).
+    for _ in range(3):
+        s.apply({"type": "observation", "devices": [{"mac": "DE:AD:BE:EF:00:01", "kind": "ap", "ssid": "NoGPS", "channel": 6, "signal_dbm": -55}]})
+    g = s.graph_dict()
+    node = next(n for n in g["nodes"] if "de:ad:be:ef:00:01" in (n.get("macs") or []))
+    assert node["track"] == []
+    assert node.get("gps") is None

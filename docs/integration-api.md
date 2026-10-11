@@ -195,6 +195,7 @@ graph deltas to Cytoscape incrementally.
       "security": "wpa2",           // open | wep | wpa | wpa2 | wpa3 | owe
       "signal_dbm": -62,
       "vendor": "Cisco",
+      "gps": { "lat": 40.0, "lon": -105.0 },   // optional per-device fix; preferred over `position`
       "seen_at": "2026-10-07T18:29:59Z"
     }
   ],
@@ -208,6 +209,14 @@ graph deltas to Cytoscape incrementally.
 A **batch push** of a finished wardrive is the same object (or an array of them) sent to
 `/api/v1/ingest/observations` for clients that record first and upload later — the field shapes are
 identical to the live messages, so one serializer on the client serves both paths.
+
+**GPS and the geo map.** Each observation with a location builds up a device's GPS *track*, so the
+live geo map gets the operator route, signal-weighted estimated locations, and the timeline — the
+same as an imported wardrive, not a single point. Location is read from the top-level
+`position: {lat, lon}` (applies to every device in that delta) and/or a per-device `gps: {lat, lon}`
+(preferred when present); `seen_at` (per device) or the top-level `ts` timestamps each point for the
+timeline. Send `position`/`gps` only when there's a real fix — omit them otherwise (never `0,0`), and
+those devices simply won't be placed on the geo map.
 
 ### Error model
 
