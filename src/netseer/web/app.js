@@ -5061,7 +5061,26 @@ async function renderNetwork() {
   } else {
     info.textContent = "On — but NetSeer couldn't find a network address.";
   }
+  renderFirewallHint();
   renderUsb();
+}
+
+// On Windows, "Allow devices on my network" isn't enough on its own — Windows Firewall blocks the
+// inbound port until a rule allows NetSeer in. NetSeer adds that rule (with a UAC prompt) when you
+// switch sharing on; this shows progress, or a fallback hint + command when no rule is in place.
+function renderFirewallHint() {
+  const box = el("intg-firewall");
+  const fw = intgNet.firewall || {};
+  if (fw.pending) {
+    box.classList.remove("hidden");
+    box.innerHTML = "<strong>Allowing NetSeer through Windows Firewall…</strong> Approve the Windows prompt if it appears.";
+  } else if (fw.hint) {
+    box.classList.remove("hidden");
+    box.innerHTML = `<strong>Windows Firewall may be blocking NetSeer.</strong> Devices on your network can't reach it until it's allowed — switch “Allow devices on my network” off and on to be prompted, or run this in an <strong>admin</strong> PowerShell:<code class="intg-fw-cmd">${escapeHtml(fw.command || "")}</code>`;
+  } else {
+    box.classList.add("hidden");
+    box.innerHTML = "";
+  }
 }
 
 // Over USB: NetSeer runs `adb reverse` for plugged-in phones (netseer/usb.py); this shows what's linked.
@@ -5093,6 +5112,7 @@ function watchUsb(on) {
     if (!el("settings-dialog").open || el("intg-usb").closest(".settings-pane").classList.contains("hidden")) return watchUsb(false);
     try {
       intgNet = await intgApi("/network");
+      renderFirewallHint(); // catches the moment the firewall rule lands after the UAC prompt
       renderUsb();
     } catch {
       /* next tick */

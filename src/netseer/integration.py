@@ -20,6 +20,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from netseer import firewall
+
 # Carrier-grade NAT range (RFC 6598); Tailscale hands out addresses from it.
 _CGNAT = ipaddress.ip_network("100.64.0.0/10")
 
@@ -161,6 +163,45 @@ def instance_name() -> str:
         return socket.gethostname() or "NetSeer"
     except OSError:
         return "NetSeer"
+
+
+_firewall_pending = False
+
+
+def ensure_firewall_async() -> None:
+    """When the user shares NetSeer on the network, make sure Windows Firewall lets the sidecar in.
+
+    Adds a program-scoped inbound allow rule with a UAC prompt, off the request thread. A no-op unless
+    we're the packaged Windows app and no rule is present yet, so it's safe to call on every toggle-on.
+    """
+    global _firewall_pending
+    if not firewall.supported() or _firewall_pending or firewall.rule_present():
+        return
+    _firewall_pending = True
+
+    def run() -> None:
+        global _firewall_pending
+        try:
+            firewall.add_rule_elevated()
+        finally:
+            _firewall_pending = False
+
+    threading.Thread(target=run, name="netseer-firewall", daemon=True).start()
+
+
+def firewall_state() -> dict:
+    """What Settings → Integrations needs to show about the Windows Firewall rule."""
+    if not firewall.is_windows():
+        return {"supported": False, "present": True, "hint": False}
+    present = firewall.rule_present()
+    return {
+        "supported": firewall.supported(),
+        "present": present,
+        "pending": _firewall_pending,
+        # Nudge only when sharing is on but nothing is allowing NetSeer in (declined UAC, zip build, …).
+        "hint": bool(lan_enabled() and not present and not _firewall_pending),
+        "command": firewall.manual_command(),
+    }
 
 
 def _hash(token: str) -> str:

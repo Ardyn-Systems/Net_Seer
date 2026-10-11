@@ -1215,6 +1215,8 @@ input[type="radio"] { accent-color: var(--accent); width: 16px; height: 16px; }
 .intg-code { margin-top: 0.85rem; padding: 0.9rem; border: 1px solid var(--accent); border-radius: 12px; background: var(--accent-soft); }
 .intg-code .hint { margin: 0.5rem 0 0; }
 .pair-code { font: 600 2rem/1 ui-monospace, "Cascadia Mono", Consolas, monospace; letter-spacing: 0.12em; color: var(--accent); }
+.intg-firewall { margin: 0.5rem 0 0; padding: 0.6rem 0.75rem; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; background: var(--raised); font-size: 0.9rem; line-height: 1.45; }
+.intg-fw-cmd { display: block; margin-top: 0.5rem; padding: 0.5rem 0.6rem; border-radius: 6px; background: var(--base); border: 1px solid var(--line); font: 0.82rem/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace; white-space: pre-wrap; word-break: break-all; user-select: all; }
 .pair-qr { margin: 0.75rem 0 0.25rem; }
 /* Always a white tile with a dark code, whatever the theme, so phone cameras read it reliably. */
 .pair-qr-svg { display: block; width: 168px; height: 168px; padding: 8px; border-radius: 8px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25); }

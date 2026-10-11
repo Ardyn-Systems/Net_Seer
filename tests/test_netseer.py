@@ -1175,3 +1175,55 @@ def test_pairing_code_is_six_digits_and_single_use():
     # The code redeems once, then is spent.
     assert ig.redeem_pairing(code, "WaveTop phone") is not None
     assert ig.redeem_pairing(code, "WaveTop phone") is None
+
+
+def test_firewall_rule_present_parsing(monkeypatch):
+    import subprocess
+    import netseer.firewall as fw
+
+    monkeypatch.setattr(fw.sys, "platform", "win32")
+
+    class _R:
+        def __init__(self, rc, out):
+            self.returncode, self.stdout, self.stderr = rc, out, ""
+
+    # A matching rule → present.
+    monkeypatch.setattr(fw.subprocess, "run", lambda *a, **k: _R(0, "Rule Name:   NetSeer\nEnabled: Yes\n"))
+    assert fw.rule_present() is True
+    # "No rules match" (netsh returns 1) → absent.
+    monkeypatch.setattr(fw.subprocess, "run", lambda *a, **k: _R(1, "No rules match the specified criteria."))
+    assert fw.rule_present() is False
+    # netsh missing/explodes → absent, no crash.
+    def _boom(*a, **k):
+        raise OSError("netsh not found")
+
+    monkeypatch.setattr(fw.subprocess, "run", _boom)
+    assert fw.rule_present() is False
+
+
+def test_firewall_state_and_autoadd_guard(monkeypatch):
+    import netseer.firewall as fw
+    import netseer.integration as ig
+
+    calls = []
+    monkeypatch.setattr(fw, "add_rule_elevated", lambda: calls.append("add"))
+
+    # Not the packaged Windows app → never prompts, never auto-adds.
+    monkeypatch.setattr(fw, "supported", lambda: False)
+    monkeypatch.setattr(fw, "is_windows", lambda: False)
+    ig.ensure_firewall_async()
+    assert calls == []
+    assert ig.firewall_state() == {"supported": False, "present": True, "hint": False}
+
+    # Packaged Windows app, sharing ON, no rule yet → hint shows, and a toggle-on would add the rule.
+    monkeypatch.setattr(fw, "supported", lambda: True)
+    monkeypatch.setattr(fw, "is_windows", lambda: True)
+    monkeypatch.setattr(fw, "rule_present", lambda: False)
+    monkeypatch.setattr(ig, "lan_enabled", lambda: True)
+    st = ig.firewall_state()
+    assert st["supported"] is True and st["present"] is False and st["hint"] is True
+    assert "New-NetFirewallRule" in st["command"]
+
+    # With a rule already present, no hint.
+    monkeypatch.setattr(fw, "rule_present", lambda: True)
+    assert ig.firewall_state()["hint"] is False
