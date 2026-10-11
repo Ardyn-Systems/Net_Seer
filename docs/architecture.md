@@ -6,7 +6,7 @@ exporters, and the few outside services it talks to for vulnerability data and u
 
 > **Looking ahead:** two design docs cover where NetSeer is going — the
 > [integration API](integration-api.md) (companion apps like WaveTop pushing captures and live
-> wardrive views) and the [Electron migration plan](electron-migration.md) (a richer desktop shell).
+> survey views) and the [Electron migration plan](electron-migration.md) (a richer desktop shell).
 
 The same program runs three ways, and the architecture is identical in all of them; only *where*
 the back end runs changes:
@@ -63,7 +63,7 @@ Each input format has its own reader; all of them feed `graph.py`.
 | `kismetdb.py` | `.kismet` | Kismet's native SQLite log; two passes for the best device detail |
 | `kismet.py` | `.netxml`, `.csv` | Kismet's exported summaries |
 | `airodump.py` | airodump-ng `.csv` | Access points and clients from airodump sessions |
-| `wigle.py` | WigleWifi `.csv` | WiGLE wardrives: access points, plus Bluetooth/BLE and cellular towers |
+| `wigle.py` | WigleWifi `.csv` | WiGLE surveys: access points, plus Bluetooth/BLE and cellular towers |
 | `craxiom.py` | Network Survey `.csv` | Craxiom Network Survey Wi-Fi exports |
 
 Large captures use the async job endpoints (`/api/parse/jobs/*`) so the UI can show progress and

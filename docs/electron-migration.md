@@ -90,7 +90,7 @@ flowchart LR
 | Feature | Why Electron makes it easy | Ties to |
 | --- | --- | --- |
 | Frameless window + custom title bar | `titleBarStyle: 'hidden'` + `titleBarOverlay` (Win), `-webkit-app-region: drag`; native resize/snap kept | the earlier frameless discussion |
-| System tray + background run | first-class `Tray` API | live wardrive running in the background |
+| System tray + background run | first-class `Tray` API | live survey running in the background |
 | Native menus & global shortcuts | `Menu`, `globalShortcut` | power-user workflows |
 | OS notifications | `Notification` API | "WaveTop sent a capture", live alerts |
 | File associations (`.pcap`, `.kismet`) | `electron-builder` `fileAssociations` | double-click a capture → opens NetSeer |

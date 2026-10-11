@@ -770,7 +770,7 @@ def set_integration_network(request: Request, body: dict) -> dict:
     return _network_state()
 
 
-# ---------- Live wardrive sessions ----------
+# ---------- Live survey sessions ----------
 # A companion app opens a session, streams observation deltas over the WebSocket, and NetSeer
 # merges them into a graph and pushes throttled live-update events to its own open pages.
 
@@ -786,7 +786,7 @@ def _bearer_token(headers) -> str:
 
 @app.post("/api/v1/live/sessions")
 def start_live_session(request: Request) -> dict:
-    """A paired app opens a live wardrive; it then streams observations to ws_url."""
+    """A paired app opens a live survey; it then streams observations to ws_url."""
     device = _require_device(request)
     import netseer.live as live_module
 

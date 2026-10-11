@@ -57,7 +57,7 @@ SAMPLES: list[dict[str, Any]] = [
     },
     {
         "id": "wardrive",
-        "name": "Wardrive (WiGLE)",
+        "name": "Survey (WiGLE)",
         "kind": "wigle-csv",
         "summary": "A short drive past access points, Bluetooth gadgets, and a cell tower — open the geo map to see tracks and estimated locations.",
         "files": ["wardrive.wiglewifi.csv"],

@@ -30,7 +30,7 @@
   --node-gateway: #d98a6a;
   --node-ap: #e0a84a;
   --node-wireless: #e8c77f;
-  /* Bluetooth and cellular (wardrive surveys). Defined once on :root; every theme inherits these. */
+  /* Bluetooth and cellular (surveys). Defined once on :root; every theme inherits these. */
   --node-bluetooth: #5b9bd5;
   --node-cell: #b57edc;
   --node-subnet: #8a8270;

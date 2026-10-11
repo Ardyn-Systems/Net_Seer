@@ -1,4 +1,4 @@
-"""Accumulate a live wardrive into a graph as a companion app streams observations.
+"""Accumulate a live survey into a graph as a companion app streams observations.
 
 A LiveSession holds one GraphBuilder and folds each observation message (see the schema in
 docs/integration-api.md) into it with the same calls the airodump/Kismet parsers use, so the live
@@ -57,7 +57,7 @@ class LiveSession:
         self.device = device_name
         self.observations = 0
         self.builder = GraphBuilder()
-        self.builder.note_source(f"Live wardrive — {device_name}")
+        self.builder.note_source(f"Live survey — {device_name}")
 
     def apply(self, message: dict) -> None:
         """Fold one observation delta into the running graph."""
@@ -87,8 +87,8 @@ class LiveSession:
                     self.builder.add_role(node_id, "station")
                     self.builder.observe_signal(node_id, sig)
                     self.builder.observe_rf(node_id, ssid=dev.get("ssid"), channel=_int(dev.get("channel")), encryption=enc, gps=gps)
-            # Each GPS sighting builds the device's track, so a live wardrive gets the operator route,
-            # signal-weighted estimated locations, and the timeline — like an imported wardrive, not a
+            # Each GPS sighting builds the device's track, so a live survey gets the operator route,
+            # signal-weighted estimated locations, and the timeline — like an imported survey, not a
             # single point pinned to the operator.
             if node_id and gps is not None:
                 self.builder.observe_track(node_id, gps.lat, gps.lon, when, sig)

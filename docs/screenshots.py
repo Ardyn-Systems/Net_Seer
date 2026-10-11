@@ -444,7 +444,7 @@ def capture(url: str, channel: str | None) -> list[str]:
         shots.save("settings-security", selectors=["#settings-dialog"], pad=0)
         page.evaluate("() => el('settings-dialog').close()")
 
-        # Geo map: the wardrive demo on the satellite basemap, with the operator route, the
+        # Geo map: the survey demo on the satellite basemap, with the operator route, the
         # operator's position diamond, the estimate spread circles, and the Save area / basemap tools.
         page.evaluate("() => { const t = el('toast'); t.classList.add('hidden'); try { t.hidePopover(); } catch {} }")
         page.evaluate("() => openDemo('wardrive')")

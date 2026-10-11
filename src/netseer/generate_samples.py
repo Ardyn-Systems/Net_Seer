@@ -502,7 +502,7 @@ def _timed(pkts: list, offset: float = 0.0) -> list:
 
 
 def wigle_wardrive() -> str:
-    """A short WiGLE wardrive: a drive past a few access points, Bluetooth gadgets, and a cell tower.
+    """A short WiGLE survey: a drive past a few access points, Bluetooth gadgets, and a cell tower.
 
     Each transmitter is heard from several points along the route with the signal rising and falling
     by distance, so the geo map shows real tracks and a signal-weighted estimated location per device.
