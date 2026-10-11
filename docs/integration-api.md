@@ -218,6 +218,12 @@ same as an imported survey, not a single point. Location is read from the top-le
 timeline. Send `position`/`gps` only when there's a real fix — omit them otherwise (never `0,0`), and
 those devices simply won't be placed on the geo map.
 
+Each delta's top-level `position` is also kept as the **operator's own route** — a breadcrumb trail
+(`meta.operator_path`: `[[lat, lon, time], …]`) drawn independently of what devices were seen, so the
+route is continuous even across gaps. Streaming it live and sending the same observation deltas for a
+finished survey give the identical operator path; a file import has no `operator_path` and the route
+is reconstructed from device sightings instead.
+
 ### Error model
 
 All errors: HTTP status + `{ "error": { "code": "…", "message": "…" } }`. Codes include
