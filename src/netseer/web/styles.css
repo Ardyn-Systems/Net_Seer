@@ -503,6 +503,7 @@ kbd {
 .geo-zoom { display: flex; align-items: center; gap: 0.3rem; padding: 0.15rem 0.4rem; background: var(--raised); }
 .geo-zoom-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 28px; font-size: 17px; line-height: 1; color: var(--text); text-decoration: none; border-radius: 6px; }
 .geo-zoom-btn:hover { background: var(--hover); }
+.geo-zoom-fit .icon { width: 15px; height: 15px; }
 .geo-zoom-slider { width: 92px; accent-color: var(--accent); cursor: pointer; }
 .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--raised); color: var(--text); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4); }
 .leaflet-control-scale-line { background: color-mix(in srgb, var(--raised) 85%, transparent); color: var(--text); border-color: var(--line); }
