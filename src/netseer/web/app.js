@@ -7691,6 +7691,7 @@ const geo = {
   tmin: null,
   tmax: null,
   cutoff: null,
+  fittedMapId: null, // the map the geo view last recentred on, so a survey switch re-fits once
 };
 
 const geoLocated = (n) => (n.track && n.track.length) || (Number.isFinite(n.gps?.lat) && Number.isFinite(n.gps?.lon));
@@ -7712,13 +7713,34 @@ function syncViewToggle() {
   el("geoview-geo").setAttribute("aria-selected", String(onGeo));
 }
 
-// Keep the geo map in step when the active map changes: forget devices that are gone, and redraw
-// if it's open.
+// Recompute the time slider's range from the devices now on the map — so a live survey's slider keeps
+// up as new sightings arrive, and a different survey gets its own span. Preserves the slider position
+// unless resetSlider is set (a fresh open or a survey switch starts at "all").
+function geoRefreshTimeRange({ resetSlider = false } = {}) {
+  const range = geoTimeRange(geoDevices());
+  geo.tmin = range ? range[0] : null;
+  geo.tmax = range ? range[1] : null;
+  show("geo-timebar", !!range);
+  if (!range) {
+    geo.cutoff = null;
+    return;
+  }
+  if (resetSlider) el("geo-time").value = 1000;
+  updateGeoTime();
+}
+
+// Keep the geo map in step when the active map changes: forget devices that are gone, extend the time
+// range, and redraw if it's open. When the active survey *changes* (e.g. a live survey starts at a new
+// location), recentre on it; while the same survey grows in place, hold the view where it is.
 function geoOnGraphChange() {
   const ids = new Set((state.graph?.nodes || []).map((n) => n.id));
   for (const id of [...geo.added]) if (!ids.has(id)) geo.added.delete(id);
   if (geo.focusId && !ids.has(geo.focusId)) geo.focusId = null;
-  if (geo.map && !el("geo-view").classList.contains("hidden")) renderGeo(false);
+  if (!geo.map || el("geo-view").classList.contains("hidden")) return;
+  const changed = geo.fittedMapId !== state.activeMapId;
+  geoRefreshTimeRange({ resetSlider: changed });
+  renderGeo(changed); // fit (recentre) on a survey switch; grow in place otherwise
+  if (changed && geoDevices().length) geo.fittedMapId = state.activeMapId;
 }
 
 // How trustworthy a device's estimated location is. The margin (radius) drives the grade, but an
@@ -7934,17 +7956,28 @@ function renderGeo(fit = false) {
       }).addTo(geo.focusLayer);
     }
   }
-  // Operator path: every sighting across visible devices, in time order, up to the cutoff.
+  // Operator path: the operator's own GPS breadcrumbs when a companion app streamed them (the real
+  // route, even where nothing was seen), else reconstructed from device sightings for file imports.
   if (el("geo-path").checked) {
-    const pts = [];
-    for (const n of devs) for (const p of n.track || []) if (Number.isFinite(p[0]) && Number.isFinite(p[1]) && (geo.cutoff == null || !Number.isFinite(p[2]) || p[2] <= geo.cutoff)) pts.push(p);
-    pts.sort((a, b) => (a[2] || 0) - (b[2] || 0));
+    const within = (p) => Number.isFinite(p[0]) && Number.isFinite(p[1]) && (geo.cutoff == null || !Number.isFinite(p[2]) || p[2] <= geo.cutoff);
+    const opPath = state.graph?.meta?.operator_path;
+    let pts;
+    if (Array.isArray(opPath) && opPath.length) {
+      pts = opPath.filter(within).sort((a, b) => (a[2] || 0) - (b[2] || 0));
+    } else {
+      pts = [];
+      for (const n of devs) for (const p of n.track || []) if (within(p)) pts.push(p);
+      pts.sort((a, b) => (a[2] || 0) - (b[2] || 0));
+    }
+    for (const p of pts) bounds.push([p[0], p[1]]); // so a fit covers the whole route, not just devices
     if (pts.length > 1) {
       const line = pts.map((p) => [p[0], p[1]]);
       // Dark casing under a bright line so the route stands out on street tiles.
       L.polyline(line, { color: "#1b1b1b", weight: 5, opacity: 0.35 }).addTo(geo.path);
       L.polyline(line, { color: themeColors().select || "#3aa0ff", weight: 2.5, opacity: 0.95 }).addTo(geo.path);
-      // Operator position "now": the most recent sighting up to the cutoff. A diamond matching the
+    }
+    if (pts.length) {
+      // Operator position "now": the most recent breadcrumb up to the cutoff. A diamond matching the
       // legend's "Operator now" swatch.
       const last = pts[pts.length - 1];
       L.marker([last[0], last[1]], {
@@ -8031,16 +8064,7 @@ function openGeoMap(focusId = null) {
     if (geo.mode === "added") geo.added.add(focusId);
   }
   if (!geo.map) initGeoMap();
-  const range = geoTimeRange(geoDevices());
-  geo.tmin = range ? range[0] : null;
-  geo.tmax = range ? range[1] : null;
-  show("geo-timebar", !!range);
-  if (range) {
-    el("geo-time").value = 1000;
-    updateGeoTime();
-  } else {
-    geo.cutoff = null;
-  }
+  geoRefreshTimeRange({ resetSlider: true });
   geoLegend();
   syncGeoModeUi();
   // The container just became visible; let it lay out before Leaflet measures and fits, or the
@@ -8051,6 +8075,7 @@ function openGeoMap(focusId = null) {
     geo.map.invalidateSize();
     setBasemap(geo.basemap);
     renderGeo(true);
+    if (geoDevices().length) geo.fittedMapId = state.activeMapId;
   });
 }
 

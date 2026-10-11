@@ -90,6 +90,7 @@ def _link_service_label(rec: dict[str, Any], fallback: str) -> str:
 # Sightings closer together than this count as one stretch of activity.
 SEEN_GAP_SECONDS = 60.0
 TRACK_CAP = 2000  # GPS sightings kept per device before downsampling, to bound the saved map
+OPERATOR_PATH_CAP = 4000  # operator-route breadcrumbs kept before downsampling (a long drive has many)
 
 
 def merge_seen(intervals: list[list[float]], gap: float = SEEN_GAP_SECONDS) -> list[list[float]]:
@@ -240,6 +241,10 @@ class GraphBuilder:
         self.sources: list[str] = []
         self.packet_count = 0
         self.warnings: list[str] = []
+        # The operator's own GPS breadcrumbs (lat, lon, time), when a companion app streams them — the
+        # real route they travelled, independent of what devices were seen. Empty for file imports,
+        # where the route is reconstructed from device sightings instead.
+        self.operator_path: list[list[float]] = []
         # When set, link and signal updates are noted here so repeated frames can
         # replay them without decoding again (see parsers/fastwifi.py).
         self.recorder: list | None = None
@@ -250,6 +255,18 @@ class GraphBuilder:
     def note_source(self, name: str) -> None:
         if name not in self.sources:
             self.sources.append(name)
+
+    def observe_operator(self, lat: float | None, lon: float | None, t: float | None = None) -> None:
+        """One breadcrumb of the operator's own route (lat, lon, and when, if known)."""
+        if lat is None or lon is None:
+            return
+        try:
+            point = [float(lat), float(lon), None if t is None else float(t)]
+        except (TypeError, ValueError):
+            return
+        self.operator_path.append(point)
+        if len(self.operator_path) > OPERATOR_PATH_CAP * 2:  # keep a long drive bounded
+            del self.operator_path[::2]
 
     def _device(self, node_id: str) -> dict[str, Any]:
         rec = self.devices.get(node_id)
@@ -1187,5 +1204,6 @@ class GraphBuilder:
                 "node_count": len(nodes),
                 "link_count": len(links),
                 "warnings": self.warnings,
+                **({"operator_path": self.operator_path} if self.operator_path else {}),
             },
         )

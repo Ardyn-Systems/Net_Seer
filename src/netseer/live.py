@@ -63,6 +63,8 @@ class LiveSession:
         """Fold one observation delta into the running graph."""
         fallback_gps = _gps(message.get("position"))
         msg_ts = _ts(message.get("ts"))
+        if fallback_gps:  # the operator's own position for this delta — one breadcrumb of their route
+            self.builder.observe_operator(fallback_gps.lat, fallback_gps.lon, msg_ts)
         for dev in message.get("devices") or []:
             mac = dev.get("mac")
             if not mac:

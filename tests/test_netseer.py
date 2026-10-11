@@ -1253,6 +1253,10 @@ def test_live_session_builds_gps_track_and_estimate():
     assert node["track"][0][2] is not None
     # Three signal-tagged points → a signal-weighted estimated location, like an imported survey.
     assert node["extra"]["est_location"]["n"] == 3
+    # The operator's own route is recorded from each delta's position (lat, lon, time).
+    op = g["meta"]["operator_path"]
+    assert [p[:2] for p in op] == [[37.7749, -122.4194], [37.7751, -122.4196], [37.7753, -122.4198]]
+    assert all(p[2] is not None for p in op)
 
 
 def test_live_session_without_fix_has_no_track():
@@ -1266,3 +1270,4 @@ def test_live_session_without_fix_has_no_track():
     node = next(n for n in g["nodes"] if "de:ad:be:ef:00:01" in (n.get("macs") or []))
     assert node["track"] == []
     assert node.get("gps") is None
+    assert "operator_path" not in g["meta"]  # no fixes → no operator route
