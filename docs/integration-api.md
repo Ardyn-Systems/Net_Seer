@@ -3,10 +3,10 @@
 **Status:** Draft · **Audience:** NetSeer and companion-app developers · See also [architecture.md](architecture.md)
 
 NetSeer's back end becomes a small local **hub** that companion apps talk to. The first client is
-**WaveTop** (the Android wardriving app), with two near-term needs and one later one:
+**WaveTop** (the Android surveying app), with two near-term needs and one later one:
 
 1. **Push a capture** to a running NetSeer with one button — no "save to a file, then open it".
-2. **Live view** — stream observations to NetSeer as a wardrive happens and watch the map build.
+2. **Live view** — stream observations to NetSeer as a survey happens and watch the map build.
 3. **AI analysis** — ask NetSeer to help interpret a map (later).
 
 All three live in the existing Python/FastAPI back end and reuse the existing parse-and-merge
@@ -22,7 +22,7 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | Settings → Integrations UI (pairing code + device list + revoke) | **shipped** |
 | LAN binding toggle (**Allow devices on my network**) — pair/push over the network | **shipped** |
 | USB link (**Connect phones over USB**) — automatic `adb reverse` for plugged-in phones | **shipped** ([`usb.py`](../src/netseer/usb.py)) |
-| Live-view WebSocket session (stream a wardrive onto the map as it happens) | **shipped** ([`live.py`](../src/netseer/live.py)) |
+| Live-view WebSocket session (stream a survey onto the map as it happens) | **shipped** ([`live.py`](../src/netseer/live.py)) |
 | AI analysis | planned |
 | mDNS discovery (auto-find NetSeer on the network) | planned |
 
@@ -139,7 +139,7 @@ appears without the user touching NetSeer.
 
 ### 2 — Live view
 
-A **session** groups one wardrive. The client opens it, streams observation deltas over a
+A **session** groups one survey. The client opens it, streams observation deltas over a
 WebSocket, and closes it. NetSeer merges each delta into the graph and rebroadcasts to the UI.
 
 - `POST /api/v1/live/sessions` → `{ "session_id": "…", "ws_url": "/api/v1/live/sessions/{id}/stream" }`
@@ -206,13 +206,13 @@ graph deltas to Cytoscape incrementally.
 }
 ```
 
-A **batch push** of a finished wardrive is the same object (or an array of them) sent to
+A **batch push** of a finished survey is the same object (or an array of them) sent to
 `/api/v1/ingest/observations` for clients that record first and upload later — the field shapes are
 identical to the live messages, so one serializer on the client serves both paths.
 
 **GPS and the geo map.** Each observation with a location builds up a device's GPS *track*, so the
 live geo map gets the operator route, signal-weighted estimated locations, and the timeline — the
-same as an imported wardrive, not a single point. Location is read from the top-level
+same as an imported survey, not a single point. Location is read from the top-level
 `position: {lat, lon}` (applies to every device in that delta) and/or a per-device `gps: {lat, lon}`
 (preferred when present); `seen_at` (per device) or the top-level `ts` timestamps each point for the
 timeline. Send `position`/`gps` only when there's a real fix — omit them otherwise (never `0,0`), and

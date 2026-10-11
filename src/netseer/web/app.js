@@ -2,7 +2,7 @@
 "use strict";
 
 const UNWANTED_ID = "map:unwanted";
-const ZOOM_MIN = 0.02; // far enough out to fit a long wardrive
+const ZOOM_MIN = 0.02; // far enough out to fit a long survey
 const ZOOM_MAX = 4;
 const UNDO_LIMIT = 30;
 const THEME_KEY = "netseer.theme";
@@ -4932,25 +4932,25 @@ async function receivePushedCapture(msg) {
   }
 }
 
-// A companion app is streaming a wardrive live: keep a map that updates as observations arrive.
+// A companion app is streaming a survey live: keep a map that updates as observations arrive.
 const liveSeen = new Set();
 
 function applyLiveUpdate(msg) {
   if (!msg.graph) return;
   const id = `live:${msg.session_id}`;
   const mapId = `map:${id}`;
-  const name = `Live wardrive${msg.source ? ` · ${msg.source}` : ""}`;
+  const name = `Live survey${msg.source ? ` · ${msg.source}` : ""}`;
   const first = !liveSeen.has(id);
   liveSeen.add(id);
-  const item = { id, kind: "upload", name, summary: msg.source ? `Live from ${msg.source}` : "Live wardrive", graph: msg.graph };
+  const item = { id, kind: "upload", name, summary: msg.source ? `Live from ${msg.source}` : "Live survey", graph: msg.graph };
   const at = state.surveys.findIndex((s) => s.id === id);
   if (at >= 0) state.surveys.splice(at, 1, item);
   else state.surveys.unshift(item);
   unhideSurvey(id);
   upsertMap({ id: mapId, name, kind: "survey", sourceId: id, captures: [], graph: msg.graph });
   if (first) {
-    toast(`${msg.source || "A device"} started a live wardrive`, { timeout: 3500 });
-    showMap(mapId); // switch to it so the wardrive builds in front of you
+    toast(`${msg.source || "A device"} started a live survey`, { timeout: 3500 });
+    showMap(mapId); // switch to it so the survey builds in front of you
   } else if (state.activeMapId === mapId) {
     state.graph = getMap(mapId).graph;
     refreshAll({ fit: false }); // grow in place without yanking the view
@@ -4963,7 +4963,7 @@ function endLiveSession(msg) {
   const id = `live:${msg.session_id}`;
   if (!liveSeen.has(id)) return;
   liveSeen.delete(id);
-  toast(`${msg.source || "The device"} ended the wardrive`, { timeout: 3500 });
+  toast(`${msg.source || "The device"} ended the survey`, { timeout: 3500 });
 }
 
 /* ---------- Settings: Integrations (pairing + paired devices) ---------- */
@@ -6645,7 +6645,7 @@ const TOUR_STEPS = [
     title: "Welcome to NetSeer",
     text: "NetSeer turns packet captures and Wi-Fi surveys into a map of the network. This takes about a minute. Use the buttons, or the arrow keys.",
   },
-  { target: "#dropzone", title: "Open a survey", text: "Drop .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files here or anywhere on the window — or click to browse. Each capture opens as a map, and big ones (long wardrives) show their progress as they read." },
+  { target: "#dropzone", title: "Open a survey", text: "Drop .pcap, .pcapng, .cap, .kismet, .netxml, or .csv files here or anywhere on the window — or click to browse. Each capture opens as a map, and big ones (long surveys) show their progress as they read." },
   {
     target: "#sidebar",
     title: "Your maps",

@@ -1251,7 +1251,7 @@ def test_live_session_builds_gps_track_and_estimate():
     assert len(node["track"]) == 3
     assert node["track"][0][0] == 37.7749 and node["track"][0][3] == -70
     assert node["track"][0][2] is not None
-    # Three signal-tagged points → a signal-weighted estimated location, like an imported wardrive.
+    # Three signal-tagged points → a signal-weighted estimated location, like an imported survey.
     assert node["extra"]["est_location"]["n"] == 3
 
 

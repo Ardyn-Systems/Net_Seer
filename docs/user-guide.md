@@ -55,13 +55,13 @@ NetSeer starts empty. Click **Open survey**, or drag capture files anywhere onto
 | tcpdump | `.pcap` |
 | Kismet | `.kismet` (its native log), `.pcap`, `.pcapng`, `.netxml`, `.csv` |
 | airodump-ng | `.csv`, `.cap` |
-| WiGLE | WigleWifi `.csv` wardrives (Wi-Fi, plus Bluetooth and cell towers) |
+| WiGLE | WigleWifi `.csv` surveys (Wi-Fi, plus Bluetooth and cell towers) |
 | Craxiom Network Survey | Wi-Fi `.csv` exports |
 | NetSeer | `Unwanted-*.json` dumps |
 
 A Kismet `.kismet` log needs no converting: NetSeer reads its packets and Kismet's device list, including SSIDs, encryption, makers, the networks clients probed for, and access points that hide their network name (shown as **Hidden SSID**).
 
-Installed copies open captures of any size, including long wardrives. A big file shows a progress bar with how much has been read and how many packets and devices so far. **Stop and show map** draws what's been read so far; **Cancel** discards it. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB and says so when a file is bigger; install NetSeer for those. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
+Installed copies open captures of any size, including long surveys. A big file shows a progress bar with how much has been read and how many packets and devices so far. **Stop and show map** draws what's been read so far; **Cancel** discards it. The [online copy](https://netseer.onrender.com) takes captures up to 20 MB and says so when a file is bigger; install NetSeer for those. If something in a capture couldn't be read, a message says so, and the count of warnings appears at the bottom-left of the map.
 
 Each capture you open becomes a **map** in the sidebar, keeping the capture's name until you rename it. From there, right-click a map (or use its **⋯** button) to **Rename**, **Merge into…** another map, **Compare with a baseline…**, or **Delete** it — see [Organize your maps](#organize-your-maps). A demo sample you delete comes back when you open it again from **Settings** → **Help**.
 
@@ -254,7 +254,7 @@ The **Layers** button in the toolbar opens a panel that controls what's drawn, a
   - **By network name** (the default) makes a box per Wi-Fi network (SSID) with its access points and their clients. Handy for picking out every "NETGEAR" or guest network at once. Wired devices share a **Not on Wi-Fi** box.
   - **By subnet** puts each device in its subnet's box, with access points beside their clients.
   - **By connection** puts devices that are linked next to each other. Each group of linked devices is its own cluster, biggest first. The busiest device (a gateway, switch, or access point) is in the middle, with what it connects to in rings around it, so lines stay short and rarely cross. Devices with no links follow in a grid, then the subnet and VLAN labels. Subnet and VLAN membership lines aren't drawn in this view; each device's details still show its subnet and VLANs.
-  - **By location (GPS)** places devices where they were heard, using the GPS in Kismet and wardrive surveys. A label shows the scale. Devices without a location are grouped in a box beside them.
+  - **By location (GPS)** places devices where they were heard, using the GPS in Kismet and surveys. A label shows the scale. Devices without a location are grouped in a box beside them.
   - **By channel** makes a box per Wi-Fi channel, labelled with its band. Clients sit in their access point's channel; wired devices come last.
   - **Top-down hierarchy** puts gateways at the top, then what connects to them, level by level, like an org chart.
   - **By signal strength** places devices on dashed rings by how strongly they were heard, strongest in the middle, with each band's range labelled at the top. Devices with no signal reading are grouped separately.
@@ -275,7 +275,7 @@ Your layer choices are remembered.
 
 ## The geo map
 
-When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** and a real-world map of where devices were seen fills the map area (the title bar and sidebar stay put); the same toggle sits in the geo map's toolbar, so **Network** switches back. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
+When a survey has GPS — Kismet logs, and WiGLE or Craxiom surveys — a **Network / Geo map** toggle appears at the top-left of the map. Switch to **Geo map** and a real-world map of where devices were seen fills the map area (the title bar and sidebar stay put); the same toggle sits in the geo map's toolbar, so **Network** switches back. You can also open it focused on one device from its **Details** (**Show on map**), by right-clicking it, or by right-clicking a survey in the **Maps** list.
 
 - The **Basemap** menu picks the map background. It starts on **Streets — online** (OpenStreetMap); you can also choose **Satellite**, **Satellite + labels**, or **Topographic** (Esri). These fetch tiles online — the options that leave your computer. Choose **No basemap** for a plain grid where nothing leaves your computer, or a loaded offline pack (below).
 - <a id="offline-maps"></a>**Offline maps.** In the field, where tiles aren't reachable, use a saved pack:
@@ -291,9 +291,9 @@ When a survey has GPS — Kismet logs, and WiGLE or Craxiom wardrives — a **Ne
 - The **Legend** button (top-left of the map) opens a key for the markers, rings, and operator path; click it again to tuck it away so it doesn't cover the map.
 - **Export** saves the current view — markers, route, legend and all — as a **PNG image** or a one-page **PDF**, for a briefing or a report. You can also tick **Geo map** when making a [PDF report](#create-a-pdf-report) to drop the map in as its own page.
 
-Try it with the **Wardrive (WiGLE)** sample in **Settings → Help**.
+Try it with the **Survey (WiGLE)** sample in **Settings → Help**.
 
-![The wardrive sample on the geo map over a satellite basemap: access points, Bluetooth, and a cell tower with their estimated-location spread rings, the operator's route, and a diamond at the operator's position, with the Basemap menu and Save area button in the toolbar](images/geo-map.png)
+![The survey sample on the geo map over a satellite basemap: access points, Bluetooth, and a cell tower with their estimated-location spread rings, the operator's route, and a diamond at the operator's position, with the Basemap menu and Save area button in the toolbar](images/geo-map.png)
 
 ## Export diagrams and files
 
@@ -370,7 +370,7 @@ The **sample captures** to try NetSeer with are under **Help** — see [Open you
 
 **Connect phones over USB** (on by default) links a phone plugged into this computer by cable, so WaveTop's **USB cable** option reaches NetSeer with nothing to type — no Wi-Fi, no IP address, no commands. It works for phones with **USB debugging** turned on that have allowed this computer, and it needs Android's adb (part of Android platform-tools, which comes with Android Studio). The pane lists the phones linked right now; unplug and plug back in and NetSeer links the phone again by itself. Pair the phone once with **Pair a device** as usual. A pairing code stops working after five wrong tries; start a new one if that happens.
 
-Once paired, an app can **push a capture** — it arrives as a new survey and opens on its own, with no file to save — or **stream a live wardrive**: as the app reports access points and clients it sees, NetSeer opens a **Live wardrive** survey and builds the map in front of you, updating as you move, and tells you when the app ends the session. When the phone has a **GPS fix**, the **geo map** fills in live too — each device's sightings build up its estimated location, the operator's route draws as you go, and the time slider replays it — the same as an imported wardrive. (No fix, e.g. indoors or with location off, means devices still appear on the network map but not the geo map.)
+Once paired, an app can **push a capture** — it arrives as a new survey and opens on its own, with no file to save — or **stream a live survey**: as the app reports access points and clients it sees, NetSeer opens a **Live survey** and builds the map in front of you, updating as you move, and tells you when the app ends the session. When the phone has a **GPS fix**, the **geo map** fills in live too — each device's sightings build up its estimated location, the operator's route draws as you go, and the time slider replays it — the same as an imported survey. (No fix, e.g. indoors or with location off, means devices still appear on the network map but not the geo map.)
 
 ![Settings, Integrations: a pairing code with a scannable QR beside it, the reachable address, and the network-sharing toggle](images/settings-integrations.png)
 
