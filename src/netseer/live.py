@@ -8,6 +8,7 @@ throttled broadcast to NetSeer's own pages.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from netseer.graph import GraphBuilder
@@ -38,6 +39,18 @@ def _gps(source: Any) -> GpsFix | None:
     return GpsFix(lat=lat, lon=lon, alt=_num(source.get("alt")))
 
 
+def _ts(value: Any) -> float | None:
+    """An observation time as epoch seconds, from an ISO-8601 string or a number. None if unparseable."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    try:
+        return datetime.fromisoformat(str(value).strip().replace("Z", "+00:00")).timestamp()
+    except (ValueError, TypeError):
+        return None
+
+
 class LiveSession:
     def __init__(self, session_id: str, device_name: str) -> None:
         self.id = session_id
@@ -49,19 +62,22 @@ class LiveSession:
     def apply(self, message: dict) -> None:
         """Fold one observation delta into the running graph."""
         fallback_gps = _gps(message.get("position"))
+        msg_ts = _ts(message.get("ts"))
         for dev in message.get("devices") or []:
             mac = dev.get("mac")
             if not mac:
                 continue
             enc = _ENCRYPTION.get(str(dev.get("security") or "").lower())
             gps = _gps(dev.get("gps")) or fallback_gps
+            sig = _num(dev.get("signal_dbm"))
+            when = _ts(dev.get("seen_at")) or msg_ts
             if str(dev.get("kind") or "").lower() == "ap":
-                self.builder.add_ap(
+                node_id = self.builder.add_ap(
                     mac,
                     ssid=dev.get("ssid"),
                     channel=_int(dev.get("channel")),
                     encryption=enc,
-                    signal_dbm=_num(dev.get("signal_dbm")),
+                    signal_dbm=sig,
                     gps=gps,
                     vendor=dev.get("vendor"),
                 )
@@ -69,8 +85,13 @@ class LiveSession:
                 node_id = self.builder.observe_mac(mac, wireless=True, vendor=dev.get("vendor"))
                 if node_id:
                     self.builder.add_role(node_id, "station")
-                    self.builder.observe_signal(node_id, _num(dev.get("signal_dbm")))
+                    self.builder.observe_signal(node_id, sig)
                     self.builder.observe_rf(node_id, ssid=dev.get("ssid"), channel=_int(dev.get("channel")), encryption=enc, gps=gps)
+            # Each GPS sighting builds the device's track, so a live wardrive gets the operator route,
+            # signal-weighted estimated locations, and the timeline — like an imported wardrive, not a
+            # single point pinned to the operator.
+            if node_id and gps is not None:
+                self.builder.observe_track(node_id, gps.lat, gps.lon, when, sig)
             self.observations += 1
         for link in message.get("links") or []:
             # Convention: a station associating to an access point, so from=client, to=AP.
