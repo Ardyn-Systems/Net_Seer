@@ -4,6 +4,11 @@ on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to build and publish a release for (e.g. v0.8.10). Leave blank to build without publishing. Temporary stopgap while the push-tag trigger is dormant after the repo transfer."
+        required: false
+        default: ""
   pull_request:
     paths: ["electron/**", "packaging/electron/**", "src/**", "pyproject.toml", ".github/workflows/electron.yml"]
 
@@ -75,7 +80,8 @@ jobs:
         shell: bash
         run: |
           v=$(node -p "require('./electron/package.json').version")
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
+          if [ -n "${{ inputs.release_tag }}" ]; then t="${{ inputs.release_tag }}"; v="${t#v}";
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Set package version
         working-directory: electron
@@ -103,9 +109,10 @@ jobs:
             electron/dist/latest-linux.yml
             electron/dist/SHA256SUMS-linux.txt
       - name: Attach to release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           files: |
             electron/dist/*.AppImage
             electron/dist/*.tar.gz
@@ -132,7 +139,8 @@ jobs:
         shell: bash
         run: |
           v=$(node -p "require('./electron/package.json').version")
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
+          if [ -n "${{ inputs.release_tag }}" ]; then t="${{ inputs.release_tag }}"; v="${t#v}";
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then v="${GITHUB_REF_NAME#v}"; fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
       - name: Set package version
         working-directory: electron
@@ -164,9 +172,10 @@ jobs:
             electron/dist/latest.yml
             electron/dist/SHA256SUMS-windows.txt
       - name: Attach to release
-        if: github.ref_type == 'tag'
+        if: github.ref_type == 'tag' || inputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
           files: |
             electron/dist/*.exe
             electron/dist/*.zip
