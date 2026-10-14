@@ -51,7 +51,7 @@ const state = {
   suppressSelect: false,
   server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "Ardyn-Systems/Net_Seer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
-  prefs: { layout: "ssid", layoutPicked: false, timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null, securityShade: false },
+  prefs: { layout: "ssid", layoutPicked: false, timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null, securityShade: false, geoFollow: false },
 };
 
 /* ---------- Small helpers ---------- */
@@ -5624,7 +5624,7 @@ function loadPrefs() {
   }
   if (typeof prefs.timeZone === "string") state.prefs.timeZone = prefs.timeZone;
   if (["auto", "12", "24"].includes(prefs.clock)) state.prefs.clock = prefs.clock;
-  for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered", "securityShade"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
+  for (const k of ["hoverFade", "apSsid", "autoUpdate", "tourOffered", "securityShade", "geoFollow"]) if (typeof prefs[k] === "boolean") state.prefs[k] = prefs[k];
   // Version 2 turned hover fading off by default; earlier copies saved it as on without asking.
   if (!(prefs.prefsVersion >= 2)) state.prefs.hoverFade = false;
   state.prefs.prefsVersion = 2;
@@ -7741,6 +7741,40 @@ function geoOnGraphChange() {
   geoRefreshTimeRange({ resetSlider: changed });
   renderGeo(changed); // fit (recentre) on a survey switch; grow in place otherwise
   if (changed && geoDevices().length) geo.fittedMapId = state.activeMapId;
+  // Follow mode: keep the operator centred as a live survey moves over distance (pan only, at the
+  // user's current zoom). Not on a survey switch — the fit above already frames it.
+  if (state.prefs.geoFollow && !changed) geoFollowOperator();
+}
+
+// Where the operator is "now": the latest breadcrumb of their route, else the most recent device
+// sighting. Null when there's no location.
+function geoOperatorNow() {
+  const opPath = state.graph?.meta?.operator_path;
+  if (Array.isArray(opPath)) {
+    for (let i = opPath.length - 1; i >= 0; i -= 1) {
+      const p = opPath[i];
+      if (Number.isFinite(p[0]) && Number.isFinite(p[1])) return [p[0], p[1]];
+    }
+  }
+  let best = null;
+  let bestT = -Infinity;
+  for (const n of geoDevices()) {
+    for (const p of n.track || []) {
+      if (Number.isFinite(p[0]) && Number.isFinite(p[1]) && (p[2] || 0) > bestT) {
+        bestT = p[2] || 0;
+        best = [p[0], p[1]];
+      }
+    }
+  }
+  return best;
+}
+
+function geoFollowOperator() {
+  if (!geo.map) return;
+  const now = geoOperatorNow();
+  // animate:false — an animated pan right after a redraw gets swallowed; the operator moves a little
+  // each update, so re-centring instantly reads as smooth following anyway.
+  if (now) geo.map.panTo(now, { animate: false });
 }
 
 // How trustworthy a device's estimated location is. The margin (radius) drives the grade, but an
@@ -7833,11 +7867,32 @@ function applyGeoZoomSpeed() {
 }
 
 // A bottom-right zoom control with a slider, so you can drag to a zoom level like the network map.
+// Fit the view to the whole surveyed area — every located device, its sightings, and the operator's
+// route — regardless of the time cutoff, so one tap frames the whole survey (or everything streamed so
+// far). Ignores the "Added only" filter on purpose: this is "show me the surveyed area".
+function fitGeoToSurvey() {
+  if (!geo.map) return;
+  const bounds = [];
+  const add = (lat, lon) => {
+    if (Number.isFinite(lat) && Number.isFinite(lon)) bounds.push([lat, lon]);
+  };
+  for (const n of geoDevices()) {
+    const pt = geoPointAt(n, el("geo-estimates").checked, null); // full extent, not the current cutoff
+    if (pt) add(pt.lat, pt.lon);
+    for (const p of n.track || []) add(p[0], p[1]);
+  }
+  const opPath = state.graph?.meta?.operator_path;
+  if (Array.isArray(opPath)) for (const p of opPath) add(p[0], p[1]);
+  if (bounds.length) geo.map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+  else toast("This survey has no GPS data to map.");
+}
+
 const GeoZoomControl = L.Control.extend({
   options: { position: "bottomright" },
   onAdd(map) {
     const div = L.DomUtil.create("div", "leaflet-bar geo-zoom");
     div.innerHTML =
+      `<a class="geo-zoom-btn geo-zoom-fit" href="#" role="button" aria-label="Fit to survey" title="Fit to the surveyed area"><svg class="icon" aria-hidden="true"><use href="#i-fit" /></svg></a>` +
       `<a class="geo-zoom-btn geo-zoom-out" href="#" role="button" aria-label="Zoom out">−</a>` +
       `<input type="range" class="geo-zoom-slider" step="0.05" aria-label="Zoom level" />` +
       `<a class="geo-zoom-btn geo-zoom-in" href="#" role="button" aria-label="Zoom in">+</a>`;
@@ -7848,6 +7903,7 @@ const GeoZoomControl = L.Control.extend({
       slider.value = map.getZoom();
     };
     L.DomEvent.on(slider, "input", () => map.setZoom(parseFloat(slider.value), { animate: false }));
+    L.DomEvent.on(div.querySelector(".geo-zoom-fit"), "click", (e) => (L.DomEvent.stop(e), fitGeoToSurvey()));
     L.DomEvent.on(div.querySelector(".geo-zoom-in"), "click", (e) => (L.DomEvent.stop(e), map.zoomIn()));
     L.DomEvent.on(div.querySelector(".geo-zoom-out"), "click", (e) => (L.DomEvent.stop(e), map.zoomOut()));
     L.DomEvent.disableClickPropagation(div);
@@ -8058,6 +8114,7 @@ function openGeoMap(focusId = null) {
     return;
   }
   el("geo-view").classList.remove("hidden");
+  el("geo-follow").checked = !!state.prefs.geoFollow;
   syncViewToggle();
   if (focusId) {
     geo.focusId = focusId;
@@ -8601,6 +8658,11 @@ function bindGeoMap() {
   );
   el("geo-path").addEventListener("change", () => renderGeo(false));
   el("geo-estimates").addEventListener("change", () => renderGeo(false));
+  el("geo-follow").addEventListener("change", (e) => {
+    state.prefs.geoFollow = e.target.checked;
+    savePrefs();
+    if (e.target.checked) geoFollowOperator(); // jump to the operator the moment it's switched on
+  });
   el("geo-time").addEventListener("input", () => {
     updateGeoTime();
     renderGeo(false);
