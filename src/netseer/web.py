@@ -877,6 +877,52 @@ async def ingest_capture(request: Request):
     return {**_job_status(job), "source": device.name}
 
 
+MAX_OBSERVATION_DELTAS = 200_000  # a very long survey; device/track caps bound memory past this
+
+
+def _register_done_graph(name: str, result: dict, size: int) -> dict:
+    """Park an already-built graph as a finished reading job, so the UI picks it up like any capture."""
+    now = time.monotonic()
+    job = {
+        "id": uuid.uuid4().hex, "name": name, "path": None, "folder": None, "bytes": size,
+        "state": "done", "started": now, "finished": now, "stop": threading.Event(),
+        "discard": False, "result": result, "progress": {},
+    }
+    with _jobs_lock:
+        PARSE_JOBS[job["id"]] = job
+    return job
+
+
+@app.post("/api/v1/ingest/observations")
+async def ingest_observations(request: Request, body: dict):
+    """A paired app sends a finished survey as observation deltas (the same shape it streams live), so
+    the operator route + estimates come through identically. Opens as a normal named survey."""
+    import netseer.live as live_module
+
+    device = _require_device(request)
+    deltas = body.get("observations")
+    if not isinstance(deltas, list) or not deltas:
+        raise HTTPException(status_code=400, detail="Send { \"observations\": [ … ] } with at least one observation.")
+    if len(deltas) > MAX_OBSERVATION_DELTAS:
+        raise HTTPException(status_code=413, detail=f"Too many observations in one push (limit {MAX_OBSERVATION_DELTAS:,}).")
+    name = (request.headers.get("x-netseer-name") or "").strip()[:80] or "Survey"
+    _forget_old_jobs()
+    graph = await run_in_threadpool(live_module.build_graph, deltas, f"{device.name} — {name}")
+    if not graph.nodes:
+        raise HTTPException(status_code=422, detail="Those observations had no devices to map.")
+    job = _register_done_graph(name, graph.to_dict(), len(deltas))
+    log.info("Observations pushed by %s: %s (%d deltas), job %s", device.name, name, len(deltas), job["id"][:6])
+    await events_hub.broadcast({
+        "type": "capture-received",
+        "job_id": job["id"],
+        "name": name,
+        "source": device.name,
+        "bytes": len(deltas),
+        "ts": time.time(),
+    })
+    return {"name": name, "job_id": job["id"], "devices": len(graph.nodes), "source": device.name}
+
+
 def _layout_hints(body: dict) -> dict:
     """On-screen positions and subnet containers from the map, so exports match what you see."""
     positions = body.get("positions")

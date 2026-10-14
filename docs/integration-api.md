@@ -18,6 +18,7 @@ pipeline ([`graph.py`](../src/netseer/graph.py)); they are independent of the wi
 | --- | --- |
 | Pairing + device tokens (`/api/v1/pair/start`, `/api/v1/pair`), discovery (`/api/v1/info`) | **shipped** ([`integration.py`](../src/netseer/integration.py)) |
 | Capture push (`POST /api/v1/ingest/capture`) | **shipped** — becomes a normal reading job |
+| Observations push (`POST /api/v1/ingest/observations`) | **shipped** — a finished survey as live-shaped deltas; builds the operator route |
 | Surfacing a pushed capture in the running UI (`WS /api/v1/events`) | **shipped** — the map opens on its own |
 | Settings → Integrations UI (pairing code + device list + revoke) | **shipped** |
 | LAN binding toggle (**Allow devices on my network**) — pair/push over the network | **shipped** |
@@ -206,9 +207,14 @@ graph deltas to Cytoscape incrementally.
 }
 ```
 
-A **batch push** of a finished survey is the same object (or an array of them) sent to
-`/api/v1/ingest/observations` for clients that record first and upload later — the field shapes are
-identical to the live messages, so one serializer on the client serves both paths.
+**Batch push of a finished survey** — `POST /api/v1/ingest/observations` with
+`{ "observations": [ <delta>, <delta>, … ] }`, where each `<delta>` is exactly the live observation
+message above. Same auth (`Authorization: Bearer <token>`); `X-NetSeer-Name` sets the survey's name.
+The deltas run through the **same builder** as the live WebSocket, in order, so a sent survey builds
+the identical device graph **and** `meta.operator_path` as streaming it would — then it opens as a
+normal named survey (not a "Live survey"). One serializer on the client serves both paths. Returns
+`{ "name", "job_id", "devices", "source" }`. (A client can feature-detect by catching a `404` here
+and falling back to a file push via `/api/v1/ingest/capture`.)
 
 **GPS and the geo map.** Each observation with a location builds up a device's GPS *track*, so the
 live geo map gets the operator route, signal-weighted estimated locations, and the timeline — the
