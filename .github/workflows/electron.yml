@@ -1,5 +1,9 @@
 name: Electron
 
+# Re-arm event triggers after the 2026-10 org transfer to Ardyn-Systems/Net_Seer
+# (push/pull_request triggers went dormant post-transfer). Touching this file on the
+# default branch re-registers the workflow's trigger wiring.
+
 on:
   push:
     tags: ["v*"]
