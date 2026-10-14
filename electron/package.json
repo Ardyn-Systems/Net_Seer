@@ -31,8 +31,8 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "ardyn-systems",
-        "repo": "NetSeer"
+        "owner": "Ardyn-Systems",
+        "repo": "Net_Seer"
       }
     ],
     "extraResources": [

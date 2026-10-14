@@ -433,9 +433,9 @@ To keep a copy, or to move your maps somewhere else, use **Settings** → **Your
 
 **A capture won't open.** Check that it's one of the [supported formats](#open-your-captures). In the online copy, it must be under 20 MB; installed copies have no limit. Files that parse but contain no devices say "No hosts, access points, or links were found".
 
-**A new version is misbehaving.** Turn off **Update NetSeer automatically** under **Settings** → **Updates** to stay put. To go back to an earlier release, download it from [GitHub Releases](https://github.com/ardyn-systems/NetSeer/releases) and install it over the current one. Back up your maps first under **Your data**.
+**A new version is misbehaving.** Turn off **Update NetSeer automatically** under **Settings** → **Updates** to stay put. To go back to an earlier release, download it from [GitHub Releases](https://github.com/Ardyn-Systems/Net_Seer/releases) and install it over the current one. Back up your maps first under **Your data**.
 
-**An update didn't finish.** Reopen NetSeer from the Start menu or app menu; it checks again on the next launch. You can always download the release from [GitHub](https://github.com/ardyn-systems/NetSeer/releases) and install it the usual way.
+**An update didn't finish.** Reopen NetSeer from the Start menu or app menu; it checks again on the next launch. You can always download the release from [GitHub](https://github.com/Ardyn-Systems/Net_Seer/releases) and install it the usual way.
 
 **Something else looks wrong.** Start the desktop app with `ELECTRON_ENABLE_LOGGING=1` to see the backend's log on the console. Run `NetSeer --smoke-test` (or `NetSeer.exe --smoke-test`) to check the installation; exit code 0 means it's working.
 

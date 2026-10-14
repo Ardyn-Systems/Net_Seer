@@ -14,7 +14,7 @@ const fs = require("node:fs");
 
 const SMOKE = process.argv.includes("--smoke-test");
 const BG = "#15140f";
-const REPO = "ardyn-systems/NetSeer";
+const REPO = "Ardyn-Systems/Net_Seer";
 const GUIDE_URL = `https://github.com/${REPO}/blob/main/docs/user-guide.md`;
 const ISSUES_URL = `https://github.com/${REPO}/issues/new`;
 

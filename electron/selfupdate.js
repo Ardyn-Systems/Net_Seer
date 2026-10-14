@@ -12,7 +12,7 @@ const crypto = require("crypto");
 const { spawn } = require("child_process");
 const { getJson, downloadToFile, downloadToBuffer } = require("./download");
 
-const REPO = "ardyn-systems/NetSeer";
+const REPO = "Ardyn-Systems/Net_Seer";
 const norm = (v) => (v || "").replace(/[^0-9.]/g, "");
 
 function platformAsset(assets) {

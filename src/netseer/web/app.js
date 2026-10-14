@@ -49,7 +49,7 @@ const state = {
   graphVersion: 0,
   propsCache: new Map(),
   suppressSelect: false,
-  server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "ardyn-systems/NetSeer", updater: false },
+  server: { hosted: false, maxUploadMb: 0, version: "", mode: "server", platform: "", package: "source", repo: "Ardyn-Systems/Net_Seer", updater: false },
   // Settings that aren't layer filters. tourOffered: the first-run "Take the tour" message was shown.
   prefs: { layout: "ssid", layoutPicked: false, timeZone: "", clock: "auto", zoomSpeed: "normal", hoverFade: false, apSsid: true, autoUpdate: false, tourOffered: false, sidebarWidth: null, securityShade: false },
 };

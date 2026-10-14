@@ -6,7 +6,7 @@ Walkthrough for cloning NetSeer from GitHub, installing it from source on Debian
 
 **Just want to try it?** Open [netseer.onrender.com](https://netseer.onrender.com) in a browser; nothing to install.
 
-**Just want the desktop app?** Download the AppImage from [Releases](https://github.com/ardyn-systems/NetSeer/releases), `chmod +x` it, and run it; see the [README](../README.md#linux-desktop-appimage). This guide is for running from source: servers, Kali, Raspberry Pi, or development.
+**Just want the desktop app?** Download the AppImage from [Releases](https://github.com/Ardyn-Systems/Net_Seer/releases), `chmod +x` it, and run it; see the [README](../README.md#linux-desktop-appimage). This guide is for running from source: servers, Kali, Raspberry Pi, or development.
 
 ## What it is
 
@@ -21,7 +21,7 @@ Here you run it from source on the machine that holds the captures (or copy capt
 
 Bundled campus samples ship in `src/netseer/data/` so you can click around without uploading anything.
 
-**Source:** [https://github.com/ardyn-systems/NetSeer](https://github.com/ardyn-systems/NetSeer) (public). Branch: `main`.
+**Source:** [https://github.com/Ardyn-Systems/Net_Seer](https://github.com/Ardyn-Systems/Net_Seer) (public). Branch: `main`.
 
 ## Requirements
 
@@ -43,7 +43,7 @@ The repo is **public**. No GitHub login, PAT, or `gh` is required to clone.
 On the Linux box that will run NetSeer:
 
 ```bash
-git clone https://github.com/ardyn-systems/NetSeer.git
+git clone https://github.com/Ardyn-Systems/Net_Seer.git
 cd NetSeer
 git checkout main
 git pull
@@ -51,7 +51,7 @@ git pull
 
 You should see `README.md`, `pyproject.toml`, `src/`, and `docs/`. Stay on **`main`**.
 
-Optional: `gh repo clone ardyn-systems/NetSeer` if you already use GitHub CLI, or `git clone git@github.com:ardyn-systems/NetSeer.git` if this machine has an SSH key on GitHub.
+Optional: `gh repo clone Ardyn-Systems/Net_Seer` if you already use GitHub CLI, or `git clone git@github.com:Ardyn-Systems/Net_Seer.git` if this machine has an SSH key on GitHub.
 
 To refresh later:
 
@@ -151,10 +151,10 @@ uv run python -m netseer.compile_oui /tmp/oui.csv /tmp/mam.csv /tmp/oui36.csv /t
 
 ## Next steps on your own Linux computer
 
-The project is public: [https://github.com/ardyn-systems/NetSeer](https://github.com/ardyn-systems/NetSeer). No PAT required.
+The project is public: [https://github.com/Ardyn-Systems/Net_Seer](https://github.com/Ardyn-Systems/Net_Seer). No PAT required.
 
 ```bash
-git clone https://github.com/ardyn-systems/NetSeer.git
+git clone https://github.com/Ardyn-Systems/Net_Seer.git
 cd NetSeer
 uv sync --group dev
 uv run netseer --host 127.0.0.1 --port 47331
@@ -222,9 +222,9 @@ rm -rf ~/.local/bin/uv ~/.local/bin/uvx ~/.local/share/uv
 | --- | --- |
 | Product | NetSeer |
 | Motto | Turn traffic into terrain. |
-| Repo | https://github.com/ardyn-systems/NetSeer (public) |
+| Repo | https://github.com/Ardyn-Systems/Net_Seer (public) |
 | Branch | `main` |
-| Clone | `git clone https://github.com/ardyn-systems/NetSeer.git` |
+| Clone | `git clone https://github.com/Ardyn-Systems/Net_Seer.git` |
 | CLI | `netseer` |
 | Python import | `netseer` |
 | Default URL | http://127.0.0.1:47331 |

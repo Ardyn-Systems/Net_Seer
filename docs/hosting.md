@@ -41,12 +41,12 @@ Packet captures can contain sensitive information. Use a public copy for samples
 
 The quickest way is the button in the [README](../README.md#try-it-online), or this link:
 
-<https://render.com/deploy?repo=https://github.com/ardyn-systems/NetSeer>
+<https://render.com/deploy?repo=https://github.com/Ardyn-Systems/Net_Seer>
 
 Or from the Render dashboard:
 
 1. Click **New** → **Blueprint**.
-2. Connect GitHub if asked, and give Render access to the **ardyn-systems/NetSeer** repository. You can grant access to just that repo.
+2. Connect GitHub if asked, and give Render access to the **Ardyn-Systems/Net_Seer** repository. You can grant access to just that repo.
 3. Pick the repo. Render reads `render.yaml` and shows one web service called **netseer** on the **Free** plan.
 4. Click **Deploy Blueprint** (or **Apply**).
 

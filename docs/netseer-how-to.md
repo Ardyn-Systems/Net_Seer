@@ -364,5 +364,5 @@ Stay on [[netseer-install-and-use]]: `git pull origin main`, `uv sync --group de
 Public clone (no PAT):
 
 ```bash
-git clone https://github.com/ardyn-systems/NetSeer.git
+git clone https://github.com/Ardyn-Systems/Net_Seer.git
 ```

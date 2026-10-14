@@ -77,7 +77,7 @@ def max_body_bytes() -> int | None:
     return None if limit is None else limit + 1024 * 1024
 
 
-REPO = "ardyn-systems/NetSeer"
+REPO = "Ardyn-Systems/Net_Seer"
 
 
 def run_mode() -> str:

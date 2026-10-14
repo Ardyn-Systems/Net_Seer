@@ -839,7 +839,7 @@ def test_health_reports_how_netseer_runs(monkeypatch, tmp_path):
         monkeypatch.delenv(name, raising=False)
     info = client.get("/api/health").json()
     assert info["mode"] == "server" and info["package"] == "source" and info["frozen"] is False
-    assert info["repo"] == "ardyn-systems/NetSeer" and info["platform"] in {"windows", "linux", "macos"}
+    assert info["repo"] == "Ardyn-Systems/Net_Seer" and info["platform"] in {"windows", "linux", "macos"}
     assert info["updater"] is False
 
     # The Electron shell sets these; the API just reports them back.

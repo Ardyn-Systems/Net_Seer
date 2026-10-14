@@ -36,7 +36,7 @@ Guides: **[User guide](docs/user-guide.md)** (a walkthrough with screenshots) ·
 | macOS | From source | A browser |
 | Anywhere, nothing to install | **[netseer.onrender.com](https://netseer.onrender.com)** | Your browser |
 
-Download the Windows and Linux builds from [Releases](https://github.com/ardyn-systems/NetSeer/releases).
+Download the Windows and Linux builds from [Releases](https://github.com/Ardyn-Systems/Net_Seer/releases).
 
 The desktop app is built on **Electron**: a frameless window with a custom title bar, a system tray, and an **automatic self-updater**. The backend is the same NetSeer that runs online and from source.
 
@@ -51,7 +51,7 @@ The desktop app is built on **Electron**: a frameless window with a custom title
 
 ### Host your own copy
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/ardyn-systems/NetSeer)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Ardyn-Systems/Net_Seer)
 
 Put your own public copy online for free on Render, the same way the one above runs. See [docs/hosting.md](docs/hosting.md) for sign-up, deployment, limits, and privacy.
 
@@ -85,11 +85,11 @@ To skip AppImages entirely, the **`.tar.gz`** has the same app with no FUSE depe
 Python 3.12 or newer. With [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv tool install git+https://github.com/ardyn-systems/NetSeer.git
+uv tool install git+https://github.com/Ardyn-Systems/Net_Seer.git
 netseer
 ```
 
-Or with pipx: `pipx install git+https://github.com/ardyn-systems/NetSeer.git`.
+Or with pipx: `pipx install git+https://github.com/Ardyn-Systems/Net_Seer.git`.
 
 Then open <http://127.0.0.1:47331>. To use NetSeer on a remote sensor from your laptop, keep it bound to localhost and tunnel over SSH:
 
@@ -222,7 +222,7 @@ Environment variables:
 ## Develop
 
 ```bash
-git clone https://github.com/ardyn-systems/NetSeer.git
+git clone https://github.com/Ardyn-Systems/Net_Seer.git
 cd NetSeer
 uv sync --group dev        # Python 3.12+
 uv run netseer             # http://127.0.0.1:47331

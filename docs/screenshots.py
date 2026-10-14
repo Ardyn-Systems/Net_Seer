@@ -46,8 +46,8 @@ _major, _minor, _patch = (int(x) for x in __version__.split(".")[:3])
 NEWER_TAG = f"v{_major}.{_minor + 1}.0"
 EXAMPLE_RELEASES = [
     {"tag_name": tag, "name": f"NetSeer {tag[1:]}", "draft": False, "prerelease": False, "published_at": date, "body": EXAMPLE_NOTES,
-     "html_url": f"https://github.com/ardyn-systems/NetSeer/releases/tag/{tag}",
-     "assets": [{"name": f"NetSeer-Setup-{tag[1:]}.exe", "browser_download_url": f"https://github.com/ardyn-systems/NetSeer/releases/download/{tag}/NetSeer-Setup-{tag[1:]}.exe", "size": size}]}
+     "html_url": f"https://github.com/Ardyn-Systems/Net_Seer/releases/tag/{tag}",
+     "assets": [{"name": f"NetSeer-Setup-{tag[1:]}.exe", "browser_download_url": f"https://github.com/Ardyn-Systems/Net_Seer/releases/download/{tag}/NetSeer-Setup-{tag[1:]}.exe", "size": size}]}
     for tag, date, size in (
         (NEWER_TAG, "2026-12-01T12:00:00Z", 27_400_000),
         (f"v{__version__}", "2026-10-05T18:00:00Z", 27_180_000),
